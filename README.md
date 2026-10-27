@@ -10,10 +10,17 @@ LavaLust backend through its built-in API endpoints.
    backend, use `http://localhost/LavaLust-COOPWISE/api`.
 3. Run `npm install`, then `npm run dev`.
 
-The current frontend supports member registration, sign-in, and loading the
-signed-in account profile. Access tokens are kept in per-tab session storage.
-Loan, savings, payment, and daily cooperative screens will need dedicated API
-endpoints and frontend pages before those workflows can be moved here.
+The frontend supports member registration and sign-in, then shows role-based
+loan and daily Paluwagan screens backed by the LavaLust API. Members can submit
+loan applications, view their loan schedules, see their cycle participation,
+and view their own payment/contribution/payout history. Staff can manage loan
+products and applications, record loan payments, create daily cycles, enroll
+members in payout order, record contributions, and confirm completed payouts.
+Access tokens are kept in per-tab session storage. The existing savings ledger
+and other legacy pages are still available in the LavaLust application; they
+have not yet been moved into this separate frontend.
+
+Run `npm run lint` and `npm run build` to validate the frontend.
 
 ## Vercel
 

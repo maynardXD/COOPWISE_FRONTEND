@@ -29,13 +29,42 @@ small { display:block; margin-top:5px; color:#a52a38; font-weight:500; }
 .submit { width:100%; margin-top:10px; }
 .message { margin:14px 0; padding:12px 14px; background:#fff2e6; border:1px solid #f4d0aa; color:#774514; border-radius:10px; font-size:14px; }
 .form-help { font-size:13px; line-height:1.5; margin-top:18px; }
-.dashboard { margin:72px auto; width:min(760px,100%); }
+.dashboard { margin:48px auto; width:min(940px,100%); }
 .profile-card { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin:26px 0; }
 .profile-card div { padding:16px; border:1px solid #e6edf4; border-radius:12px; }
 .profile-card span,.profile-card strong { display:block; }
 .profile-card span { color:var(--muted); font-size:12px; margin-bottom:6px; }
 .profile-card strong { color:#173d5c; }
 .notice { padding:15px 16px; border-radius:12px; background:#edf7fc; color:#315d77; font-size:14px; line-height:1.55; margin-bottom:18px; }
+.portal-tabs { display:flex; gap:8px; border-bottom:1px solid var(--border); margin:28px 0 24px; }
+.portal-section h2 { color:#12375a; margin:12px 0 8px; }
+.portal-section h3 { color:#214867; margin:24px 0 12px; }
+.portal-card { border:1px solid #e6edf4; border-radius:14px; padding:18px; margin:14px 0; background:#fff; }
+.portal-card summary { color:#214867; font-weight:750; cursor:pointer; }
+.portal-card form { margin-top:14px; }
+.portal-card label { margin:9px 0; }
+select { display:block; width:100%; margin-top:7px; padding:12px 13px; border:1px solid #d5e0eb; border-radius:10px; color:#192d40; background:#fff; font:inherit; font-size:15px; }
+select:focus { outline:3px solid #cceeff; border-color:#198cc2; }
+.message-error { background:#fff0f0; border-color:#efc5c5; color:#8a2727; }
+.item-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+.item-heading strong,.item-heading span { display:block; }
+.item-heading span:not(.status) { color:var(--muted); font-size:13px; margin-top:5px; }
+.status { flex-shrink:0; border-radius:100px; padding:5px 10px; color:#36566d; background:#edf2f6; font-size:12px; font-weight:750; text-transform:capitalize; }
+.status-active,.status-approved,.status-paid,.status-completed { color:#176341; background:#e4f6ed; }
+.status-pending,.status-draft,.status-ready { color:#805311; background:#fff4d8; }
+.status-rejected,.status-cancelled { color:#8a2727; background:#fff0f0; }
+.button-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.inline-form { display:flex; flex-wrap:wrap; align-items:center; gap:8px; flex:1 1 100%; }
+.inline-form input,.inline-form select { flex:1 1 150px; width:auto; margin:0; }
+.payout-callout { display:flex; flex-wrap:wrap; align-items:center; gap:12px; background:#edf7fc; border-radius:12px; padding:14px; margin:16px 0; }
+.payout-callout span { color:#315d77; }
+.member-order { color:#30485f; line-height:1.8; }
+.text-button { border:0; background:none; color:#a52a38; text-decoration:underline; cursor:pointer; margin-left:10px; }
+.table-wrap { width:100%; overflow:auto; margin:12px 0; }
+table { width:100%; border-collapse:collapse; text-align:left; font-size:14px; }
+th,td { padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap; }
+th { color:#44627e; background:#f7f9fc; }
+.sign-out { margin-top:24px; }
 footer { margin-top:auto; padding:22px 0; border-top:1px solid var(--border); color:#7a8796; text-align:center; font-size:13px; }
 @media(max-width:850px) { .auth-layout { grid-template-columns:1fr; gap:30px; padding:36px 0; } .intro h1 { max-width:650px; } }
-@media(max-width:520px) { .page-shell { width:calc(100% - 24px); } .tagline { display:none; } .card { padding:21px; } .form-grid { grid-template-columns:1fr; } .form-grid .full { grid-column:auto; } .dashboard { margin:32px auto; } }
+@media(max-width:520px) { .page-shell { width:calc(100% - 24px); } .tagline { display:none; } .card { padding:21px; } .form-grid { grid-template-columns:1fr; } .form-grid .full { grid-column:auto; } .dashboard { margin:32px auto; } .portal-tabs { overflow:auto; } .tab { white-space:nowrap; } .item-heading { flex-direction:column; } }
