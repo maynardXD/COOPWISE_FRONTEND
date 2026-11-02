@@ -519,7 +519,6 @@ function CooperativePortal({ token, user, refreshKey }) {
 
 function MembersPortal({ token }) {
   const [query, setQuery] = useState('')
-  const [searchText, setSearchText] = useState('')
   const [members, setMembers] = useState([])
   const [selectedMember, setSelectedMember] = useState(null)
   const [error, setError] = useState('')
@@ -527,20 +526,24 @@ function MembersPortal({ token }) {
 
   useEffect(() => {
     let active = true
-    apiRequest(`/members?q=${encodeURIComponent(query.trim())}`, { token })
-      .then((result) => {
-        if (active) {
-          setMembers(result.members || [])
-          setError('')
-        }
-      })
-      .catch((requestError) => {
-        if (active) setError(requestError.message)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => { active = false }
+    const timer = window.setTimeout(() => {
+      setLoading(true)
+      setError('')
+      apiRequest(`/members?q=${encodeURIComponent(query.trim())}`, { token })
+        .then((result) => {
+          if (active) setMembers(result.members || [])
+        })
+        .catch((requestError) => {
+          if (active) setError(requestError.message)
+        })
+        .finally(() => {
+          if (active) setLoading(false)
+        })
+    }, query ? 250 : 0)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
   }, [token, query])
 
   return (
@@ -549,11 +552,10 @@ function MembersPortal({ token }) {
         <div><h2>Members</h2><p className="muted">Member directory and account status.</p></div>
         <span className="status">{members.length} shown</span>
       </div>
-      <form className="member-search" onSubmit={(event) => { event.preventDefault(); setQuery(searchText.trim()) }}>
-        <label>Search members<input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Name, member number, phone, or email" /></label>
-        <button className="button button-primary" type="submit">Search</button>
-        {query && <button className="button button-outline" type="button" onClick={() => { setSearchText(''); setQuery('') }}>Clear</button>}
-      </form>
+      <label className="member-search">Search members
+        <input value={query} onChange={(event) => { setQuery(event.target.value); setSelectedMember(null) }} placeholder="Type a name, member number, or email" />
+        <small>Results update as you type. Names may match anywhere; member numbers, phones, and emails match from the beginning.</small>
+      </label>
       <PortalMessage error>{error}</PortalMessage>
       {loading && <p className="loading-note">Loading members…</p>}
       {!loading && !error && members.length === 0 && <p className="muted">No matching members.</p>}
