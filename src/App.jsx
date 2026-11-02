@@ -48,6 +48,7 @@ async function openProtectedImage(token, path) {
 function usePortalData(token, refreshKey, endpoints) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let active = true
@@ -61,10 +62,13 @@ function usePortalData(token, refreshKey, endpoints) {
       .catch((requestError) => {
         if (active) setError(requestError.message)
       })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
     return () => { active = false }
   }, [token, refreshKey, endpoints])
 
-  return { data, error }
+  return { data, error, loading }
 }
 
 function PortalMessage({ children, error = false }) {
@@ -128,7 +132,7 @@ function AdminSearch({ token }) {
 
 function LoanPortal({ token, user, refreshKey }) {
   const staff = ['admin', 'officer'].includes(user.role)
-  const { data, error } = usePortalData(token, refreshKey, LOAN_ENDPOINTS)
+  const { data, error, loading } = usePortalData(token, refreshKey, LOAN_ENDPOINTS)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [schedule, setSchedule] = useState(null)
@@ -138,6 +142,10 @@ function LoanPortal({ token, user, refreshKey }) {
   const readiness = data?.[3]?.readiness
   const readinessAvailable = data?.[3]?.available !== false
   const readinessSubmissions = data?.[3]?.submissions || []
+
+  function refreshLoanData() {
+    window.dispatchEvent(new Event('coopwise:refresh'))
+  }
 
   async function submitReadiness(event) {
     event.preventDefault()
@@ -224,12 +232,21 @@ function LoanPortal({ token, user, refreshKey }) {
 
   return (
     <section className="portal-section">
-      <h2>Monthly loans</h2>
-      <p className="muted">Apply for a loan, review applications, and record payments. Interest and limits follow the product configured by staff.</p>
+      <div className="section-heading">
+        <div>
+          <div className="eyebrow">Credit services</div>
+          <h2>Monthly loans</h2>
+          <p className="muted">Review your document status and explore available loan offers.</p>
+        </div>
+        <button className="button button-outline" type="button" onClick={refreshLoanData} disabled={loading}>
+          {loading ? 'Checking…' : 'Refresh status'}
+        </button>
+      </div>
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
+      {loading && <p className="loading-note" role="status">Loading your loan information…</p>}
 
-      {staff && (
+      {!loading && staff && (
         <section>
           <h3>Loan document reviews</h3>
           {data && readinessSubmissions.length === 0 && <p className="muted">No loan documents are waiting for review.</p>}
@@ -255,7 +272,7 @@ function LoanPortal({ token, user, refreshKey }) {
           ))}
         </section>
       )}
-      {staff ? (
+      {!loading && staff ? (
         <details className="portal-card">
           <summary>Create loan product</summary>
           <form className="form-grid" onSubmit={(event) => submit(event, '/loan-products', 'POST', 'Loan product created.')}>
@@ -267,7 +284,7 @@ function LoanPortal({ token, user, refreshKey }) {
             <button className="button button-primary" type="submit">Create product</button>
           </form>
         </details>
-      ) : (
+      ) : !loading && (
         <>
           {!readinessAvailable ? <p className="notice">Loan document review and loan applications are available to members aged 18 and over.</p> : (
             <section className="portal-card">
@@ -275,7 +292,7 @@ function LoanPortal({ token, user, refreshKey }) {
               {readiness?.status === 'pending' && <p className="notice">Your loan documents are waiting for staff review. Loan offers will appear here after approval.</p>}
               {readiness?.status === 'approved' && <p className="notice">Your loan documents have been approved. You can now view the available loan offers below.</p>}
               {readiness?.status === 'rejected' && <p className="message message-error">Your loan documents need corrections. Staff note: {readiness.review_note || 'Please upload a corrected document set.'}</p>}
-              {readiness?.status !== 'pending' && readiness?.status !== 'approved' && (
+              {!error && readiness?.status !== 'pending' && readiness?.status !== 'approved' && (
                 <form className="form-grid" onSubmit={submitReadiness}>
                   <label className="full">Supporting document images
                     <input name="documents[]" type="file" accept="image/jpeg,image/png,image/webp" multiple required />
@@ -297,26 +314,41 @@ function LoanPortal({ token, user, refreshKey }) {
             </section>
           )}
           {readiness?.status === 'approved' && (
-            <details className="portal-card">
-              <summary>Apply for an approved loan offer</summary>
-              <form className="form-grid" onSubmit={(event) => submit(event, '/loans', 'POST', 'Loan application submitted.')}>
-            <label className="full">Loan product
-              <select name="loan_type_id" required defaultValue="">
-                <option value="" disabled>Select a product</option>
-                {products.map((product) => <option key={product.id} value={product.id}>{product.name} · {product.interest_rate}% monthly · max PHP {product.max_amount}</option>)}
-              </select>
-            </label>
-            <label>Amount (PHP)<input name="amount" type="number" min="0.01" step="0.01" required /></label>
-            <label>Term (months)<input name="term_months" type="number" min="1" required /></label>
-            <label className="full">Purpose<input name="purpose" maxLength="255" required /></label>
-            <button className="button button-primary" type="submit" disabled={!products.length}>Submit application</button>
-          </form>
-            </details>
+            <section className="offers-section">
+              <div className="section-heading section-heading-compact">
+                <div><h3>Available loan offers</h3><p className="muted">Choose an offer to see its application form.</p></div>
+              </div>
+              {products.length === 0
+                ? <p className="notice">Your documents are approved, but there are no active loan offers yet. Please check back later or contact cooperative staff.</p>
+                : <div className="offer-grid">{products.map((product) => (
+                  <article className="offer-card" key={product.id}>
+                    <div className="offer-card-heading">
+                      <div><h4>{product.name}</h4><p>{product.description || 'Cooperative loan offer'}</p></div>
+                      <span className="status status-active">Available</span>
+                    </div>
+                    <dl className="offer-facts">
+                      <div><dt>Monthly rate</dt><dd>{product.interest_rate}%</dd></div>
+                      <div><dt>Maximum amount</dt><dd>PHP {product.max_amount}</dd></div>
+                      <div><dt>Maximum term</dt><dd>{product.max_term_months} months</dd></div>
+                    </dl>
+                    <details className="offer-application">
+                      <summary>Apply for this offer</summary>
+                      <form className="form-grid" onSubmit={(event) => submit(event, '/loans', 'POST', 'Loan application submitted.')}>
+                        <input type="hidden" name="loan_type_id" value={product.id} />
+                        <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={product.max_amount} step="0.01" required /></label>
+                        <label>Term (months)<input name="term_months" type="number" min="1" max={product.max_term_months} required /></label>
+                        <label className="full">Purpose<input name="purpose" maxLength="255" required /></label>
+                        <button className="button button-primary" type="submit">Submit application</button>
+                      </form>
+                    </details>
+                  </article>
+                ))}</div>}
+            </section>
           )}
         </>
       )}
 
-      <h3>{staff ? 'Applications and active loans' : 'Your loans'}</h3>
+      {!loading && <h3>{staff ? 'Applications and active loans' : 'Your loans'}</h3>}
       {data && loans.length === 0 && <p className="muted">No loan applications yet.</p>}
       {loans.map((loan) => (
         <article className="portal-card" key={loan.id}>
@@ -771,6 +803,7 @@ function App() {
   }
 
   function signOut() {
+    if (!window.confirm('Are you sure you want to sign out?')) return
     sessionStorage.removeItem('coopwise_access_token')
     setToken(null)
     setUser(null)
@@ -787,9 +820,9 @@ function App() {
 
       {user ? (
         <section className="dashboard card">
-          <div className="eyebrow">Member portal</div>
+          <div className="eyebrow">{['admin', 'officer'].includes(user.role) ? 'Staff workspace' : 'Member portal'}</div>
           <h1>Welcome, {user.full_name}</h1>
-          <p className="muted">Signed in as {user.role}.</p>
+          <p className="muted">{['admin', 'officer'].includes(user.role) ? 'Manage cooperative services and member activity.' : 'Your cooperative services, all in one place.'}</p>
           <div className="profile-card">
             <div><span>Account</span><strong>{user.full_name}</strong></div>
             <div><span>Role</span><strong>{user.role}</strong></div>
@@ -819,10 +852,9 @@ function App() {
       ) : (
         <section className="auth-layout">
           <div className="intro">
-            <div className="eyebrow">CoopWise member system</div>
-            <h1>One place for your cooperative journey.</h1>
-            <p>Sign in to your account or register as a member. Your account is managed securely by the CoopWise LavaLust backend.</p>
-            <div className="feature-note"><span className="feature-dot" /> Separate React frontend · LavaLust API backend</div>
+            <div className="eyebrow">CoopWise cooperative services</div>
+            <h1>Built around your cooperative.</h1>
+            <p>Sign in to manage your loans, savings, Paluwagan contributions, and payment records.</p>
           </div>
 
           <div className="card auth-card">
