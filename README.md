@@ -17,9 +17,15 @@ available, then can apply and view their loan schedules. They can submit
 payment screenshots or transaction reference
 numbers for manual review, see their cycle participation, and view their own
 payment/contribution/payout history. Staff can search members, loans, and
-payment submissions; approve loan documents and review payment evidence; manage loan
-products and applications; record loan payments; create daily cycles; enroll
-members in payout order; record contributions; and confirm completed payouts.
+payment submissions; browse and search the member directory; filter payment
+submissions by loan, Paluwagan, or cooperative payment and inspect the amount,
+reference, related cycle, and screenshot; approve loan documents and review
+payment evidence; manage loan products and applications; record loan payments;
+create daily cycles; enroll members in payout order; record contributions; and
+confirm completed payouts.
+After loan documents are approved, members see active offers configured by
+staff. If none are available, the portal explains that staff need to configure
+an active product. The loan page can refresh approval status after staff review.
 Evidence marked approved is manually verified only; it is not automatically
 posted to a financial balance or settled through GCash. Loan documents and
 payment screenshots are stored privately and served through authenticated API

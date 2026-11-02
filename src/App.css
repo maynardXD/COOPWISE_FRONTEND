@@ -203,6 +203,11 @@ small {
 .section-heading-compact { margin:24px 0 12px; }
 .section-heading-compact h3 { margin:0 0 4px; }
 .loading-note { color:var(--muted); font-size:14px; }
+.filter-control { min-width:190px; margin:0; }
+.member-search { display:flex; align-items:flex-end; gap:9px; margin:16px 0; }
+.member-search label { flex:1; margin:0; }
+.member-search .button { margin-bottom:0; }
+.member-detail { background:#fbfcfa; }
 
 .portal-card,.offer-card {
   padding:18px;
@@ -258,6 +263,10 @@ small {
 .offer-facts dt { color:var(--muted); font-size:11px; line-height:1.3; }
 .offer-facts dd { margin:5px 0 0; color:var(--ink); font-size:13px; font-weight:700; }
 .offer-application summary { color:var(--green); }
+.payment-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:16px 0; padding:13px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.payment-facts div { min-width:0; }
+.payment-facts dt { color:var(--muted); font-size:12px; }
+.payment-facts dd { margin:5px 0 0; color:var(--ink); font-size:14px; font-weight:650; overflow-wrap:anywhere; }
 
 .button-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .inline-form { display:flex; flex-wrap:wrap; align-items:center; gap:8px; flex:1 1 100%; }
@@ -317,4 +326,6 @@ footer {
   .tab { white-space:nowrap; padding:10px 12px; }
   .item-heading,.section-heading { align-items:flex-start; flex-direction:column; }
   .offer-facts { grid-template-columns:1fr; }
+  .payment-facts { grid-template-columns:1fr; }
+  .member-search { align-items:stretch; flex-direction:column; }
 }

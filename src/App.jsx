@@ -20,7 +20,7 @@ async function apiRequest(path, { token, ...options } = {}) {
   })
   const body = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const error = new Error(body.message || body.error || 'The request could not be completed.')
+    const error = new Error(body.message || body.error || `Request failed (${response.status}).`)
     error.fields = body.errors || {}
     throw error
   }
@@ -52,15 +52,18 @@ function usePortalData(token, refreshKey, endpoints) {
 
   useEffect(() => {
     let active = true
-    Promise.all(endpoints.map((path) => apiRequest(path, { token })))
+    Promise.all(endpoints.map(async (path) => {
+      try {
+        return { result: await apiRequest(path, { token }) }
+      } catch (requestError) {
+        return { error: `${path}: ${requestError.message}` }
+      }
+    }))
       .then((results) => {
         if (active) {
-          setData(results)
-          setError('')
+          setData(results.map((item) => item.result || null))
+          setError(results.filter((item) => item.error).map((item) => item.error).join(' · '))
         }
-      })
-      .catch((requestError) => {
-        if (active) setError(requestError.message)
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -75,61 +78,6 @@ function PortalMessage({ children, error = false }) {
   return children ? <div className={error ? 'message message-error' : 'message'} role="status">{children}</div> : null
 }
 
-function AdminSearch({ token }) {
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState(null)
-  const [error, setError] = useState('')
-  const [selectedMember, setSelectedMember] = useState(null)
-
-  async function search(event) {
-    event.preventDefault()
-    setError('')
-    setResults(null)
-    setSelectedMember(null)
-    try {
-      setResults(await apiRequest(`/admin/search?q=${encodeURIComponent(query.trim())}`, { token }))
-    } catch (requestError) {
-      setError(requestError.message)
-    }
-  }
-
-  return (
-    <details className="portal-card">
-      <summary>Search members, loans, and payment submissions</summary>
-      <form className="inline-form" onSubmit={search}>
-        <input aria-label="Search dashboard records" value={query} onChange={(event) => setQuery(event.target.value)} minLength="2" maxLength="100" placeholder="Member name, number, loan code, or reference" required />
-        <button className="button button-primary" type="submit">Search</button>
-      </form>
-      <PortalMessage error>{error}</PortalMessage>
-      {results && (
-        <div className="search-results">
-          <h3>Members</h3>
-          {results.members.length ? (
-            <div className="table-wrap"><table><thead><tr><th>Member #</th><th>Name</th><th>Phone</th><th>Email</th><th>Role</th><th>Status</th><th /></tr></thead>
-              <tbody>{results.members.map((member) => <tr key={member.id}>
-                <td>{member.member_number}</td><td>{member.first_name} {member.last_name}</td><td>{member.contact_number || '—'}</td><td>{member.email || '—'}</td><td>{member.account_role}</td><td>{member.status}</td>
-                <td><button className="text-button" type="button" onClick={() => setSelectedMember(member.id)}>View profile</button></td>
-              </tr>)}</tbody>
-            </table></div>
-          ) : <p className="muted">No matching members.</p>}
-          {selectedMember && results.members.filter((member) => member.id === selectedMember).map((member) => (
-            <article className="portal-card" key={member.id}>
-              <div className="item-heading"><strong>{member.first_name} {member.middle_name ? `${member.middle_name} ` : ''}{member.last_name}</strong><button className="button button-outline" type="button" onClick={() => setSelectedMember(null)}>Close profile</button></div>
-              <p>Member #: {member.member_number} · Account: {member.account_role} · Status: {member.status}</p>
-              <p>Phone: {member.contact_number || 'Not provided'} · Email: {member.email || 'Not provided'}</p>
-              <p>Address: {member.address || 'Not provided'} · Date of birth: {member.birth_date || 'Not provided'}</p>
-            </article>
-          ))}
-          <h3>Loans</h3>
-          {results.loans.length ? results.loans.map((loan) => <p key={loan.id}>{loan.loan_code} · {loan.first_name} {loan.last_name} · {loan.loan_type_name} · PHP {loan.principal_amount} · {loan.status}</p>) : <p className="muted">No matching loans.</p>}
-          <h3>Payment submissions</h3>
-          {results.payments.length ? results.payments.map((payment) => <p key={payment.id}>#{payment.id} · {payment.member_number} · {payment.first_name} {payment.last_name} · {payment.category} · PHP {payment.amount} · {payment.status}{payment.reference_no ? ` · ${payment.reference_no}` : ''}</p>) : <p className="muted">No matching payment submissions.</p>}
-        </div>
-      )}
-    </details>
-  )
-}
-
 function LoanPortal({ token, user, refreshKey }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const { data, error, loading } = usePortalData(token, refreshKey, LOAN_ENDPOINTS)
@@ -142,6 +90,7 @@ function LoanPortal({ token, user, refreshKey }) {
   const readiness = data?.[3]?.readiness
   const readinessAvailable = data?.[3]?.available !== false
   const readinessSubmissions = data?.[3]?.submissions || []
+  const productLoadFailed = error.includes('/loan-products:')
 
   function refreshLoanData() {
     window.dispatchEvent(new Event('coopwise:refresh'))
@@ -230,6 +179,29 @@ function LoanPortal({ token, user, refreshKey }) {
     }
   }
 
+  async function toggleProduct(product) {
+    setNotice('')
+    setActionError('')
+    try {
+      await apiRequest(`/loan-products/${product.id}`, {
+        token,
+        method: 'PUT',
+        body: JSON.stringify({
+          name: product.name,
+          description: product.description || '',
+          interest_rate: product.interest_rate,
+          max_amount: product.max_amount,
+          max_term_months: product.max_term_months,
+          status: product.status === 'active' ? 'inactive' : 'active',
+        }),
+      })
+      setNotice(`Loan offer ${product.status === 'active' ? 'paused' : 'made available'} for members.`)
+      refreshLoanData()
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
+
   return (
     <section className="portal-section">
       <div className="section-heading">
@@ -273,17 +245,40 @@ function LoanPortal({ token, user, refreshKey }) {
         </section>
       )}
       {!loading && staff ? (
-        <details className="portal-card">
-          <summary>Create loan product</summary>
-          <form className="form-grid" onSubmit={(event) => submit(event, '/loan-products', 'POST', 'Loan product created.')}>
-            <label>Product name<input name="name" required maxLength="100" /></label>
-            <label>Monthly interest rate (%)<input name="interest_rate" type="number" min="0" max="99.99" step="0.01" required /></label>
-            <label>Maximum amount (PHP)<input name="max_amount" type="number" min="0.01" step="0.01" required /></label>
-            <label>Maximum term (months)<input name="max_term_months" type="number" min="1" max="120" required /></label>
-            <label className="full">Description<input name="description" maxLength="255" /></label>
-            <button className="button button-primary" type="submit">Create product</button>
-          </form>
-        </details>
+        <>
+          <section className="offers-section">
+            <h3>Loan offers</h3>
+            {products.length === 0
+              ? <p className="notice">No loan offers are configured yet. Create an active offer below so approved members can view it.</p>
+              : <div className="offer-grid">{products.map((product) => (
+                <article className="offer-card" key={product.id}>
+                  <div className="offer-card-heading">
+                    <div><h4>{product.name}</h4><p>{product.description || 'Cooperative loan offer'}</p></div>
+                    <span className={`status status-${product.status}`}>{product.status}</span>
+                  </div>
+                  <dl className="offer-facts">
+                    <div><dt>Monthly rate</dt><dd>{product.interest_rate}%</dd></div>
+                    <div><dt>Maximum amount</dt><dd>PHP {product.max_amount}</dd></div>
+                    <div><dt>Maximum term</dt><dd>{product.max_term_months} months</dd></div>
+                  </dl>
+                  <button className="button button-outline" type="button" onClick={() => toggleProduct(product)}>
+                    {product.status === 'active' ? 'Pause offer' : 'Make available'}
+                  </button>
+                </article>
+              ))}</div>}
+          </section>
+          <details className="portal-card">
+            <summary>Create loan offer</summary>
+            <form className="form-grid" onSubmit={(event) => submit(event, '/loan-products', 'POST', 'Loan offer created.')}>
+              <label>Product name<input name="name" required maxLength="100" /></label>
+              <label>Monthly interest rate (%)<input name="interest_rate" type="number" min="0" max="99.99" step="0.01" required /></label>
+              <label>Maximum amount (PHP)<input name="max_amount" type="number" min="0.01" step="0.01" required /></label>
+              <label>Maximum term (months)<input name="max_term_months" type="number" min="1" max="120" required /></label>
+              <label className="full">Description<input name="description" maxLength="255" /></label>
+              <button className="button button-primary" type="submit">Create active offer</button>
+            </form>
+          </details>
+        </>
       ) : !loading && (
         <>
           {!readinessAvailable ? <p className="notice">Loan document review and loan applications are available to members aged 18 and over.</p> : (
@@ -319,7 +314,9 @@ function LoanPortal({ token, user, refreshKey }) {
                 <div><h3>Available loan offers</h3><p className="muted">Choose an offer to see its application form.</p></div>
               </div>
               {products.length === 0
-                ? <p className="notice">Your documents are approved, but there are no active loan offers yet. Please check back later or contact cooperative staff.</p>
+                ? <p className="notice">{productLoadFailed
+                  ? 'Your documents are approved, but loan offers could not be loaded. Use Refresh status to try again or contact cooperative staff.'
+                  : 'Your documents are approved, but there are no active loan offers yet. Please check back later or contact cooperative staff.'}</p>
                 : <div className="offer-grid">{products.map((product) => (
                   <article className="offer-card" key={product.id}>
                     <div className="offer-card-heading">
@@ -521,11 +518,67 @@ function CooperativePortal({ token, user, refreshKey }) {
 }
 
 function MembersPortal({ token }) {
+  const [query, setQuery] = useState('')
+  const [searchText, setSearchText] = useState('')
+  const [members, setMembers] = useState([])
+  const [selectedMember, setSelectedMember] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    apiRequest(`/members?q=${encodeURIComponent(query.trim())}`, { token })
+      .then((result) => {
+        if (active) {
+          setMembers(result.members || [])
+          setError('')
+        }
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.message)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => { active = false }
+  }, [token, query])
+
   return (
     <section className="portal-section">
-      <h2>Member directory</h2>
-      <p className="muted">Search member names, numbers, contact details, account role, and membership status.</p>
-      <AdminSearch token={token} />
+      <div className="section-heading">
+        <div><h2>Members</h2><p className="muted">Member directory and account status.</p></div>
+        <span className="status">{members.length} shown</span>
+      </div>
+      <form className="member-search" onSubmit={(event) => { event.preventDefault(); setQuery(searchText.trim()) }}>
+        <label>Search members<input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Name, member number, phone, or email" /></label>
+        <button className="button button-primary" type="submit">Search</button>
+        {query && <button className="button button-outline" type="button" onClick={() => { setSearchText(''); setQuery('') }}>Clear</button>}
+      </form>
+      <PortalMessage error>{error}</PortalMessage>
+      {loading && <p className="loading-note">Loading members…</p>}
+      {!loading && !error && members.length === 0 && <p className="muted">No matching members.</p>}
+      {!!members.length && <div className="table-wrap"><table>
+        <thead><tr><th>Member #</th><th>Name</th><th>Phone</th><th>Email</th><th>Account</th><th>Status</th><th /></tr></thead>
+        <tbody>{members.map((member) => <tr key={member.id}>
+          <td>{member.member_number}</td>
+          <td>{member.first_name} {member.middle_name ? `${member.middle_name} ` : ''}{member.last_name}</td>
+          <td>{member.contact_number || '—'}</td>
+          <td>{member.email || '—'}</td>
+          <td>{member.account_role}</td>
+          <td><span className={`status status-${member.status}`}>{member.status}</span></td>
+          <td><button className="text-button" type="button" onClick={() => setSelectedMember(selectedMember === member.id ? null : member.id)}>
+            {selectedMember === member.id ? 'Close' : 'Details'}
+          </button></td>
+        </tr>)}</tbody>
+      </table></div>}
+      {selectedMember && members.filter((member) => member.id === selectedMember).map((member) => (
+        <article className="portal-card member-detail" key={member.id}>
+          <div className="item-heading"><strong>{member.first_name} {member.middle_name ? `${member.middle_name} ` : ''}{member.last_name}</strong><span>Member #{member.member_number}</span></div>
+          <p>Phone: {member.contact_number || 'Not provided'} · Email: {member.email || 'Not provided'}</p>
+          <p>Address: {member.address || 'Not provided'} · Date of birth: {member.birth_date || 'Not provided'}</p>
+          <p>Account role: {member.account_role} · Membership status: {member.status}</p>
+        </article>
+      ))}
     </section>
   )
 }
@@ -625,6 +678,7 @@ function PaymentPortal({ token, user, refreshKey }) {
   const { data, error } = usePortalData(token, refreshKey, PAYMENT_ENDPOINTS)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
+  const [filter, setFilter] = useState('all')
   const loans = data?.[0]?.loans || []
   const cycles = data?.[1]?.cycles || []
   const submissions = data?.[2]?.submissions || []
@@ -671,8 +725,23 @@ function PaymentPortal({ token, user, refreshKey }) {
 
   return (
     <section className="portal-section">
-      <h2>Submit a payment</h2>
-      <p className="muted">Pay with GCash, then upload a screenshot of the successful transfer or enter its transaction reference number. Staff will review the evidence; submission does not automatically confirm or post a payment.</p>
+      <div className="section-heading">
+        <div>
+          <div className="eyebrow">{staff ? 'Payment review' : 'Member payments'}</div>
+          <h2>{staff ? 'Payment submissions' : 'Submit a payment'}</h2>
+          <p className="muted">{staff
+            ? 'Review submitted amounts, references, screenshots, and related loan or Paluwagan cycle.'
+            : 'Submit a GCash receipt or reference number for staff review.'}</p>
+        </div>
+        {staff && <label className="filter-control">Payment type
+          <select value={filter} onChange={(event) => setFilter(event.target.value)}>
+            <option value="all">All payments</option>
+            <option value="loan">Loan repayments</option>
+            <option value="paluwagan">Paluwagan contributions</option>
+            <option value="cooperative">Cooperative payments</option>
+          </select>
+        </label>}
+      </div>
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
       {!staff && (
@@ -721,21 +790,26 @@ function PaymentPortal({ token, user, refreshKey }) {
           <button className="button button-primary full" type="submit">Submit payment evidence</button>
         </form>
       )}
-      <h3>{staff ? 'Payment evidence awaiting review' : 'Your payment submissions'}</h3>
-      {data && submissions.length === 0 && <p className="muted">No payment submissions yet.</p>}
-      {submissions.map((submission) => (
+      {!staff && <h3>Your payment submissions</h3>}
+      {!staff && data && submissions.length === 0 && <p className="muted">No payment submissions yet.</p>}
+      {staff && data && !submissions.some((submission) => filter === 'all' || submission.category === filter) && <p className="muted">No payment submissions match this filter.</p>}
+      {submissions.filter((submission) => !staff || filter === 'all' || submission.category === filter).map((submission) => (
         <article className="portal-card" key={submission.id}>
           <div className="item-heading">
             <div><strong>{submission.category} · PHP {submission.amount}</strong><span>{submission.member_number} · {submission.first_name} {submission.last_name} · Submitted {submission.created_at}</span></div>
             <span className={`status status-${submission.status}`}>{submission.status}</span>
           </div>
-          {(submission.loan_code || submission.cycle_name) && <p>{submission.loan_code || submission.cycle_name}</p>}
-          {submission.reference_no && <p>Reference: {submission.reference_no}</p>}
+          <dl className="payment-facts">
+            <div><dt>Amount submitted</dt><dd>PHP {submission.amount}</dd></div>
+            <div><dt>Payment for</dt><dd>{submission.category === 'paluwagan' ? `Paluwagan · ${submission.cycle_name || 'Cycle unavailable'}` : submission.category === 'loan' ? `Loan · ${submission.loan_code || 'Loan unavailable'}` : 'Cooperative payment'}</dd></div>
+            <div><dt>Reference number</dt><dd>{submission.reference_no || 'Not provided'}</dd></div>
+          </dl>
           {submission.review_note && <p className="notice">Staff note: {submission.review_note}</p>}
+          {!submission.has_screenshot && <p className="muted">No screenshot attached; review the reference number above.</p>}
           <div className="button-row">
             {submission.has_screenshot && <button className="button button-outline" type="button" onClick={async () => {
               try { await openProtectedImage(token, `/payment-submissions/${submission.id}/screenshot`) } catch (requestError) { setActionError(requestError.message) }
-            }}>View screenshot</button>}
+            }}>View payment screenshot</button>}
             {staff && submission.status === 'pending' && <>
               <button className="button button-primary" type="button" onClick={() => reviewSubmission(submission.id, 'approve')}>Verify received</button>
               <button className="button button-outline" type="button" onClick={() => reviewSubmission(submission.id, 'reject')}>Reject evidence</button>
@@ -833,7 +907,7 @@ function App() {
             {['admin', 'officer'].includes(user.role) && <button className={section === 'members' ? 'tab active' : 'tab'} type="button" onClick={() => setSection('members')}>Members</button>}
             <button className={section === 'savings' ? 'tab active' : 'tab'} type="button" onClick={() => setSection('savings')}>Savings</button>
             <button className={section === 'cooperative' ? 'tab active' : 'tab'} type="button" onClick={() => setSection('cooperative')}>Daily Paluwagan</button>
-            <button className={section === 'payments' ? 'tab active' : 'tab'} type="button" onClick={() => setSection('payments')}>Online payments</button>
+            <button className={section === 'payments' ? 'tab active' : 'tab'} type="button" onClick={() => setSection('payments')}>{['admin', 'officer'].includes(user.role) ? 'Payment submissions' : 'Online payments'}</button>
             {['admin', 'officer'].includes(user.role) && <button className={section === 'reports' ? 'tab active' : 'tab'} type="button" onClick={() => setSection('reports')}>Reports</button>}
           </nav>
           {section === 'loans'
