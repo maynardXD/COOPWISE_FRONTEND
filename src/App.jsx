@@ -127,6 +127,38 @@ function localDateString(date) {
   return `${year}-${month}-${day}`
 }
 
+function buildLoanSchedulePreview(amount, term, monthlyRate) {
+  const principalCents = Math.round(Number(amount) * 100)
+  const months = Number(term)
+  if (!Number.isSafeInteger(principalCents) || principalCents < 1 || !Number.isInteger(months) || months < 1 || !Number.isFinite(Number(monthlyRate))) {
+    return null
+  }
+  const interestCents = Math.round(principalCents * Math.round(Number(monthlyRate) * 100) * months / 10000)
+  const principalBase = Math.floor(principalCents / months)
+  const principalRemainder = principalCents % months
+  const interestBase = Math.floor(interestCents / months)
+  const interestRemainder = interestCents % months
+  const now = new Date()
+  const approvalDay = now.getDate()
+  let remainingCents = principalCents + interestCents
+  return Array.from({ length: months }, (_, index) => {
+    const principalDue = principalBase + (index < principalRemainder ? 1 : 0)
+    const interestDue = interestBase + (index < interestRemainder ? 1 : 0)
+    const dueMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth() + index + 1, 1))
+    const lastDay = new Date(Date.UTC(dueMonth.getUTCFullYear(), dueMonth.getUTCMonth() + 1, 0)).getUTCDate()
+    dueMonth.setUTCDate(Math.min(approvalDay, lastDay))
+    remainingCents -= principalDue + interestDue
+    return {
+      number: index + 1,
+      due_date: dueMonth.toISOString().slice(0, 10),
+      principal_due: (principalDue / 100).toFixed(2),
+      interest_due: (interestDue / 100).toFixed(2),
+      total_due: ((principalDue + interestDue) / 100).toFixed(2),
+      remaining_balance: (Math.max(0, remainingCents) / 100).toFixed(2),
+    }
+  })
+}
+
 function printRecord() {
   const cleanUp = () => document.body.classList.remove('printing-record')
   window.addEventListener('afterprint', cleanUp, { once: true })
@@ -402,6 +434,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [schedule, setSchedule] = useState(null)
+  const [applicationInputs, setApplicationInputs] = useState({})
   const products = data?.[0]?.products || []
   const loans = data?.[1]?.loans || []
   const payments = data?.[2]?.payments || []
@@ -651,9 +684,21 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                       <summary>Apply for this offer</summary>
                       <form className="form-grid" onSubmit={(event) => submit(event, '/loans', 'POST', 'Loan application submitted.')}>
                         <input type="hidden" name="loan_type_id" value={product.id} />
-                        <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={product.max_amount} step="0.01" required /></label>
-                        <label>Term (months)<input name="term_months" type="number" min="1" max={product.max_term_months} required /></label>
+                        <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={product.max_amount} step="0.01" required onChange={(event) => setApplicationInputs({ ...applicationInputs, [product.id]: { ...applicationInputs[product.id], amount: event.target.value } })} /></label>
+                        <label>Term (months)<input name="term_months" type="number" min="1" max={product.max_term_months} required onChange={(event) => setApplicationInputs({ ...applicationInputs, [product.id]: { ...applicationInputs[product.id], term: event.target.value } })} /></label>
                         <label className="full">Purpose<input name="purpose" maxLength="255" required /></label>
+                        {buildLoanSchedulePreview(applicationInputs[product.id]?.amount, applicationInputs[product.id]?.term, product.interest_rate) && (
+                          <div className="loan-preview full">
+                            <strong>Estimated repayment schedule</strong>
+                            <p>Flat interest is calculated on the original principal: principal × monthly rate × term. Due dates are estimates based on approval this month.</p>
+                            <div className="table-wrap"><table><thead><tr><th>#</th><th>Estimated due date</th><th>Principal</th><th>Interest</th><th>Installment</th><th>Remaining</th></tr></thead>
+                              <tbody>{buildLoanSchedulePreview(applicationInputs[product.id]?.amount, applicationInputs[product.id]?.term, product.interest_rate).map((row) => (
+                                <tr key={row.number}><td>{row.number}</td><td>{row.due_date}</td><td>{formatPesos(row.principal_due)}</td><td>{formatPesos(row.interest_due)}</td><td>{formatPesos(row.total_due)}</td><td>{formatPesos(row.remaining_balance)}</td></tr>
+                              ))}</tbody>
+                            </table></div>
+                            <small>This is an estimate, not approval. The final schedule is generated after staff approval.</small>
+                          </div>
+                        )}
                         <button className="button button-primary" type="submit">Submit application</button>
                       </form>
                     </details>
@@ -697,11 +742,28 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
         </article>
       ))}
       {schedule && (
-        <div className="portal-card">
-          <div className="item-heading"><strong>{schedule.loan.loan_code} repayment schedule</strong><button className="button button-outline" type="button" onClick={() => setSchedule(null)}>Close</button></div>
-          <div className="table-wrap"><table><thead><tr><th>Due date</th><th>Due</th><th>Paid</th><th>Status</th></tr></thead>
-            <tbody>{schedule.schedule.map((item) => <tr key={item.id}><td>{item.due_date}</td><td>PHP {item.total_due}</td><td>PHP {item.paid_amount}</td><td>{item.status}</td></tr>)}</tbody>
-          </table></div>
+        <div className="record-modal-backdrop">
+          <section className="record-modal loan-schedule-modal" role="dialog" aria-modal="true" aria-labelledby="loan-schedule-title">
+            <div className="record-modal-heading no-print">
+              <div><span className="eyebrow">Credit services</span><h2 id="loan-schedule-title">{schedule.loan.loan_code} repayment schedule</h2></div>
+              <div className="button-row"><button className="button button-primary" type="button" onClick={printRecord}>Print / Save PDF</button><button className="modal-close" type="button" onClick={() => setSchedule(null)} aria-label="Close repayment schedule">×</button></div>
+            </div>
+            <article className="loan-schedule-print-area print-target">
+              <header className="ledger-document-header"><div className="ledger-brand"><span className="ledger-brand-mark">C</span><span>CoopWise<small>Loan repayment plan</small></span></div><div className="ledger-document-title"><span>AMORTIZATION</span><strong>MONTHLY FLAT-INTEREST SCHEDULE</strong></div></header>
+              <div className="loan-schedule-summary">
+                <div><span>Loan</span><strong>{schedule.loan.loan_code} · {schedule.loan.loan_type_name}</strong></div>
+                <div><span>Principal</span><strong>{formatPesos(schedule.loan.approved_amount)}</strong></div>
+                <div><span>Monthly rate</span><strong>{schedule.loan.interest_rate}%</strong></div>
+                <div><span>Term / total interest</span><strong>{schedule.loan.term_months} months · {formatPesos(schedule.total_interest)}</strong></div>
+              </div>
+              <p className="loan-schedule-explanation">Interest uses the cooperative’s current flat-interest rule: approved principal × monthly rate × term. Installments are equal, with any rounding cents distributed across early installments. Remaining shows unpaid installments after each row.</p>
+              <div className="table-wrap"><table className="loan-schedule-table"><thead><tr><th>#</th><th>Due date</th><th>Principal</th><th>Interest</th><th>Installment</th><th>Paid</th><th>Remaining after</th><th>Status</th></tr></thead>
+                <tbody>{schedule.schedule.map((item, index) => <tr key={item.id}><td>{index + 1}</td><td>{item.due_date}</td><td>{formatPesos(item.principal_due)}</td><td>{formatPesos(item.interest_due)}</td><td>{formatPesos(item.total_due)}</td><td>{formatPesos(item.paid_amount)}</td><td>{formatPesos(item.remaining_after)}</td><td>{item.status}</td></tr>)}</tbody>
+                <tfoot><tr><th colSpan="2">Totals</th><th>{formatPesos(schedule.total_principal)}</th><th>{formatPesos(schedule.total_interest)}</th><th>{formatPesos(schedule.total_due)}</th><th>{formatPesos(schedule.total_paid)}</th><th>{formatPesos(schedule.loan.current_balance)}</th><th /></tr></tfoot>
+              </table></div>
+              <footer className="ledger-document-footer"><span>Generated {schedule.generated_at}</span><span>Actual payments and account balances may change this schedule. Contact cooperative staff for clarification.</span></footer>
+            </article>
+          </section>
         </div>
       )}
       {staff && <details className="portal-card"><summary>Recent payments</summary>
@@ -923,9 +985,122 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [ledgerOpen, setLedgerOpen] = useState(false)
+  const [withdrawalRequests, setWithdrawalRequests] = useState([])
+  const [withdrawalLoading, setWithdrawalLoading] = useState(true)
+  const [withdrawalFilters, setWithdrawalFilters] = useState({ q: '', status: 'all', sort: 'newest', page: 1 })
+  const [withdrawalSearch, setWithdrawalSearch] = useState('')
+  const [withdrawalConfirmation, setWithdrawalConfirmation] = useState(null)
+  const [withdrawalSummary, setWithdrawalSummary] = useState({ page: 1, pages: 1, total: 0 })
+  const [autoPayDraft, setAutoPayDraft] = useState(null)
+  const [autoPaySaving, setAutoPaySaving] = useState(false)
   const transactions = data?.[0]?.transactions || []
   const members = data?.[0]?.members || []
   const balance = data?.[0]?.balance
+  const autoPaySettings = autoPayDraft || data?.[0]?.auto_pay_preferences || { loan: false, paluwagan: false }
+
+  useEffect(() => {
+    let active = true
+    const query = new URLSearchParams(withdrawalFilters)
+    apiRequest(`/savings/withdrawals?${query}`, { token })
+      .then((result) => {
+        if (active) {
+          setWithdrawalRequests(result.withdrawals || [])
+          setWithdrawalSummary({ page: result.page || 1, pages: result.pages || 1, total: result.total || 0 })
+        }
+      })
+      .catch((requestError) => { if (active) setActionError(requestError.message) })
+      .finally(() => { if (active) setWithdrawalLoading(false) })
+    return () => { active = false }
+  }, [token, refreshKey, withdrawalFilters])
+
+  async function saveAutoPay(event) {
+    event.preventDefault()
+    setNotice('')
+    setActionError('')
+    setAutoPaySaving(true)
+    try {
+      const result = await apiRequest('/savings/auto-pay', {
+        token, method: 'POST', body: JSON.stringify(autoPaySettings),
+      })
+      setAutoPayDraft(result.auto_pay_preferences)
+      setNotice(result.message)
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    } finally {
+      setAutoPaySaving(false)
+    }
+  }
+
+  function prepareWithdrawal(event) {
+    event.preventDefault()
+    const values = Object.fromEntries(new FormData(event.currentTarget).entries())
+    if (values.gcash_number !== values.confirm_gcash_number) {
+      setActionError('The GCash numbers do not match. Check both fields and try again.')
+      return
+    }
+    setActionError('')
+    setWithdrawalConfirmation(values)
+  }
+
+  async function submitWithdrawal() {
+    if (!withdrawalConfirmation) return
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest('/savings/withdrawals', {
+        token, method: 'POST', body: JSON.stringify(withdrawalConfirmation),
+      })
+      setNotice(result.message)
+      setWithdrawalConfirmation(null)
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
+
+  async function uploadWithdrawalReceipt(event, requestId) {
+    event.preventDefault()
+    const form = event.currentTarget
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest(`/savings/withdrawals/${requestId}/receipt`, {
+        token, method: 'POST', body: new FormData(form),
+      })
+      setNotice(result.message)
+      form.reset()
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
+
+  async function reviewWithdrawal(request, action) {
+    setNotice('')
+    setActionError('')
+    let admin_note = ''
+    if (action === 'reject') {
+      admin_note = window.prompt('Enter the reason for rejecting this request. The reserved savings will be refunded.')
+      if (admin_note === null) return
+      admin_note = admin_note.trim()
+      if (!admin_note) {
+        setActionError('Enter a rejection reason before continuing.')
+        return
+      }
+    } else {
+      admin_note = window.prompt('Optional note for this completed transfer:') || ''
+    }
+    try {
+      const result = await apiRequest(`/savings/withdrawals/${request.id}/${action}`, {
+        token, method: 'POST', body: JSON.stringify({ admin_note }),
+      })
+      setNotice(result.message)
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
 
   async function recordTransaction(event) {
     event.preventDefault()
@@ -943,6 +1118,14 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
     }
   }
 
+  function withdrawalPagination() {
+    if (withdrawalSummary.pages <= 1) return null
+    return <div className="withdrawal-pagination"><span>{withdrawalSummary.total} requests · Page {withdrawalSummary.page} of {withdrawalSummary.pages}</span><div className="button-row">
+      <button className="button button-outline" type="button" disabled={withdrawalSummary.page <= 1 || withdrawalLoading} onClick={() => { setWithdrawalLoading(true); setWithdrawalFilters({ ...withdrawalFilters, page: withdrawalSummary.page - 1 }) }}>Previous</button>
+      <button className="button button-outline" type="button" disabled={withdrawalSummary.page >= withdrawalSummary.pages || withdrawalLoading} onClick={() => { setWithdrawalLoading(true); setWithdrawalFilters({ ...withdrawalFilters, page: withdrawalSummary.page + 1 }) }}>Next</button>
+    </div></div>
+  }
+
   return (
     <section className="portal-section">
       {!standalone && <h2>Savings</h2>}
@@ -950,9 +1133,81 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
         <div className="portal-card savings-balance"><span>Your available savings</span><strong>{loading && !data ? 'Loading…' : formatPesos((balance || 0) / 100)}</strong></div>
         <button className="button button-primary" type="button" onClick={() => setLedgerOpen(true)}>View / print my savings ledger</button>
       </div>}
+      {!staff && data && (
+        <form className="portal-card autopay-card" onSubmit={saveAutoPay}>
+          <div className="autopay-heading"><div><span className="eyebrow">Optional convenience</span><h3>Automatic payments from savings</h3></div><button className="button button-primary" type="submit" disabled={autoPaySaving}>{autoPaySaving ? 'Saving…' : 'Save choices'}</button></div>
+          <p>These choices are off until you opt in. When enabled, the daily payment job pays due amounts only when funds are available and records each savings withdrawal and matching payment. You can turn either option off at any time.</p>
+          <label className="autopay-option"><input type="checkbox" checked={autoPaySettings.loan} onChange={(event) => setAutoPayDraft({ ...autoPaySettings, loan: event.target.checked })} /><span><strong>Loan installments</strong><small>Pay due loan installments from savings. If funds are short, an available partial amount may be applied to the earliest due installment.</small></span></label>
+          <label className="autopay-option"><input type="checkbox" checked={autoPaySettings.paluwagan} onChange={(event) => setAutoPayDraft({ ...autoPaySettings, paluwagan: event.target.checked })} /><span><strong>Daily Paluwagan contributions</strong><small>Pay the active cycle’s daily contribution from savings when the cycle is due and the funds are available.</small></span></label>
+          <p className="autopay-caveat">Auto-pay runs only after the cooperative configures the recurring daily job. Savings withdrawals and their loan or Paluwagan records are saved together.</p>
+        </form>
+      )}
       {staff && <p className="muted savings-staff-hint">To preview or print a member’s passbook-style savings ledger, open the Members directory and choose <strong>Savings ledger</strong> for that member.</p>}
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
+      {!staff && (
+        <section className="withdrawal-section">
+          <div className="staff-subsection-title"><StaffIcon name="savings" /><div><h3>Withdraw to GCash</h3><p className="muted">Request a transfer of available savings to your GCash account.</p></div></div>
+          {withdrawalConfirmation ? (
+            <article className="portal-card withdrawal-confirm-card">
+              <span className="eyebrow">Final confirmation</span>
+              <h4>Double-check your transfer details</h4>
+              <dl><div><dt>Amount</dt><dd>{formatPesos(withdrawalConfirmation.amount)}</dd></div><div><dt>GCash account name</dt><dd>{withdrawalConfirmation.gcash_account_name}</dd></div><div><dt>GCash number</dt><dd>{withdrawalConfirmation.gcash_number}</dd></div></dl>
+              <p>Submitting reserves this amount from your savings. Staff will send the GCash transfer manually and attach a receipt. If your request is rejected, the reserved amount will be refunded to your savings.</p>
+              <div className="button-row"><button className="button button-primary" type="button" onClick={submitWithdrawal}>Confirm withdrawal request</button><button className="button button-outline" type="button" onClick={() => setWithdrawalConfirmation(null)}>Edit details</button></div>
+            </article>
+          ) : (
+            <form className="portal-card form-grid withdrawal-form" onSubmit={prepareWithdrawal}>
+              <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={((balance || 0) / 100).toFixed(2)} step="0.01" required /></label>
+              <label>GCash account name<input name="gcash_account_name" maxLength="120" autoComplete="name" required /></label>
+              <label>GCash mobile number<input name="gcash_number" type="tel" inputMode="numeric" pattern="09[0-9]{9}" maxLength="11" placeholder="09XXXXXXXXX" required /></label>
+              <label>Confirm GCash mobile number<input name="confirm_gcash_number" type="tel" inputMode="numeric" pattern="09[0-9]{9}" maxLength="11" placeholder="Enter the same number again" required /></label>
+              <button className="button button-primary" type="submit">Review withdrawal details</button>
+              <p className="withdrawal-disclaimer full">This is a manual transfer request, not an instant GCash integration. Do not share your GCash PIN or one-time password.</p>
+            </form>
+          )}
+          <h4>Your withdrawal history</h4>
+          {withdrawalLoading ? <p className="muted">Loading your requests…</p> : withdrawalRequests.length === 0 ? <p className="muted">No GCash withdrawal requests yet.</p> : (
+            <div className="withdrawal-list">{withdrawalRequests.map((request) => (
+              <article className="portal-card withdrawal-item" key={request.id}>
+                <div className="item-heading"><div><strong>{formatPesos(request.amount)}</strong><span>{request.request_reference} · {request.requested_at}</span></div><span className={`status status-${request.status}`}>{request.status}</span></div>
+                {request.admin_note && <p className="muted">Staff note: {request.admin_note}</p>}
+                {request.has_receipt && <button className="text-button" type="button" onClick={async () => { try { await openProtectedImage(token, `/savings/withdrawals/${request.id}/receipt`) } catch (requestError) { setActionError(requestError.message) } }}>View transfer receipt</button>}
+              </article>
+            ))}</div>
+          )}
+          {withdrawalPagination()}
+        </section>
+      )}
+      {staff && (
+        <section className="withdrawal-section">
+          <div className="staff-subsection-title"><StaffIcon name="savings" /><div><h3>GCash withdrawal requests</h3><p className="muted">Review reserved savings, send the transfer manually, then attach proof before completing.</p></div></div>
+          <form className="portal-card withdrawal-filters" onSubmit={(event) => { event.preventDefault(); setWithdrawalLoading(true); setWithdrawalFilters({ ...withdrawalFilters, q: withdrawalSearch.trim(), page: 1 }) }}>
+            <label>Search<input value={withdrawalSearch} onChange={(event) => setWithdrawalSearch(event.target.value)} placeholder="Member, number, name, or reference" /></label>
+            <label>Status<select value={withdrawalFilters.status} onChange={(event) => { setWithdrawalLoading(true); setWithdrawalFilters({ ...withdrawalFilters, status: event.target.value, page: 1 }) }}><option value="all">All requests</option><option value="pending">Pending</option><option value="completed">Completed</option><option value="rejected">Rejected</option></select></label>
+            <label>Sort<select value={withdrawalFilters.sort} onChange={(event) => { setWithdrawalLoading(true); setWithdrawalFilters({ ...withdrawalFilters, sort: event.target.value, page: 1 }) }}><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="amount_desc">Highest amount</option><option value="amount_asc">Lowest amount</option><option value="member">Member name</option></select></label>
+            <button className="button button-outline" type="submit">Search</button>
+          </form>
+          {withdrawalLoading ? <p className="muted">Loading withdrawal requests…</p> : withdrawalRequests.length === 0 ? <p className="muted">No withdrawal requests match these filters.</p> : (
+            <div className="withdrawal-list">{withdrawalRequests.map((request) => (
+              <article className="portal-card withdrawal-item" key={request.id}>
+                <div className="item-heading"><div><strong>{request.first_name} {request.last_name} · {formatPesos(request.amount)}</strong><span>{request.member_number} · {request.request_reference} · {request.requested_at}</span></div><span className={`status status-${request.status}`}>{request.status}</span></div>
+                <p><strong>Send to:</strong> {request.gcash_account_name} · {request.gcash_number}</p>
+                {request.admin_note && <p className="muted">Staff note: {request.admin_note}</p>}
+                {request.has_receipt && <button className="text-button" type="button" onClick={async () => { try { await openProtectedImage(token, `/savings/withdrawals/${request.id}/receipt`) } catch (requestError) { setActionError(requestError.message) } }}>View attached receipt</button>}
+                {request.status === 'pending' && <div className="withdrawal-actions">
+                  <form className="withdrawal-upload-form" onSubmit={(event) => uploadWithdrawalReceipt(event, request.id)}>
+                    <label>GCash transfer receipt<input name="receipt" type="file" accept="image/jpeg,image/png,image/webp" required /></label>
+                    <button className="button button-outline" type="submit">{request.has_receipt ? 'Replace receipt' : 'Attach receipt'}</button>
+                  </form>
+                  <div className="button-row"><button className="button button-primary" type="button" disabled={!request.has_receipt} onClick={() => reviewWithdrawal(request, 'complete')}>Complete transfer</button><button className="button button-outline" type="button" onClick={() => reviewWithdrawal(request, 'reject')}>Reject and refund</button></div>
+                </div>}
+              </article>
+            ))}</div>
+          )}
+          {withdrawalPagination()}
+        </section>
+      )}
       {staff && (
         <details className="portal-card" open>
           <summary>Record savings transaction</summary>

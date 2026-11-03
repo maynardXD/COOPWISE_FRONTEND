@@ -902,3 +902,75 @@ footer {
   body.printing-record .member-card-design { width:85.6mm; min-height:54mm; margin:25mm auto 0; padding:5mm; border:1px solid #d7e7de; border-radius:4mm; box-shadow:none; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
   body.printing-record .member-card-qr img { width:24mm; height:24mm; }
 }
+
+.loan-preview { padding:14px; border:1px solid #dfece5; border-radius:12px; background:#f6faf7; }
+.loan-preview > strong { color:#174f39; }
+.loan-preview p,.loan-preview small { color:#647970; font-size:12px; line-height:1.55; }
+.loan-preview .table-wrap { margin:10px 0; }
+.loan-preview table { min-width:720px; font-size:11px; }
+.loan-schedule-modal { width:min(1200px,100%); }
+.loan-schedule-print-area { padding:28px; border:1px solid #e1e8e4; border-radius:14px; background:#fff; color:#1e352c; }
+.loan-schedule-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:17px 0; padding:14px; border:1px solid #dfece5; border-radius:11px; background:#f5faf7; }
+.loan-schedule-summary div { display:grid; gap:5px; min-width:0; }
+.loan-schedule-summary span { color:#71837b; font-size:10px; }
+.loan-schedule-summary strong { color:#174f39; font-size:12px; overflow-wrap:anywhere; }
+.loan-schedule-explanation { color:#647970; font-size:11px; line-height:1.6; }
+.loan-schedule-table { min-width:880px; font-size:10px; }
+.loan-schedule-table th,.loan-schedule-table td { padding:8px; }
+.loan-schedule-table thead th { color:#36574a; background:#eef6f1; }
+.loan-schedule-table td:nth-child(n+3):nth-child(-n+7),.loan-schedule-table tfoot th { text-align:right; font-variant-numeric:tabular-nums; }
+.loan-schedule-table tfoot th { border-top:1px solid #cbd9d1; background:#f5f8f6; }
+.autopay-card { margin:18px 0; }
+.autopay-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.autopay-heading h3 { margin:4px 0 0; color:#17392f; }
+.autopay-card > p { color:#647970; font-size:13px; line-height:1.6; }
+.autopay-option { display:flex; align-items:flex-start; gap:11px; margin:12px 0; padding:13px; border:1px solid #e1e9e5; border-radius:11px; background:#fff; cursor:pointer; }
+.autopay-option input { width:18px; height:18px; margin:2px 0 0; accent-color:#137653; }
+.autopay-option span { display:grid; gap:4px; }
+.autopay-option strong { color:#25483a; font-size:13px; }
+.autopay-option small { color:#6f8178; font-size:12px; line-height:1.5; }
+.autopay-card .autopay-caveat { margin-bottom:0; color:#846228; font-size:11px; }
+.withdrawal-section { margin:24px 0; }
+.withdrawal-section > h4 { margin:20px 0 10px; color:#244638; }
+.withdrawal-section .staff-subsection-title { margin-bottom:12px; }
+.withdrawal-section .staff-subsection-title .muted { margin:4px 0 0; }
+.withdrawal-form .full { grid-column:1 / -1; }
+.withdrawal-disclaimer { margin:0; color:#71837b; font-size:11px; line-height:1.5; }
+.withdrawal-confirm-card { margin-bottom:14px; }
+.withdrawal-confirm-card h4 { margin:7px 0 14px; color:#17392f; }
+.withdrawal-confirm-card dl { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:0 0 14px; }
+.withdrawal-confirm-card dl div { display:grid; gap:4px; }
+.withdrawal-confirm-card dt { color:#71837b; font-size:11px; }
+.withdrawal-confirm-card dd { margin:0; color:#244638; font-size:13px; font-weight:700; overflow-wrap:anywhere; }
+.withdrawal-confirm-card > p { color:#647970; font-size:12px; line-height:1.55; }
+.withdrawal-list { display:grid; gap:12px; }
+.withdrawal-item { margin:0; }
+.withdrawal-item > p { color:#50685d; font-size:13px; }
+.withdrawal-actions { display:grid; gap:12px; margin-top:14px; padding-top:14px; border-top:1px solid #e5ece8; }
+.withdrawal-upload-form { display:flex; align-items:flex-end; flex-wrap:wrap; gap:10px; }
+.withdrawal-upload-form label { flex:1 1 240px; margin:0; color:#486256; font-size:12px; font-weight:650; }
+.withdrawal-upload-form input { margin-top:6px; }
+.withdrawal-filters { display:flex; align-items:flex-end; flex-wrap:wrap; gap:12px; margin-bottom:14px; }
+.withdrawal-filters label { flex:1 1 170px; margin:0; color:#486256; font-size:12px; font-weight:650; }
+.withdrawal-pagination { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:14px 0; color:#6f8178; font-size:12px; }
+
+@media (max-width:720px) {
+  .autopay-heading { align-items:flex-start; flex-direction:column; }
+  .autopay-heading .button { width:100%; }
+  .loan-schedule-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .loan-schedule-print-area { padding:16px; }
+  .loan-schedule-print-area .ledger-document-header { align-items:flex-start; }
+  .loan-schedule-print-area .ledger-document-title strong { max-width:145px; line-height:1.4; }
+  .withdrawal-confirm-card dl { grid-template-columns:1fr; }
+  .withdrawal-upload-form { align-items:stretch; flex-direction:column; }
+  .withdrawal-upload-form .button { width:100%; }
+  .withdrawal-pagination { align-items:flex-start; flex-direction:column; }
+}
+
+@media print {
+  body.printing-record .loan-schedule-print-area { padding:8mm; }
+  body.printing-record .loan-schedule-summary { margin:8px 0; padding:9px; }
+  body.printing-record .loan-schedule-table { min-width:0; font-size:8px; }
+  body.printing-record .loan-schedule-table th,
+  body.printing-record .loan-schedule-table td { padding:5px 4px; }
+}

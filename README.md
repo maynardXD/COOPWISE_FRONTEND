@@ -39,6 +39,16 @@ the browser print dialog can also save the statement as PDF. Members can also
 view/print their ID card, and staff can create one from the member directory.
 The card QR contains a signed member identifier, not savings or contact data;
 scanning it checks the current membership status.
+Members see a flat-interest estimate while applying for a loan and can print
+the final approved installment schedule or save it as PDF. Approval credits
+the principal into savings; members can submit a two-step GCash withdrawal
+request, confirm the account details, and track their own request and receipt
+history. Staff search, filter, sort, and page through withdrawal requests,
+attach a private transfer receipt, and complete or reject/refund each request.
+The transfer itself remains manual; this does not connect to GCash.
+Members may independently opt in to loan or daily Paluwagan auto-pay from
+savings. The preferences default off, and automatic payments will not run
+until the backend daily CLI job is configured.
 Staff reports use recorded database totals and monthly activity rather than
 the old screen's static sample figures. Access tokens are kept in per-tab
 session storage. Other legacy pages are still available in the LavaLust
