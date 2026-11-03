@@ -35,6 +35,11 @@ the old screen's static sample figures. Access tokens are kept in per-tab
 session storage. Other legacy pages are still available in the LavaLust
 application and have not yet been moved into this separate frontend.
 
+The staff workspace uses a responsive sidebar, live cooperative overview, and
+consistent page header across loans, reports, payment submissions, daily
+Paluwagan, savings, and member management. The member portal keeps its focused
+tab navigation.
+
 Run `npm run lint` and `npm run build` to validate the frontend.
 
 ## Vercel

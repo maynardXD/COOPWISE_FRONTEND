@@ -823,11 +823,182 @@ function PaymentPortal({ token, user, refreshKey }) {
   )
 }
 
+const STAFF_NAV_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { id: 'loans', label: 'Loans', icon: 'loans' },
+  { id: 'reports', label: 'Reports', icon: 'reports' },
+  { id: 'payments', label: 'Payment Submissions', icon: 'payments' },
+  { id: 'cooperative', label: 'Daily Paluwagan', icon: 'cooperative' },
+  { id: 'savings', label: 'Savings', icon: 'savings' },
+  { id: 'members', label: 'Members', icon: 'members' },
+]
+
+const STAFF_PAGE_DETAILS = {
+  dashboard: ['Dashboard', 'Manage cooperative services and member activity.'],
+  loans: ['Loans', 'Review applications, loan offers, and document approvals.'],
+  reports: ['Reports', 'View recorded cooperative totals and monthly activity.'],
+  payments: ['Payment Submissions', 'Review submitted amounts, references, and payment evidence.'],
+  cooperative: ['Daily Paluwagan', 'Manage contribution cycles, member order, and payouts.'],
+  savings: ['Savings', 'Record savings transactions and review transaction history.'],
+  members: ['Members', 'Search the member directory and view account details.'],
+}
+
+function StaffIcon({ name }) {
+  const paths = {
+    dashboard: <><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" /></>,
+    loans: <><path d="M4 5.5h16M4 10h16M4 14.5h10" /><path d="M17 14v6m-3-3h6" /></>,
+    reports: <><path d="M4 20V11m5 9V5m5 15v-7m5 7V3" /><path d="M2.5 20.5h19" /></>,
+    payments: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 9h18m-14 5h4" /></>,
+    cooperative: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>,
+    savings: <><path d="M19.5 9.5c-1.6-2.4-4.1-3.5-7.5-3.5-4.7 0-8 2.5-8 6s3.3 6 8 6c3.4 0 5.9-1.1 7.5-3.5" /><path d="M18 10h3v4h-3m-7-2h.01" /></>,
+    members: <><circle cx="9" cy="8" r="3" /><path d="M3.5 20v-1.5A5.5 5.5 0 0 1 9 13h1a5.5 5.5 0 0 1 5.5 5.5V20z" /><path d="M16 5.5a3 3 0 0 1 0 5.8m2 2a5 5 0 0 1 2.5 4.3V20" /></>,
+  }
+  return <svg className="staff-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
+}
+
+function StaffDashboard({ token, user, selectedTab, setSelectedTab, refreshKey }) {
+  const tabs = [
+    { id: 'loans', label: 'Monthly loans' },
+    { id: 'members', label: 'Members' },
+    { id: 'savings', label: 'Savings' },
+    { id: 'cooperative', label: 'Daily Paluwagan' },
+    { id: 'payments', label: 'Payment submissions' },
+    { id: 'reports', label: 'Reports' },
+  ]
+
+  return (
+    <>
+      <div className="staff-account-summary">
+        <article className="staff-account-card">
+          <span className="staff-account-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></svg>
+          </span>
+          <span><small>Account</small><strong>{user.full_name}</strong></span>
+        </article>
+        <article className="staff-account-card">
+          <span className="staff-account-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 20 6v5c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6z" /><path d="m9 12 2 2 4-4" /></svg>
+          </span>
+          <span><small>Role</small><strong>{user.role}</strong></span>
+        </article>
+      </div>
+      <nav className="staff-service-tabs" aria-label="Cooperative services">
+        {tabs.map((tab) => (
+          <button
+            className={`staff-service-tab${selectedTab === tab.id ? ' active' : ''}`}
+            type="button"
+            key={tab.id}
+            aria-current={selectedTab === tab.id ? 'page' : undefined}
+            onClick={() => setSelectedTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+      {selectedTab === 'loans'
+        ? <LoanPortal key="dashboard-loans" token={token} user={user} refreshKey={refreshKey} />
+        : selectedTab === 'members'
+          ? <MembersPortal key="dashboard-members" token={token} />
+          : selectedTab === 'savings'
+            ? <SavingsPortal key="dashboard-savings" token={token} user={user} refreshKey={refreshKey} />
+            : selectedTab === 'cooperative'
+              ? <CooperativePortal key="dashboard-cooperative" token={token} user={user} refreshKey={refreshKey} />
+              : selectedTab === 'payments'
+                ? <PaymentPortal key="dashboard-payments" token={token} user={user} refreshKey={refreshKey} />
+                : <ReportsPortal key="dashboard-reports" token={token} refreshKey={refreshKey} />}
+    </>
+  )
+}
+
+function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOut }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [dashboardTab, setDashboardTab] = useState('loans')
+  const [pageTitle, pageDescription] = STAFF_PAGE_DETAILS[section] || STAFF_PAGE_DETAILS.dashboard
+  const initials = user.full_name.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
+
+  function navigate(nextSection) {
+    setSection(nextSection)
+    setSidebarOpen(false)
+  }
+
+  return (
+    <div className={`staff-layout${sidebarOpen ? ' sidebar-open' : ''}`}>
+      {sidebarOpen && <button className="staff-sidebar-backdrop" type="button" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />}
+      <aside className="staff-sidebar" aria-label="Staff navigation">
+        <a className="staff-brand" href="/" aria-label="CoopWise home">
+          <svg className="staff-brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M4 27C4 15 11 7 27 5c-1 14-8 22-21 22Z" fill="currentColor" />
+            <path d="M8 27c4-7 9-12 16-17" fill="none" stroke="#fff" strokeLinecap="round" strokeWidth="1.5" />
+            <path d="M5 28c1-5 4-9 9-12" fill="none" stroke="#74bd98" strokeLinecap="round" strokeWidth="3" />
+          </svg>
+          <span>Coop<span>Wise</span></span>
+        </a>
+        <nav className="staff-nav">
+          {STAFF_NAV_ITEMS.map((item) => (
+            <button
+              className={`staff-nav-item${section === item.id ? ' active' : ''}`}
+              type="button"
+              key={item.id}
+              aria-current={section === item.id ? 'page' : undefined}
+              onClick={() => navigate(item.id)}
+            >
+              <StaffIcon name={item.icon} /><span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+        <button className="staff-sign-out" type="button" onClick={onSignOut}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3" /><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" /></svg>
+          <span>Sign out</span>
+        </button>
+      </aside>
+      <div className="staff-main">
+        <header className="staff-topbar">
+          <button className="staff-menu-toggle" type="button" aria-label="Open navigation" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(!sidebarOpen)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+          <span className="staff-topbar-label">Cooperative management</span>
+          <div className="staff-topbar-actions">
+            <span className="staff-notification-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></svg>
+            </span>
+            <span className="staff-role">{user.role}</span>
+            <span className="staff-avatar" aria-label={user.full_name}>{initials}</span>
+          </div>
+        </header>
+        <section className="staff-page-banner">
+          <div className="staff-banner-copy">
+            <p className="eyebrow">{section === 'dashboard' ? 'CoopWise workspace' : 'Cooperative services'}</p>
+            <h1>{section === 'dashboard' ? `Welcome, ${user.full_name} 👋` : pageTitle}</h1>
+            <p>{section === 'dashboard' ? 'Manage cooperative services and member activity.' : pageDescription}</p>
+          </div>
+          <span className="staff-banner-art" aria-hidden="true" />
+        </section>
+        <div className="staff-content">
+          {section === 'dashboard'
+            ? <StaffDashboard token={token} user={user} selectedTab={dashboardTab} setSelectedTab={setDashboardTab} refreshKey={refreshKey} />
+            : section === 'loans'
+              ? <LoanPortal key="loans" token={token} user={user} refreshKey={refreshKey} />
+              : section === 'members'
+                ? <MembersPortal key="members" token={token} />
+                : section === 'savings'
+                  ? <SavingsPortal key="savings" token={token} user={user} refreshKey={refreshKey} />
+                  : section === 'cooperative'
+                    ? <CooperativePortal key="cooperative" token={token} user={user} refreshKey={refreshKey} />
+                    : section === 'payments'
+                      ? <PaymentPortal key="payments" token={token} user={user} refreshKey={refreshKey} />
+                      : <ReportsPortal key="reports" token={token} refreshKey={refreshKey} />}
+        </div>
+        <footer className="staff-footer">CoopWise demo · This system records cooperative activity; it does not transfer money.</footer>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem('coopwise_access_token'))
   const [user, setUser] = useState(null)
   const [mode, setMode] = useState('login')
-  const [section, setSection] = useState('loans')
+  const [section, setSection] = useState('dashboard')
   const [message, setMessage] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [busy, setBusy] = useState(false)
@@ -836,7 +1007,10 @@ function App() {
   useEffect(() => {
     if (!token) return
     apiRequest('/me', { token })
-      .then((result) => setUser(result.user))
+      .then((result) => {
+        setUser(result.user)
+        setSection(['admin', 'officer'].includes(result.user.role) ? 'dashboard' : 'loans')
+      })
       .catch(() => {
         sessionStorage.removeItem('coopwise_access_token')
         setToken(null)
@@ -869,6 +1043,7 @@ function App() {
         sessionStorage.setItem('coopwise_access_token', result.access_token)
         setToken(result.access_token)
         setUser(result.user)
+        setSection(['admin', 'officer'].includes(result.user.role) ? 'dashboard' : 'loans')
       }
     } catch (requestError) {
       setMessage(requestError.message)
@@ -887,8 +1062,14 @@ function App() {
     setMessage('You have signed out.')
   }
 
+  const staff = user && ['admin', 'officer'].includes(user.role)
+
   return (
-    <main className="page-shell">
+    <main className={`page-shell${staff ? ' page-shell-staff' : ''}`}>
+      {staff ? (
+        <StaffWorkspace token={token} user={user} section={section} setSection={setSection} refreshKey={refreshKey} onSignOut={signOut} />
+      ) : (
+        <>
       <header className="topbar">
         <a className="brand" href="/" aria-label="CoopWise home">Coop<span>Wise</span></a>
         <span className="tagline">Cooperative services, made clear</span>
@@ -967,6 +1148,8 @@ function App() {
         </section>
       )}
       <footer>CoopWise demo · This system records cooperative activity; it does not transfer money.</footer>
+        </>
+      )}
     </main>
   )
 }
