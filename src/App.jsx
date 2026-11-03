@@ -78,7 +78,43 @@ function PortalMessage({ children, error = false }) {
   return children ? <div className={error ? 'message message-error' : 'message'} role="status">{children}</div> : null
 }
 
-function LoanPortal({ token, user, refreshKey }) {
+function StaffEmptyState({ type, title, description, loading = false }) {
+  return (
+    <div className={`staff-empty-state${loading ? ' is-loading' : ''}`} role={loading ? 'status' : 'group'} aria-live={loading ? 'polite' : undefined}>
+      <svg className={`staff-empty-art staff-empty-art-${type}`} viewBox="0 0 180 130" fill="none" aria-hidden="true">
+        {type === 'report' ? (
+          <>
+            <path d="M56 20h50l19 19v69H56z" fill="#fff" stroke="#CAD8DE" strokeWidth="4" strokeLinejoin="round" />
+            <path d="M105 21v20h20" fill="#E8F0F2" stroke="#CAD8DE" strokeWidth="4" strokeLinejoin="round" />
+            <path d="M72 85V68m16 17V55m16 30V62" stroke="#4F9B83" strokeWidth="10" strokeLinecap="round" />
+            <path d="M35 105c-11-8-16-19-16-32 15 4 25 14 29 30m94 2c10-8 15-19 15-32-14 4-24 14-29 30" fill="#DDF1E7" />
+            <circle cx="124" cy="87" r="20" fill="#14815C" />
+            <path d="m115 87 6 6 12-14" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        ) : type === 'payment' ? (
+          <>
+            <path d="M50 19h58l19 19v67H50z" fill="#fff" stroke="#CAD8DE" strokeWidth="4" strokeLinejoin="round" />
+            <path d="M108 20v20h19" fill="#E8F0F2" stroke="#CAD8DE" strokeWidth="4" strokeLinejoin="round" />
+            <path d="M66 54h43M66 68h43M66 82h27" stroke="#A8BBC4" strokeWidth="6" strokeLinecap="round" />
+            <path d="M37 99c-12-5-19-14-23-27 15 1 25 9 31 22m96 6c11-6 17-15 19-28-14 2-23 10-28 23" fill="#DDF1E7" />
+            <circle cx="126" cy="91" r="20" fill="#14815C" />
+            <path d="m117 91 6 6 12-14" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+          </>
+        ) : (
+          <>
+            <rect x="22" y="22" width="136" height="86" rx="14" fill="#F8FBF9" stroke="#DCE9E3" strokeWidth="3" />
+            <path d="M42 49h90M42 68h68M42 87h47" stroke="#9CB6AA" strokeWidth="6" strokeLinecap="round" />
+          </>
+        )}
+      </svg>
+      {loading && <span className="staff-empty-spinner" aria-hidden="true" />}
+      <strong>{title}</strong>
+      <p>{description}</p>
+    </div>
+  )
+}
+
+function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const { data, error, loading } = usePortalData(token, refreshKey, LOAN_ENDPOINTS)
   const [notice, setNotice] = useState('')
@@ -204,7 +240,7 @@ function LoanPortal({ token, user, refreshKey }) {
 
   return (
     <section className="portal-section">
-      <div className="section-heading">
+      {!standalone && <div className="section-heading">
         <div>
           <div className="eyebrow">Credit services</div>
           <h2>Monthly loans</h2>
@@ -213,7 +249,8 @@ function LoanPortal({ token, user, refreshKey }) {
         <button className="button button-outline" type="button" onClick={refreshLoanData} disabled={loading}>
           {loading ? 'Checking…' : 'Refresh status'}
         </button>
-      </div>
+      </div>}
+      {standalone && <div className="standalone-actions"><button className="button button-outline" type="button" onClick={refreshLoanData} disabled={loading}>{loading ? 'Checking…' : 'Refresh status'}</button></div>}
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
       {loading && <p className="loading-note" role="status">Loading your loan information…</p>}
@@ -394,7 +431,7 @@ function LoanPortal({ token, user, refreshKey }) {
   )
 }
 
-function CooperativePortal({ token, user, refreshKey }) {
+function CooperativePortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const { data, error } = usePortalData(token, refreshKey, COOPERATIVE_ENDPOINTS)
   const [notice, setNotice] = useState('')
@@ -433,8 +470,10 @@ function CooperativePortal({ token, user, refreshKey }) {
 
   return (
     <section className="portal-section">
-      <h2>Daily rotating savings (Paluwagan)</h2>
-      <p className="muted">Members contribute the set amount each day. When everyone has contributed, the next person in the agreed payout order is ready to receive the pooled amount; staff confirms when the payout is made.</p>
+      {!standalone && <>
+        <h2>Daily rotating savings (Paluwagan)</h2>
+        <p className="muted">Members contribute the set amount each day. When everyone has contributed, the next person in the agreed payout order is ready to receive the pooled amount; staff confirms when the payout is made.</p>
+      </>}
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
 
@@ -517,7 +556,7 @@ function CooperativePortal({ token, user, refreshKey }) {
   )
 }
 
-function MembersPortal({ token }) {
+function MembersPortal({ token, standalone = false }) {
   const [query, setQuery] = useState('')
   const [members, setMembers] = useState([])
   const [selectedMember, setSelectedMember] = useState(null)
@@ -549,7 +588,7 @@ function MembersPortal({ token }) {
   return (
     <section className="portal-section">
       <div className="section-heading">
-        <div><h2>Members</h2><p className="muted">Member directory and account status.</p></div>
+        {!standalone && <div><h2>Members</h2><p className="muted">Member directory and account status.</p></div>}
         <span className="status">{members.length} shown</span>
       </div>
       <label className="member-search">Search members
@@ -585,7 +624,7 @@ function MembersPortal({ token }) {
   )
 }
 
-function SavingsPortal({ token, user, refreshKey }) {
+function SavingsPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const { data, error } = usePortalData(token, refreshKey, SAVINGS_ENDPOINTS)
   const [notice, setNotice] = useState('')
@@ -612,7 +651,7 @@ function SavingsPortal({ token, user, refreshKey }) {
 
   return (
     <section className="portal-section">
-      <h2>Savings</h2>
+      {!standalone && <h2>Savings</h2>}
       {!staff && <div className="portal-card savings-balance"><span>Your available savings</span><strong>PHP {((balance || 0) / 100).toFixed(2)}</strong></div>}
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
@@ -630,7 +669,7 @@ function SavingsPortal({ token, user, refreshKey }) {
           </form>
         </details>
       )}
-      <h3>Transaction history</h3>
+      <div className="staff-subsection-title"><StaffIcon name="savings" /><h3>Transaction history</h3></div>
       {data && transactions.length === 0 && <p className="muted">No savings transactions recorded.</p>}
       {!!transactions.length && <div className="table-wrap"><table><thead><tr>
         <th>Date</th>{staff && <th>Member</th>}<th>Type</th><th>Amount</th><th>Balance after</th><th>Reference</th><th>Description</th>
@@ -642,15 +681,20 @@ function SavingsPortal({ token, user, refreshKey }) {
   )
 }
 
-function ReportsPortal({ token, refreshKey }) {
-  const { data, error } = usePortalData(token, refreshKey, REPORT_ENDPOINTS)
+function ReportsPortal({ token, refreshKey, standalone = false }) {
+  const { data, error, loading } = usePortalData(token, refreshKey, REPORT_ENDPOINTS)
   const report = data?.[0]
   return (
     <section className="portal-section">
-      <h2>Reports</h2>
       <PortalMessage error>{error}</PortalMessage>
-      {!report && !error && <p className="muted">Loading current figures…</p>}
+      {!report && !error && <StaffEmptyState
+        type="report"
+        title={loading ? 'Loading current figures…' : 'No report figures yet.'}
+        description={loading ? 'Please wait while we fetch the latest data.' : 'Recorded cooperative totals will appear here.'}
+        loading={loading}
+      />}
       {report && <>
+        {!standalone && <h2>Reports</h2>}
         <p className="muted">Live totals from recorded CoopWise transactions. Monthly activity: {report.period}. Pending payment evidence is not counted as received funds.</p>
         <div className="report-grid">
           <article className="portal-card"><span>Members</span><strong>{report.summary.members}</strong><small>{report.summary.active_members} active</small></article>
@@ -675,9 +719,9 @@ function ReportsPortal({ token, refreshKey }) {
   )
 }
 
-function PaymentPortal({ token, user, refreshKey }) {
+function PaymentPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
-  const { data, error } = usePortalData(token, refreshKey, PAYMENT_ENDPOINTS)
+  const { data, error, loading } = usePortalData(token, refreshKey, PAYMENT_ENDPOINTS)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [filter, setFilter] = useState('all')
@@ -728,13 +772,13 @@ function PaymentPortal({ token, user, refreshKey }) {
   return (
     <section className="portal-section">
       <div className="section-heading">
-        <div>
+        {!standalone && <div>
           <div className="eyebrow">{staff ? 'Payment review' : 'Member payments'}</div>
           <h2>{staff ? 'Payment submissions' : 'Submit a payment'}</h2>
           <p className="muted">{staff
             ? 'Review submitted amounts, references, screenshots, and related loan or Paluwagan cycle.'
             : 'Submit a GCash receipt or reference number for staff review.'}</p>
-        </div>
+        </div>}
         {staff && <label className="filter-control">Payment type
           <select value={filter} onChange={(event) => setFilter(event.target.value)}>
             <option value="all">All payments</option>
@@ -793,8 +837,13 @@ function PaymentPortal({ token, user, refreshKey }) {
         </form>
       )}
       {!staff && <h3>Your payment submissions</h3>}
-      {!staff && data && submissions.length === 0 && <p className="muted">No payment submissions yet.</p>}
-      {staff && data && !submissions.some((submission) => filter === 'all' || submission.category === filter) && <p className="muted">No payment submissions match this filter.</p>}
+      {loading && <StaffEmptyState type="payment" title="Loading payment submissions…" description="Please wait while we check for recent submissions." loading />}
+      {!loading && !error && !staff && data && submissions.length === 0 && <StaffEmptyState type="payment" title="No payment submissions yet." description="When you submit a payment, it will appear here." />}
+      {!loading && !error && staff && data && !submissions.some((submission) => filter === 'all' || submission.category === filter) && <StaffEmptyState
+        type="payment"
+        title={filter === 'all' ? 'No payment submissions yet.' : 'No submissions match this payment type.'}
+        description="When someone submits a payment, it will appear here."
+      />}
       {submissions.filter((submission) => !staff || filter === 'all' || submission.category === filter).map((submission) => (
         <article className="portal-card" key={submission.id}>
           <div className="item-heading">
@@ -835,12 +884,12 @@ const STAFF_NAV_ITEMS = [
 
 const STAFF_PAGE_DETAILS = {
   dashboard: ['Dashboard', 'Manage cooperative services and member activity.'],
-  loans: ['Loans', 'Review applications, loan offers, and document approvals.'],
+  loans: ['Loans', 'Review loan status and explore available loan offers.'],
   reports: ['Reports', 'View recorded cooperative totals and monthly activity.'],
   payments: ['Payment Submissions', 'Review submitted amounts, references, and payment evidence.'],
-  cooperative: ['Daily Paluwagan', 'Manage contribution cycles, member order, and payouts.'],
-  savings: ['Savings', 'Record savings transactions and review transaction history.'],
-  members: ['Members', 'Search the member directory and view account details.'],
+  cooperative: ['Daily Paluwagan', 'Members contribute the same amount each day. When everyone has contributed, the next person in payout order is ready to receive the pooled amount.'],
+  savings: ['Savings', 'Record savings transactions.'],
+  members: ['Members', 'Member directory and account status.'],
 }
 
 function StaffIcon({ name }) {
@@ -965,10 +1014,11 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
             <span className="staff-avatar" aria-label={user.full_name}>{initials}</span>
           </div>
         </header>
-        <section className="staff-page-banner">
+        <section className={`staff-page-banner${section === 'dashboard' ? '' : ' staff-page-banner-module'}`}>
+          {section !== 'dashboard' && <span className="staff-page-icon"><StaffIcon name={STAFF_NAV_ITEMS.find((item) => item.id === section)?.icon || 'dashboard'} /></span>}
           <div className="staff-banner-copy">
-            <p className="eyebrow">{section === 'dashboard' ? 'CoopWise workspace' : 'Cooperative services'}</p>
-            <h1>{section === 'dashboard' ? `Welcome, ${user.full_name} 👋` : pageTitle}</h1>
+            {section === 'dashboard' && <h1>Welcome, {user.full_name} 👋</h1>}
+            {section !== 'dashboard' && <h1>{pageTitle}</h1>}
             <p>{section === 'dashboard' ? 'Manage cooperative services and member activity.' : pageDescription}</p>
           </div>
           <span className="staff-banner-art" aria-hidden="true" />
@@ -977,16 +1027,16 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
           {section === 'dashboard'
             ? <StaffDashboard token={token} user={user} selectedTab={dashboardTab} setSelectedTab={setDashboardTab} refreshKey={refreshKey} />
             : section === 'loans'
-              ? <LoanPortal key="loans" token={token} user={user} refreshKey={refreshKey} />
+              ? <LoanPortal key="loans" token={token} user={user} refreshKey={refreshKey} standalone />
               : section === 'members'
-                ? <MembersPortal key="members" token={token} />
+                ? <MembersPortal key="members" token={token} standalone />
                 : section === 'savings'
-                  ? <SavingsPortal key="savings" token={token} user={user} refreshKey={refreshKey} />
+                  ? <SavingsPortal key="savings" token={token} user={user} refreshKey={refreshKey} standalone />
                   : section === 'cooperative'
-                    ? <CooperativePortal key="cooperative" token={token} user={user} refreshKey={refreshKey} />
+                    ? <CooperativePortal key="cooperative" token={token} user={user} refreshKey={refreshKey} standalone />
                     : section === 'payments'
-                      ? <PaymentPortal key="payments" token={token} user={user} refreshKey={refreshKey} />
-                      : <ReportsPortal key="reports" token={token} refreshKey={refreshKey} />}
+                      ? <PaymentPortal key="payments" token={token} user={user} refreshKey={refreshKey} standalone />
+                      : <ReportsPortal key="reports" token={token} refreshKey={refreshKey} standalone />}
         </div>
         <footer className="staff-footer">CoopWise demo · This system records cooperative activity; it does not transfer money.</footer>
       </div>
