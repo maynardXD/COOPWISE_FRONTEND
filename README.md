@@ -30,6 +30,15 @@ Evidence marked approved is manually verified only; it is not automatically
 posted to a financial balance or settled through GCash. Loan documents and
 payment screenshots are stored privately and served through authenticated API
 routes.
+Members can preview and print their own passbook-style savings ledger for all
+activity, this month, last month, or a custom date range. Staff can open the
+same date-filtered ledger from each member’s row in the directory. Ledgers show
+opening and closing balances, period deposit/withdrawal totals, and each
+transaction’s date, reference, description, credit/debit, and running balance;
+the browser print dialog can also save the statement as PDF. Members can also
+view/print their ID card, and staff can create one from the member directory.
+The card QR contains a signed member identifier, not savings or contact data;
+scanning it checks the current membership status.
 Staff reports use recorded database totals and monthly activity rather than
 the old screen's static sample figures. Access tokens are kept in per-tab
 session storage. Other legacy pages are still available in the LavaLust
@@ -37,10 +46,15 @@ application and have not yet been moved into this separate frontend.
 
 The staff workspace uses a responsive sidebar, live cooperative overview, and
 consistent page header across loans, reports, payment submissions, daily
-Paluwagan, savings, and member management. The member portal keeps its focused
-tab navigation.
+Paluwagan, savings, and member management. Members use the same responsive
+workspace shell with member-only navigation and service tabs.
 
 Run `npm run lint` and `npm run build` to validate the frontend.
+
+The ledger and member-card features use the backend’s `/api/savings/ledger`,
+`/api/member-card`, `/api/members/{member_id}/card`, and
+`/api/member-cards/verify` endpoints. Configure the frontend API URL and the
+backend CORS allowed origin as described below before deploying these features.
 
 ## Vercel
 

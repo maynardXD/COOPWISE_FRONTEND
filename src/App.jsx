@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import QRCode from 'qrcode'
 import './App.css'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost/COOPWISE/LavaLust-COOPWISE/api').replace(/\/+$/, '')
@@ -111,6 +112,287 @@ function StaffEmptyState({ type, title, description, loading = false }) {
       <strong>{title}</strong>
       <p>{description}</p>
     </div>
+  )
+}
+
+function formatPesos(value) {
+  const amount = Number(value || 0)
+  return `PHP ${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function localDateString(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function printRecord() {
+  const cleanUp = () => document.body.classList.remove('printing-record')
+  window.addEventListener('afterprint', cleanUp, { once: true })
+  document.body.classList.add('printing-record')
+  window.print()
+}
+
+function SavingsLedgerDialog({ token, member, onClose }) {
+  const [range, setRange] = useState({ preset: 'all', from: '', to: '' })
+  const [ledger, setLedger] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const endpoint = member ? `/savings/ledger/${member.id}` : '/savings/ledger'
+
+  useEffect(() => {
+    let active = true
+    if (range.preset === 'custom' && (!range.from || !range.to || range.from > range.to)) {
+      return () => { active = false }
+    }
+
+    const query = new URLSearchParams()
+    if (range.preset !== 'all') {
+      query.set('from', range.from)
+      query.set('to', range.to)
+    }
+    apiRequest(`${endpoint}${query.size ? `?${query}` : ''}`, { token })
+      .then((result) => {
+        if (active) setLedger(result)
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.message)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => { active = false }
+  }, [endpoint, range, token])
+
+  useEffect(() => {
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [onClose])
+
+  function changeRange(nextRange) {
+    setRange(nextRange)
+    setLedger(null)
+    setError(nextRange.preset === 'custom' && nextRange.from && nextRange.to && nextRange.from > nextRange.to
+      ? 'The start date must be on or before the end date.'
+      : '')
+    setLoading(nextRange.preset !== 'custom' || Boolean(nextRange.from && nextRange.to && nextRange.from <= nextRange.to))
+  }
+
+  function choosePreset(preset) {
+    const now = new Date()
+    const today = localDateString(now)
+    if (preset === 'all') return changeRange({ preset, from: '', to: '' })
+    if (preset === 'this-month') return changeRange({ preset, from: localDateString(new Date(now.getFullYear(), now.getMonth(), 1)), to: today })
+    if (preset === 'last-month') return changeRange({
+      preset,
+      from: localDateString(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+      to: localDateString(new Date(now.getFullYear(), now.getMonth(), 0)),
+    })
+    changeRange({ preset: 'custom', from: localDateString(new Date(now.getFullYear(), now.getMonth(), 1)), to: today })
+  }
+
+  return (
+    <div className="record-modal-backdrop">
+      <section className="record-modal ledger-modal" role="dialog" aria-modal="true" aria-labelledby="ledger-title">
+        <div className="record-modal-heading no-print">
+          <div><span className="eyebrow">Savings record</span><h2 id="ledger-title">Savings ledger</h2></div>
+          <button className="modal-close" type="button" onClick={onClose} aria-label="Close savings ledger">×</button>
+        </div>
+        <div className="ledger-controls no-print">
+          <label>Ledger period
+            <select value={range.preset} onChange={(event) => choosePreset(event.target.value)}>
+              <option value="all">All activity</option>
+              <option value="this-month">This month</option>
+              <option value="last-month">Last month</option>
+              <option value="custom">Custom date range</option>
+            </select>
+          </label>
+          {range.preset === 'custom' && <>
+            <label>From<input type="date" value={range.from} max={range.to || undefined} onChange={(event) => changeRange({ ...range, from: event.target.value })} /></label>
+            <label>Through<input type="date" value={range.to} min={range.from || undefined} max={TODAY} onChange={(event) => changeRange({ ...range, to: event.target.value })} /></label>
+          </>}
+          <button className="button button-primary" type="button" onClick={printRecord} disabled={!ledger || loading}>Print / Save PDF</button>
+        </div>
+        {error && <PortalMessage error>{error}</PortalMessage>}
+        {loading && <StaffEmptyState type="savings" title="Preparing savings ledger…" description="Loading the selected member’s transactions and balances." loading />}
+        {ledger && !loading && <article className="ledger-print-area print-target">
+          <header className="ledger-document-header">
+            <div className="ledger-brand"><span className="ledger-brand-mark">C</span><span>CoopWise<small>Member savings record</small></span></div>
+            <div className="ledger-document-title"><span>PASSBOOK LEDGER</span><strong> SAVINGS TRANSACTION STATEMENT</strong></div>
+          </header>
+          <div className="ledger-member-details">
+            <div><span>Member name</span><strong>{ledger.member.full_name}</strong></div>
+            <div><span>Member number</span><strong>{ledger.member.member_number}</strong></div>
+            <div><span>Membership status</span><strong className={`ledger-status status-${ledger.member.status}`}>{ledger.member.status}</strong></div>
+            <div><span>Statement period</span><strong>{ledger.period.from} to {ledger.period.to}</strong></div>
+          </div>
+          <div className="ledger-summary">
+            <div><span>Opening balance</span><strong>{formatPesos(ledger.opening_balance)}</strong></div>
+            <div><span>Total deposits</span><strong>{formatPesos(ledger.deposits_total)}</strong></div>
+            <div><span>Total withdrawals</span><strong>{formatPesos(ledger.withdrawals_total)}</strong></div>
+            <div><span>Closing balance</span><strong>{formatPesos(ledger.closing_balance)}</strong></div>
+          </div>
+          <div className="ledger-table-wrap">
+            <table className="ledger-table">
+              <thead><tr><th>Date / Reference</th><th>Description</th><th>Deposit (Credit)</th><th>Withdrawal (Debit)</th><th>Balance</th></tr></thead>
+              <tbody>
+                <tr className="ledger-opening-row"><td colSpan="4">Opening balance</td><td>{formatPesos(ledger.opening_balance)}</td></tr>
+                {ledger.transactions.map((transaction) => (
+                  <tr key={transaction.id}>
+                    <td>{transaction.created_at}<small>{transaction.reference_no}</small></td>
+                    <td>{transaction.description || (transaction.type === 'deposit' ? 'Savings deposit' : 'Savings withdrawal')}</td>
+                    <td>{transaction.type === 'deposit' ? formatPesos(transaction.amount) : '—'}</td>
+                    <td>{transaction.type === 'withdrawal' ? formatPesos(transaction.amount) : '—'}</td>
+                    <td>{formatPesos(transaction.balance_after)}</td>
+                  </tr>
+                ))}
+                {!ledger.transactions.length && <tr><td className="ledger-no-transactions" colSpan="5">No savings transactions in this period.</td></tr>}
+              </tbody>
+              <tfoot><tr><th colSpan="2">Period totals</th><th>{formatPesos(ledger.deposits_total)}</th><th>{formatPesos(ledger.withdrawals_total)}</th><th>{formatPesos(ledger.closing_balance)}</th></tr></tfoot>
+            </table>
+          </div>
+          <footer className="ledger-document-footer">
+            <span>Generated {ledger.generated_at}</span>
+            <span>This statement reflects CoopWise records for the selected period. Please contact the cooperative to confirm any discrepancy.</span>
+          </footer>
+        </article>}
+      </section>
+    </div>
+  )
+}
+
+function MemberIdCardDialog({ token, memberId, onClose }) {
+  const [card, setCard] = useState(null)
+  const [qrImage, setQrImage] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const endpoint = memberId ? `/members/${memberId}/card` : '/member-card'
+
+  useEffect(() => {
+    let active = true
+    apiRequest(endpoint, { token })
+      .then(async (result) => {
+        const verificationUrl = new URL(window.location.href)
+        verificationUrl.search = ''
+        verificationUrl.hash = ''
+        verificationUrl.searchParams.set('member_card', result.verification_token)
+        const image = await QRCode.toDataURL(verificationUrl.toString(), {
+          errorCorrectionLevel: 'M',
+          margin: 2,
+          width: 240,
+          color: { dark: '#17362c', light: '#ffffff' },
+        })
+        if (active) {
+          setCard(result.member)
+          setQrImage(image)
+        }
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.message)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => { active = false }
+  }, [endpoint, token])
+
+  useEffect(() => {
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [onClose])
+
+  return (
+    <div className="record-modal-backdrop">
+      <section className="record-modal member-card-modal" role="dialog" aria-modal="true" aria-labelledby="member-card-title">
+        <div className="record-modal-heading no-print">
+          <div><span className="eyebrow">CoopWise member services</span><h2 id="member-card-title">Member ID card</h2></div>
+          <button className="modal-close" type="button" onClick={onClose} aria-label="Close member ID card">×</button>
+        </div>
+        {error && <PortalMessage error>{error}</PortalMessage>}
+        {loading && <StaffEmptyState type="members" title="Preparing member card…" description="Creating a secure member verification QR code." loading />}
+        {card && qrImage && <div className="member-card-print-area print-target">
+          <div className="member-card-design">
+            <header className="member-card-header">
+              <span className="member-card-brand-mark">C</span>
+              <span><strong>CoopWise</strong><small>COOPERATIVE MEMBER IDENTIFICATION</small></span>
+              <span className="member-card-pill">MEMBER ID</span>
+            </header>
+            <div className="member-card-content">
+              <div className="member-card-person">
+                <span className="member-card-avatar" aria-hidden="true">{card.full_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span>
+                <span className="member-card-name">{card.full_name}</span>
+                <span className="member-card-number-label">MEMBER NUMBER</span>
+                <strong className="member-card-number">{card.member_number}</strong>
+                <span className={`member-card-status status-${card.status}`}>{card.status} member</span>
+              </div>
+              <div className="member-card-qr">
+                <img src={qrImage} alt="QR code for secure CoopWise membership verification" />
+                <span>Scan to verify membership</span>
+              </div>
+            </div>
+            <footer className="member-card-footer">This card identifies the named CoopWise member. Membership status is checked online when scanned.</footer>
+          </div>
+        </div>}
+        {card && <div className="member-card-actions no-print">
+          <p>The QR code contains a signed member identifier only. Scanning it verifies the current membership status; it does not display savings or contact details.</p>
+          <button className="button button-primary" type="button" onClick={printRecord}>Print / Save PDF</button>
+        </div>}
+      </section>
+    </div>
+  )
+}
+
+function MemberCardVerification({ verificationToken }) {
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    apiRequest(`/member-cards/verify?token=${encodeURIComponent(verificationToken)}`)
+      .then((response) => {
+        if (active) setResult(response)
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.message)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => { active = false }
+  }, [verificationToken])
+
+  return (
+    <main className="page-shell member-verification-shell">
+      <a className="brand" href="/" aria-label="CoopWise home">
+        <svg className="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 27C4 15 11 7 27 5c-1 14-8 22-21 22Z" fill="currentColor" /><path d="M8 27c4-7 9-12 16-17" fill="none" stroke="#fff" strokeLinecap="round" strokeWidth="1.5" /></svg>
+        <span>Coop<span>Wise</span></span>
+      </a>
+      <section className="member-verification-card" aria-live="polite">
+        <span className={`verification-mark${error ? ' verification-invalid' : ''}`} aria-hidden="true">{loading ? '…' : error ? '!' : '✓'}</span>
+        <div className="eyebrow">CoopWise member verification</div>
+        <h1>{loading ? 'Checking member card…' : error ? 'Card could not be verified' : 'Member card verified'}</h1>
+        {loading && <p>Checking the signed card and current membership status.</p>}
+        {error && <p>{error}</p>}
+        {result && <>
+          <div className="verification-member">
+            <span>Member name</span><strong>{result.member.full_name}</strong>
+            <span>Member number</span><strong>{result.member.member_number}</strong>
+            <span>Current status</span><strong className={`status status-${result.member.status}`}>{result.member.status}</strong>
+          </div>
+          <p className="verification-note">This verification confirms the card was issued by CoopWise and shows the member’s current status. It does not expose savings or contact details.</p>
+        </>}
+        <a className="button button-outline" href="/">Go to CoopWise</a>
+      </section>
+      <footer>CoopWise member card verification</footer>
+    </main>
   )
 }
 
@@ -561,6 +843,8 @@ function MembersPortal({ token, standalone = false }) {
   const [query, setQuery] = useState('')
   const [members, setMembers] = useState([])
   const [selectedMember, setSelectedMember] = useState(null)
+  const [ledgerMember, setLedgerMember] = useState(null)
+  const [cardMemberId, setCardMemberId] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -602,7 +886,7 @@ function MembersPortal({ token, standalone = false }) {
       {loading && <StaffEmptyState type="members" title="Loading members…" description="Please wait while we search the member directory." loading />}
       {!loading && !error && members.length === 0 && <StaffEmptyState type="members" title="No matching members" description="Try another name, member number, phone, or email address." />}
       {!!members.length && <div className="table-wrap"><table>
-        <thead><tr><th>Member #</th><th>Name</th><th>Phone</th><th>Email</th><th>Account</th><th>Status</th><th /></tr></thead>
+        <thead><tr><th>Member #</th><th>Name</th><th>Phone</th><th>Email</th><th>Account</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>{members.map((member) => <tr key={member.id}>
           <td>{member.member_number}</td>
           <td>{member.first_name} {member.middle_name ? `${member.middle_name} ` : ''}{member.last_name}</td>
@@ -610,9 +894,13 @@ function MembersPortal({ token, standalone = false }) {
           <td>{member.email || '—'}</td>
           <td>{member.account_role}</td>
           <td><span className={`status status-${member.status}`}>{member.status}</span></td>
-          <td><button className="text-button" type="button" onClick={() => setSelectedMember(selectedMember === member.id ? null : member.id)}>
-            {selectedMember === member.id ? 'Close' : 'Details'}
-          </button></td>
+          <td><div className="member-row-actions">
+            <button className="text-button" type="button" onClick={() => setLedgerMember(member)}>Savings ledger</button>
+            <button className="text-button" type="button" onClick={() => setCardMemberId(member.id)}>ID card</button>
+            <button className="text-button" type="button" onClick={() => setSelectedMember(selectedMember === member.id ? null : member.id)}>
+              {selectedMember === member.id ? 'Close' : 'Details'}
+            </button>
+          </div></td>
         </tr>)}</tbody>
       </table></div>}
       {selectedMember && members.filter((member) => member.id === selectedMember).map((member) => (
@@ -623,6 +911,8 @@ function MembersPortal({ token, standalone = false }) {
           <p>Account role: {member.account_role} · Membership status: {member.status}</p>
         </article>
       ))}
+      {ledgerMember && <SavingsLedgerDialog token={token} member={ledgerMember} onClose={() => setLedgerMember(null)} />}
+      {cardMemberId && <MemberIdCardDialog token={token} memberId={cardMemberId} onClose={() => setCardMemberId(null)} />}
     </section>
   )
 }
@@ -632,6 +922,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
   const { data, error, loading } = usePortalData(token, refreshKey, SAVINGS_ENDPOINTS)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
+  const [ledgerOpen, setLedgerOpen] = useState(false)
   const transactions = data?.[0]?.transactions || []
   const members = data?.[0]?.members || []
   const balance = data?.[0]?.balance
@@ -655,7 +946,11 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
   return (
     <section className="portal-section">
       {!standalone && <h2>Savings</h2>}
-      {!staff && <div className="portal-card savings-balance"><span>Your available savings</span><strong>{loading && !data ? 'Loading…' : `PHP ${((balance || 0) / 100).toFixed(2)}`}</strong></div>}
+      {!staff && <div className="savings-member-overview">
+        <div className="portal-card savings-balance"><span>Your available savings</span><strong>{loading && !data ? 'Loading…' : formatPesos((balance || 0) / 100)}</strong></div>
+        <button className="button button-primary" type="button" onClick={() => setLedgerOpen(true)}>View / print my savings ledger</button>
+      </div>}
+      {staff && <p className="muted savings-staff-hint">To preview or print a member’s passbook-style savings ledger, open the Members directory and choose <strong>Savings ledger</strong> for that member.</p>}
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
       {staff && (
@@ -681,6 +976,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
         <td>{entry.created_at}</td>{staff && <td>{entry.member_number} · {entry.first_name} {entry.last_name}</td>}
         <td>{entry.type}</td><td>PHP {entry.amount}</td><td>PHP {entry.balance_after}</td><td>{entry.reference_no}</td><td>{entry.description || '—'}</td>
       </tr>)}</tbody></table></div>}
+      {ledgerOpen && <SavingsLedgerDialog token={token} member={null} onClose={() => setLedgerOpen(false)} />}
     </section>
   )
 }
@@ -926,6 +1222,7 @@ function StaffIcon({ name }) {
 }
 
 function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, refreshKey }) {
+  const [memberCardOpen, setMemberCardOpen] = useState(false)
   const tabs = [
     { id: 'loans', label: 'Monthly loans' },
     { id: 'savings', label: 'Savings' },
@@ -954,6 +1251,9 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
           <span><small>Member number</small><strong>{user.member.member_number}</strong></span>
         </article>}
       </div>
+      {!staff && user.member && <div className="member-dashboard-actions">
+        <button className="button button-outline" type="button" onClick={() => setMemberCardOpen(true)}>View / print my member ID</button>
+      </div>}
       <nav className="staff-service-tabs" aria-label="Cooperative services">
         {tabs.map((tab) => (
           <button
@@ -978,6 +1278,7 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
               : selectedTab === 'payments'
                 ? <PaymentPortal key="dashboard-payments" token={token} user={user} refreshKey={refreshKey} />
                 : <ReportsPortal key="dashboard-reports" token={token} refreshKey={refreshKey} />}
+      {memberCardOpen && <MemberIdCardDialog token={token} memberId={null} onClose={() => setMemberCardOpen(false)} />}
     </>
   )
 }
@@ -1074,6 +1375,7 @@ function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem('coopwise_access_token'))
   const [user, setUser] = useState(null)
   const [authenticating, setAuthenticating] = useState(() => Boolean(sessionStorage.getItem('coopwise_access_token')))
+  const [memberCardToken] = useState(() => new URLSearchParams(window.location.search).get('member_card') || '')
   const [mode, setMode] = useState('login')
   const [section, setSection] = useState('dashboard')
   const [message, setMessage] = useState('')
@@ -1082,7 +1384,7 @@ function App() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
-    if (!token) return
+    if (!token || memberCardToken) return
     let active = true
     apiRequest('/me', { token })
       .then((result) => {
@@ -1099,7 +1401,7 @@ function App() {
         setUser(null)
       })
     return () => { active = false }
-  }, [token])
+  }, [token, memberCardToken])
 
   useEffect(() => {
     const refresh = () => setRefreshKey((key) => key + 1)
@@ -1144,6 +1446,8 @@ function App() {
     setMode('login')
     setMessage('You have signed out.')
   }
+
+  if (memberCardToken) return <MemberCardVerification verificationToken={memberCardToken} />
 
   return (
     <main className={`page-shell${user ? ' page-shell-staff' : ''}`}>
