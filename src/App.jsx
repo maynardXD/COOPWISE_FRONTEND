@@ -433,7 +433,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
 
 function CooperativePortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
-  const { data, error } = usePortalData(token, refreshKey, COOPERATIVE_ENDPOINTS)
+  const { data, error, loading } = usePortalData(token, refreshKey, COOPERATIVE_ENDPOINTS)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const cyclesData = data?.[0]
@@ -506,6 +506,7 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
         )}
       </>}
 
+      {loading && !data && <StaffEmptyState type="cooperative" title="Loading daily cycles…" description="Please wait while we fetch the latest cycle and contribution details." loading />}
       {data && cycles.length === 0 && <p className="muted">No daily cycles are available.</p>}
       {cycles.map((cycle) => (
         <article className="portal-card" key={cycle.id}>
@@ -587,17 +588,19 @@ function MembersPortal({ token, standalone = false }) {
 
   return (
     <section className="portal-section">
-      <div className="section-heading">
+      <div className="section-heading members-heading">
         {!standalone && <div><h2>Members</h2><p className="muted">Member directory and account status.</p></div>}
-        <span className="status">{members.length} shown</span>
+        <span className="status" aria-live="polite">{members.length} shown</span>
       </div>
-      <label className="member-search">Search members
+      <div className="member-search-layout">
+        <label className="member-search-field">Search members
         <input value={query} onChange={(event) => { setQuery(event.target.value); setSelectedMember(null) }} placeholder="Type a name, member number, or email" />
-        <small>Results update as you type. Names may match anywhere; member numbers, phones, and emails match from the beginning.</small>
-      </label>
+        </label>
+        <small className="member-search-help">Results update as you type. Names may match anywhere; member numbers, phones, and emails match from the beginning.</small>
+      </div>
       <PortalMessage error>{error}</PortalMessage>
-      {loading && <p className="loading-note">Loading members…</p>}
-      {!loading && !error && members.length === 0 && <p className="muted">No matching members.</p>}
+      {loading && <StaffEmptyState type="members" title="Loading members…" description="Please wait while we search the member directory." loading />}
+      {!loading && !error && members.length === 0 && <StaffEmptyState type="members" title="No matching members" description="Try another name, member number, phone, or email address." />}
       {!!members.length && <div className="table-wrap"><table>
         <thead><tr><th>Member #</th><th>Name</th><th>Phone</th><th>Email</th><th>Account</th><th>Status</th><th /></tr></thead>
         <tbody>{members.map((member) => <tr key={member.id}>
@@ -626,7 +629,7 @@ function MembersPortal({ token, standalone = false }) {
 
 function SavingsPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
-  const { data, error } = usePortalData(token, refreshKey, SAVINGS_ENDPOINTS)
+  const { data, error, loading } = usePortalData(token, refreshKey, SAVINGS_ENDPOINTS)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const transactions = data?.[0]?.transactions || []
@@ -652,7 +655,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
   return (
     <section className="portal-section">
       {!standalone && <h2>Savings</h2>}
-      {!staff && <div className="portal-card savings-balance"><span>Your available savings</span><strong>PHP {((balance || 0) / 100).toFixed(2)}</strong></div>}
+      {!staff && <div className="portal-card savings-balance"><span>Your available savings</span><strong>{loading && !data ? 'Loading…' : `PHP ${((balance || 0) / 100).toFixed(2)}`}</strong></div>}
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
       {staff && (
@@ -670,6 +673,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
         </details>
       )}
       <div className="staff-subsection-title"><StaffIcon name="savings" /><h3>Transaction history</h3></div>
+      {loading && !data && <StaffEmptyState type="savings" title="Loading savings history…" description="Please wait while we fetch the latest transactions." loading />}
       {data && transactions.length === 0 && <p className="muted">No savings transactions recorded.</p>}
       {!!transactions.length && <div className="table-wrap"><table><thead><tr>
         <th>Date</th>{staff && <th>Member</th>}<th>Type</th><th>Amount</th><th>Balance after</th><th>Reference</th><th>Description</th>
@@ -882,6 +886,14 @@ const STAFF_NAV_ITEMS = [
   { id: 'members', label: 'Members', icon: 'members' },
 ]
 
+const MEMBER_NAV_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { id: 'loans', label: 'Loans', icon: 'loans' },
+  { id: 'payments', label: 'Online Payments', icon: 'payments' },
+  { id: 'cooperative', label: 'Daily Paluwagan', icon: 'cooperative' },
+  { id: 'savings', label: 'Savings', icon: 'savings' },
+]
+
 const STAFF_PAGE_DETAILS = {
   dashboard: ['Dashboard', 'Manage cooperative services and member activity.'],
   loans: ['Loans', 'Review loan status and explore available loan offers.'],
@@ -890,6 +902,14 @@ const STAFF_PAGE_DETAILS = {
   cooperative: ['Daily Paluwagan', 'Members contribute the same amount each day. When everyone has contributed, the next person in payout order is ready to receive the pooled amount.'],
   savings: ['Savings', 'Record savings transactions.'],
   members: ['Members', 'Member directory and account status.'],
+}
+
+const MEMBER_PAGE_DETAILS = {
+  dashboard: ['Dashboard', 'Your cooperative services, all in one place.'],
+  loans: ['Loans', 'Review your loan documents, offers, and applications.'],
+  payments: ['Online Payments', 'Submit payment details and review your payment evidence.'],
+  cooperative: ['Daily Paluwagan', 'Members contribute the same amount each day. When everyone has contributed, the next person in payout order is ready to receive the pooled amount.'],
+  savings: ['Savings', 'View your savings balance and transaction history.'],
 }
 
 function StaffIcon({ name }) {
@@ -905,14 +925,13 @@ function StaffIcon({ name }) {
   return <svg className="staff-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
 
-function StaffDashboard({ token, user, selectedTab, setSelectedTab, refreshKey }) {
+function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, refreshKey }) {
   const tabs = [
     { id: 'loans', label: 'Monthly loans' },
-    { id: 'members', label: 'Members' },
     { id: 'savings', label: 'Savings' },
     { id: 'cooperative', label: 'Daily Paluwagan' },
-    { id: 'payments', label: 'Payment submissions' },
-    { id: 'reports', label: 'Reports' },
+    { id: 'payments', label: staff ? 'Payment submissions' : 'Online payments' },
+    ...(staff ? [{ id: 'members', label: 'Members' }, { id: 'reports', label: 'Reports' }] : []),
   ]
 
   return (
@@ -930,6 +949,10 @@ function StaffDashboard({ token, user, selectedTab, setSelectedTab, refreshKey }
           </span>
           <span><small>Role</small><strong>{user.role}</strong></span>
         </article>
+        {!staff && user.member && <article className="staff-account-card">
+          <span className="staff-account-icon"><StaffIcon name="members" /></span>
+          <span><small>Member number</small><strong>{user.member.member_number}</strong></span>
+        </article>}
       </div>
       <nav className="staff-service-tabs" aria-label="Cooperative services">
         {tabs.map((tab) => (
@@ -962,7 +985,10 @@ function StaffDashboard({ token, user, selectedTab, setSelectedTab, refreshKey }
 function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOut }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [dashboardTab, setDashboardTab] = useState('loans')
-  const [pageTitle, pageDescription] = STAFF_PAGE_DETAILS[section] || STAFF_PAGE_DETAILS.dashboard
+  const staff = ['admin', 'officer'].includes(user.role)
+  const navItems = staff ? STAFF_NAV_ITEMS : MEMBER_NAV_ITEMS
+  const pageDetails = staff ? STAFF_PAGE_DETAILS : MEMBER_PAGE_DETAILS
+  const [pageTitle, pageDescription] = pageDetails[section] || pageDetails.dashboard
   const initials = user.full_name.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 
   function navigate(nextSection) {
@@ -973,7 +999,7 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
   return (
     <div className={`staff-layout${sidebarOpen ? ' sidebar-open' : ''}`}>
       {sidebarOpen && <button className="staff-sidebar-backdrop" type="button" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />}
-      <aside className="staff-sidebar" aria-label="Staff navigation">
+      <aside className="staff-sidebar" aria-label="Main navigation">
         <a className="staff-brand" href="/" aria-label="CoopWise home">
           <svg className="staff-brand-mark" viewBox="0 0 32 32" aria-hidden="true">
             <path d="M4 27C4 15 11 7 27 5c-1 14-8 22-21 22Z" fill="currentColor" />
@@ -983,7 +1009,7 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
           <span>Coop<span>Wise</span></span>
         </a>
         <nav className="staff-nav">
-          {STAFF_NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <button
               className={`staff-nav-item${section === item.id ? ' active' : ''}`}
               type="button"
@@ -1005,7 +1031,7 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
           <button className="staff-menu-toggle" type="button" aria-label="Open navigation" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(!sidebarOpen)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
-          <span className="staff-topbar-label">Cooperative management</span>
+          <span className="staff-topbar-label">{staff ? 'Cooperative management' : 'Member services'}</span>
           <div className="staff-topbar-actions">
             <span className="staff-notification-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></svg>
@@ -1015,17 +1041,17 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
           </div>
         </header>
         <section className={`staff-page-banner${section === 'dashboard' ? '' : ' staff-page-banner-module'}`}>
-          {section !== 'dashboard' && <span className="staff-page-icon"><StaffIcon name={STAFF_NAV_ITEMS.find((item) => item.id === section)?.icon || 'dashboard'} /></span>}
+          {section !== 'dashboard' && <span className="staff-page-icon"><StaffIcon name={navItems.find((item) => item.id === section)?.icon || 'dashboard'} /></span>}
           <div className="staff-banner-copy">
             {section === 'dashboard' && <h1>Welcome, {user.full_name} 👋</h1>}
             {section !== 'dashboard' && <h1>{pageTitle}</h1>}
-            <p>{section === 'dashboard' ? 'Manage cooperative services and member activity.' : pageDescription}</p>
+            <p>{section === 'dashboard' && staff ? 'Manage cooperative services and member activity.' : pageDescription}</p>
           </div>
           <span className="staff-banner-art" aria-hidden="true" />
         </section>
         <div className="staff-content">
           {section === 'dashboard'
-            ? <StaffDashboard token={token} user={user} selectedTab={dashboardTab} setSelectedTab={setDashboardTab} refreshKey={refreshKey} />
+            ? <ServiceDashboard token={token} user={user} staff={staff} selectedTab={dashboardTab} setSelectedTab={setDashboardTab} refreshKey={refreshKey} />
             : section === 'loans'
               ? <LoanPortal key="loans" token={token} user={user} refreshKey={refreshKey} standalone />
               : section === 'members'
@@ -1047,6 +1073,7 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
 function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem('coopwise_access_token'))
   const [user, setUser] = useState(null)
+  const [authenticating, setAuthenticating] = useState(() => Boolean(sessionStorage.getItem('coopwise_access_token')))
   const [mode, setMode] = useState('login')
   const [section, setSection] = useState('dashboard')
   const [message, setMessage] = useState('')
@@ -1056,16 +1083,22 @@ function App() {
 
   useEffect(() => {
     if (!token) return
+    let active = true
     apiRequest('/me', { token })
       .then((result) => {
+        if (!active) return
         setUser(result.user)
-        setSection(['admin', 'officer'].includes(result.user.role) ? 'dashboard' : 'loans')
+        setSection('dashboard')
+        setAuthenticating(false)
       })
       .catch(() => {
+        if (!active) return
+        setAuthenticating(false)
         sessionStorage.removeItem('coopwise_access_token')
         setToken(null)
         setUser(null)
       })
+    return () => { active = false }
   }, [token])
 
   useEffect(() => {
@@ -1093,7 +1126,7 @@ function App() {
         sessionStorage.setItem('coopwise_access_token', result.access_token)
         setToken(result.access_token)
         setUser(result.user)
-        setSection(['admin', 'officer'].includes(result.user.role) ? 'dashboard' : 'loans')
+        setSection('dashboard')
       }
     } catch (requestError) {
       setMessage(requestError.message)
@@ -1112,49 +1145,26 @@ function App() {
     setMessage('You have signed out.')
   }
 
-  const staff = user && ['admin', 'officer'].includes(user.role)
-
   return (
-    <main className={`page-shell${staff ? ' page-shell-staff' : ''}`}>
-      {staff ? (
+    <main className={`page-shell${user ? ' page-shell-staff' : ''}`}>
+      {user ? (
         <StaffWorkspace token={token} user={user} section={section} setSection={setSection} refreshKey={refreshKey} onSignOut={signOut} />
       ) : (
         <>
       <header className="topbar">
-        <a className="brand" href="/" aria-label="CoopWise home">Coop<span>Wise</span></a>
+        <a className="brand" href="/" aria-label="CoopWise home">
+          <svg className="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 27C4 15 11 7 27 5c-1 14-8 22-21 22Z" fill="currentColor" /><path d="M8 27c4-7 9-12 16-17" fill="none" stroke="#fff" strokeLinecap="round" strokeWidth="1.5" /></svg>
+          <span>Coop<span>Wise</span></span>
+        </a>
         <span className="tagline">Cooperative services, made clear</span>
       </header>
 
-      {user ? (
-        <section className="dashboard card">
-          <div className="eyebrow">{['admin', 'officer'].includes(user.role) ? 'Staff workspace' : 'Member portal'}</div>
-          <h1>Welcome, {user.full_name}</h1>
-          <p className="muted">{['admin', 'officer'].includes(user.role) ? 'Manage cooperative services and member activity.' : 'Your cooperative services, all in one place.'}</p>
-          <div className="profile-card">
-            <div><span>Account</span><strong>{user.full_name}</strong></div>
-            <div><span>Role</span><strong>{user.role}</strong></div>
-            {user.member && <div><span>Member number</span><strong>{user.member.member_number}</strong></div>}
-          </div>
-          <nav className="portal-tabs" aria-label="Cooperative services">
-            <button className={section === 'loans' ? 'tab active' : 'tab'} type="button" onClick={() => setSection('loans')}>Monthly loans</button>
-            {['admin', 'officer'].includes(user.role) && <button className={section === 'members' ? 'tab active' : 'tab'} type="button" onClick={() => setSection('members')}>Members</button>}
-            <button className={section === 'savings' ? 'tab active' : 'tab'} type="button" onClick={() => setSection('savings')}>Savings</button>
-            <button className={section === 'cooperative' ? 'tab active' : 'tab'} type="button" onClick={() => setSection('cooperative')}>Daily Paluwagan</button>
-            <button className={section === 'payments' ? 'tab active' : 'tab'} type="button" onClick={() => setSection('payments')}>{['admin', 'officer'].includes(user.role) ? 'Payment submissions' : 'Online payments'}</button>
-            {['admin', 'officer'].includes(user.role) && <button className={section === 'reports' ? 'tab active' : 'tab'} type="button" onClick={() => setSection('reports')}>Reports</button>}
-          </nav>
-          {section === 'loans'
-            ? <LoanPortal key="loans" token={token} user={user} refreshKey={refreshKey} />
-            : section === 'members'
-              ? <MembersPortal key="members" token={token} />
-              : section === 'savings'
-                ? <SavingsPortal key="savings" token={token} user={user} refreshKey={refreshKey} />
-                : section === 'cooperative'
-                  ? <CooperativePortal key="cooperative" token={token} user={user} refreshKey={refreshKey} />
-                  : section === 'payments'
-                    ? <PaymentPortal key="payments" token={token} user={user} refreshKey={refreshKey} />
-                    : <ReportsPortal key="reports" token={token} refreshKey={refreshKey} />}
-          <button className="button button-outline sign-out" onClick={signOut} type="button">Sign out</button>
+      {authenticating ? (
+        <section className="auth-loading" role="status" aria-live="polite">
+          <span className="auth-loading-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32"><path d="M4 27C4 15 11 7 27 5c-1 14-8 22-21 22Z" fill="currentColor" /><path d="M8 27c4-7 9-12 16-17" fill="none" stroke="#fff" strokeLinecap="round" strokeWidth="1.5" /></svg>
+          </span>
+          <span>Loading your CoopWise workspace…</span>
         </section>
       ) : (
         <section className="auth-layout">
