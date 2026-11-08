@@ -12,24 +12,23 @@ LavaLust backend through its built-in API endpoints.
 
 The frontend supports member registration and sign-in, then shows role-based
 share-capital, savings, loan, online-payment, and daily Paluwagan screens backed
-by the LavaLust API.
-Members submit loan documents for staff approval before loan offers become
-available, then can apply and view their loan schedules. They can submit
-demo payment records for staff review, see their cycle participation, and view their own
-payment/contribution/payout history. Staff can search members, loans, and
-payment submissions; browse and search the member directory; filter payment
-submissions by loan, Paluwagan, or cooperative payment and inspect the amount,
-reference, related cycle, and screenshot; approve loan documents and review
-demo payment records; manage loan products and applications; record loan payments;
-create daily cycles; enroll members in payout order; record contributions; and
-confirm completed payouts.
+by the LavaLust API. Members submit loan documents for staff approval before
+loan offers become available, then can apply and view their loan schedules.
+They can make savings, loan, Paluwagan, or share-capital payments using
+PayMongo Hosted Checkout, see their cycle participation, and view their own
+payment/contribution/payout history. Staff can browse the cooperative-wide
+PayMongo transaction history, manage loan products and applications, create
+daily cycles, select multiple members for enrollment, and confirm completed
+Paluwagan payouts. The backend randomizes payout order for the selected members.
 After loan documents are approved, members see active offers configured by
 staff. If none are available, the portal explains that staff need to configure
 an active product. The loan page can refresh approval status after staff review.
-Approved demo records do not transfer money or update a financial balance.
-Loan documents and
-payment screenshots are stored privately and served through authenticated API
-routes.
+PayMongo payments are recorded only after the backend receives a valid signed
+webhook or confirms the status directly with PayMongo. The transaction history
+refreshes automatically while the page is open. Loan documents are stored
+privately and served through authenticated API routes. Existing demo
+payment-submission records are retained, but the submission and staff approval
+workflow is no longer used.
 Members can preview and print their own passbook-style savings ledger for all
 activity, this month, last month, or a custom date range. Staff can open the
 same date-filtered ledger from each member’s row in the directory. Ledgers show
@@ -49,21 +48,24 @@ Members may independently opt in to loan or daily Paluwagan auto-pay from
 savings. The preferences default off, and automatic payments will not run
 until the backend daily CLI job is configured.
 Share capital is ownership investment, not withdrawable savings. Staff can
-record cooperative-approved subscriptions and simulated demo contributions;
-members see their own subscribed, paid-up, and unpaid amounts. Staff can reverse
-an erroneous contribution with an auditable correction instead of deleting the
-original transaction. Demo contributions are database records only and do not
-transfer money. Payment submissions and loan/share-capital demo transactions
-also do not transfer money; PayMongo is not integrated.
+record cooperative-approved subscriptions; members see their own subscribed,
+paid-up, and unpaid amounts. Staff can reverse an erroneous contribution with
+an auditable correction instead of deleting the original transaction.
+PayMongo is configured for test mode by default. It requires a server-side
+secret key and a configured webhook before checkout can be used. The provider
+does not disburse Paluwagan payouts; staff still confirm those separately.
+Forgot-password uses a six-digit OTP delivered through Brevo. It requires a
+Brevo API key and a verified sender address. Neither provider credential is
+stored in the frontend.
 Staff reports use recorded database totals and monthly activity rather than
 the old screen's static sample figures. Access tokens are kept in per-tab
 session storage. Other legacy pages are still available in the LavaLust
 application and have not yet been moved into this separate frontend.
 
 The staff workspace uses a responsive sidebar, live cooperative overview, and
-consistent page header across loans, share capital, reports, payment
-submissions, daily Paluwagan, savings, and member management. Members use the same responsive
-workspace shell with member-only navigation and service tabs.
+consistent page header across loans, share capital, reports, online payments,
+daily Paluwagan, savings, and member management. Members use the same
+responsive workspace shell with member-only navigation and service tabs.
 
 Run `npm run lint` and `npm run build` to validate the frontend.
 

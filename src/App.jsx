@@ -6,7 +6,7 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost/COOPWIS
 const TODAY = new Date().toISOString().slice(0, 10)
 const LOAN_ENDPOINTS = ['/loan-products', '/loans', '/payments', '/loan-readiness']
 const COOPERATIVE_ENDPOINTS = ['/cooperative/cycles']
-const PAYMENT_ENDPOINTS = ['/loans', '/cooperative/cycles', '/payment-submissions']
+const PAYMENT_ENDPOINTS = ['/loans', '/cooperative/cycles', '/share-capital', '/checkout-transactions']
 const SAVINGS_ENDPOINTS = ['/savings']
 const SHARE_CAPITAL_ENDPOINTS = ['/share-capital']
 const REPORT_ENDPOINTS = ['/reports']
@@ -730,15 +730,6 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
               <button className="button button-primary" type="button" onClick={() => reviewLoan(loan.id, 'approve')}>Approve</button>
               <button className="button button-outline" type="button" onClick={() => reviewLoan(loan.id, 'reject')}>Reject</button>
             </>}
-            {staff && ['approved', 'active'].includes(loan.status) && (
-              <form className="inline-form" onSubmit={(event) => submit(event, `/loans/${loan.id}/payments`, 'POST', 'Payment recorded.')}>
-                <input name="amount" type="number" min="0.01" step="0.01" placeholder="Payment amount" required />
-                <select name="method" defaultValue="simulation" aria-label="Payment method">
-                  <option value="simulation">Simulated demo payment</option>
-                </select>
-                <button className="button button-primary" type="submit">Record payment</button>
-              </form>
-            )}
           </div>
         </article>
       ))}
@@ -781,6 +772,7 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
   const { data, error, loading } = usePortalData(token, refreshKey, COOPERATIVE_ENDPOINTS)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
+  const [draftCycleId, setDraftCycleId] = useState('')
   const cyclesData = data?.[0]
   const cycles = cyclesData?.cycles || []
   const members = cyclesData?.members || []
@@ -813,11 +805,33 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
     }
   }
 
+  async function enrollMembers(event) {
+    event.preventDefault()
+    const form = event.currentTarget
+    const values = new FormData(form)
+    const member_ids = Array.from(form.elements.member_ids.selectedOptions, (option) => option.value)
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest('/cooperative/cycles/members', {
+        token,
+        method: 'POST',
+        body: JSON.stringify({ cycle_id: values.get('cycle_id'), member_ids }),
+      })
+      setNotice(result.message)
+      form.reset()
+      setDraftCycleId('')
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
+
   return (
     <section className="portal-section">
       {!standalone && <>
         <h2>Daily rotating savings (Paluwagan)</h2>
-        <p className="muted">Members contribute the set amount each day. When everyone has contributed, the next person in the agreed payout order is ready to receive the pooled amount; staff confirms when the payout is made.</p>
+        <p className="muted">Members pay their daily contribution through PayMongo. Once everyone has paid, the next person in the randomized order is ready for the pooled payout. PayMongo collects contributions; staff still confirms when a payout is actually made.</p>
       </>}
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
@@ -834,18 +848,16 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
         </details>
         {cycles.some((cycle) => cycle.status === 'draft') && (
           <details className="portal-card">
-            <summary>Enroll members and set payout order</summary>
-            <form className="form-grid" onSubmit={(event) => submit(event, '/cooperative/cycles/members', 'Member added to the draft cycle.')}>
-              <label>Draft cycle<select name="cycle_id" required defaultValue="">
+            <summary>Enroll multiple members and randomize payout order</summary>
+            <form className="form-grid" onSubmit={enrollMembers}>
+              <label>Draft cycle<select name="cycle_id" required value={draftCycleId} onChange={(event) => setDraftCycleId(event.target.value)}>
                 <option value="">Select a cycle</option>
                 {cycles.filter((cycle) => cycle.status === 'draft').map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}
               </select></label>
-              <label>Member<select name="member_id" required defaultValue="">
-                <option value="">Select a member</option>
-                {members.map((member) => <option key={member.id} value={member.id}>{member.member_number} · {member.first_name} {member.last_name}</option>)}
-              </select></label>
-              <label>Payout order<input name="payout_order" type="number" min="1" required /></label>
-              <button className="button button-primary" type="submit">Add member</button>
+              <label className="full">Members<select name="member_ids" multiple required size={Math.min(Math.max(members.length, 3), 8)}>
+                {members.filter((member) => !cycles.find((cycle) => String(cycle.id) === draftCycleId)?.members.some((enrolled) => Number(enrolled.member_id) === Number(member.id))).map((member) => <option key={member.id} value={member.id}>{member.member_number} · {member.first_name} {member.last_name}</option>)}
+              </select><small>Hold Ctrl (Windows) or Command (Mac) while clicking to select multiple members. Their payout order is randomized by the server.</small></label>
+              <button className="button button-primary" type="submit">Add selected members and randomize</button>
             </form>
           </details>
         )}
@@ -862,15 +874,6 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
           <p>{cycle.today_contributions} of {cycle.member_count} contributions recorded today.</p>
           {staff && cycle.status === 'draft' && (
             <button className="button button-primary" type="button" onClick={() => changeCycle('/cooperative/cycles/activate', { cycle_id: cycle.id }, 'Cycle activated.')}>Activate cycle</button>
-          )}
-          {staff && cycle.status === 'active' && (
-            <form className="inline-form" onSubmit={(event) => submit(event, '/cooperative/contributions', 'Contribution recorded.')}>
-              <input type="hidden" name="cycle_id" value={cycle.id} />
-              <select name="member_id" required defaultValue=""><option value="" disabled>Member contribution</option>
-                {cycle.members.map((member) => <option key={member.member_id} value={member.member_id}>{member.member_number} · {member.first_name} {member.last_name}</option>)}
-              </select>
-              <button className="button button-primary" type="submit">Record today’s contribution</button>
-            </form>
           )}
           {cycle.ready_payout && (
             <div className="payout-callout">
@@ -995,7 +998,6 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
   const [autoPayDraft, setAutoPayDraft] = useState(null)
   const [autoPaySaving, setAutoPaySaving] = useState(false)
   const transactions = data?.[0]?.transactions || []
-  const members = data?.[0]?.members || []
   const balance = data?.[0]?.balance
   const autoPaySettings = autoPayDraft || data?.[0]?.auto_pay_preferences || { loan: false, paluwagan: false }
 
@@ -1082,22 +1084,6 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
     }
   }
 
-  async function recordTransaction(event) {
-    event.preventDefault()
-    const form = event.currentTarget
-    const values = Object.fromEntries(new FormData(form).entries())
-    setNotice('')
-    setActionError('')
-    try {
-      const result = await apiRequest('/savings', { token, method: 'POST', body: JSON.stringify(values) })
-      setNotice(result.message)
-      form.reset()
-      window.dispatchEvent(new Event('coopwise:refresh'))
-    } catch (requestError) {
-      setActionError(requestError.message)
-    }
-  }
-
   function withdrawalPagination() {
     if (withdrawalSummary.pages <= 1) return null
     return <div className="withdrawal-pagination"><span>{withdrawalSummary.total} requests · Page {withdrawalSummary.page} of {withdrawalSummary.pages}</span><div className="button-row">
@@ -1177,20 +1163,6 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
           )}
           {withdrawalPagination()}
         </section>
-      )}
-      {staff && (
-        <details className="portal-card" open>
-          <summary>Record savings transaction</summary>
-          <form className="form-grid" onSubmit={recordTransaction}>
-            <label>Member<select name="member_id" required defaultValue=""><option value="" disabled>Select a member</option>
-              {members.map((member) => <option key={member.id} value={member.id}>{member.member_number} · {member.first_name} {member.last_name}</option>)}
-            </select></label>
-            <label>Transaction<select name="type" required defaultValue="deposit"><option value="deposit">Deposit</option><option value="withdrawal">Withdrawal</option></select></label>
-            <label>Amount (PHP)<input name="amount" type="number" min="0.01" step="0.01" required /></label>
-            <label>Description (optional)<input name="description" maxLength="255" /></label>
-            <button className="button button-primary" type="submit">Save transaction</button>
-          </form>
-        </details>
       )}
       <div className="staff-subsection-title"><StaffIcon name="savings" /><h3>Transaction history</h3></div>
       {loading && !data && <StaffEmptyState type="savings" title="Loading savings history…" description="Please wait while we fetch the latest transactions." loading />}
@@ -1282,24 +1254,6 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
             <button className="button button-primary" type="submit">Create subscription</button>
           </form>
         </details>
-        <details className="portal-card">
-          <summary>Record share capital contribution</summary>
-          <p className="muted">This records an internal demo contribution only; no money is transferred. A live contribution should be recorded only after the cooperative verifies receipt.</p>
-          <form className="form-grid" onSubmit={(event) => submit(event, '/share-capital/payments', 'Contribution recorded.')}>
-            <label>Active subscription<select name="subscription_id" required defaultValue="">
-              <option value="" disabled>Select a subscription</option>
-              {subscriptions.filter((item) => item.status === 'active' && Number(item.unpaid_amount) > 0).map((item) => (
-                <option key={item.id} value={item.id}>{item.member_number} · {item.first_name} {item.last_name} · {item.subscription_number} · unpaid {formatPesos(item.unpaid_amount)}</option>
-              ))}
-            </select></label>
-            <label>Amount (PHP)<input name="amount" type="number" min="0.01" step="0.01" required /></label>
-            <label>Record as<select name="payment_method" defaultValue="simulation" required>
-              <option value="simulation">Simulated demo payment</option>
-            </select></label>
-            <label>Description (optional)<input name="description" maxLength="255" /></label>
-            <button className="button button-primary" type="submit">Record contribution</button>
-          </form>
-        </details>
       </>}
       <h3>Share subscriptions</h3>
       {loading && <StaffEmptyState type="members" title="Loading share capital…" description="Please wait while share subscriptions are retrieved." loading />}
@@ -1327,9 +1281,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
           <td>{transaction.transaction_type === 'reversal' ? `Reversal of #${transaction.reverses_transaction_id}` : 'Contribution'}</td>
           <td>{transaction.transaction_type === 'reversal' ? '−' : ''}{formatPesos(transaction.amount)}</td>
           <td>{formatPesos(transaction.balance_after)}</td>
-          <td>{transaction.payment_method === 'simulation'
-            ? 'Simulated demo payment'
-            : transaction.payment_method || transaction.description || '—'}</td>
+          <td>{transaction.payment_method || transaction.description || '—'}</td>
           {staff && <td>{transaction.transaction_type === 'payment' && !reversedPaymentIds.has(Number(transaction.id)) && <button className="text-button" type="button" onClick={() => reversePayment(transaction)}>Reverse</button>}</td>}
         </tr>)}</tbody>
       </table></div>}
@@ -1351,14 +1303,13 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
       />}
       {report && <>
         {!standalone && <h2>Reports</h2>}
-        <p className="muted">Live totals from recorded CoopWise transactions. Monthly activity: {report.period}. Pending payment evidence is not counted as received funds.</p>
+        <p className="muted">Live totals from recorded CoopWise transactions. Monthly activity: {report.period}.</p>
         <div className="report-grid">
           <article className="portal-card"><span>Members</span><strong>{report.summary.members}</strong><small>{report.summary.active_members} active</small></article>
           <article className="portal-card"><span>Savings balance</span><strong>PHP {report.summary.savings_balance}</strong></article>
           <article className="portal-card"><span>Paid-up share capital</span><strong>PHP {report.summary.share_capital_paid_up || '0.00'}</strong><small>Subscribed: PHP {report.summary.share_capital_subscribed || '0.00'}</small></article>
           <article className="portal-card"><span>Loan portfolio</span><strong>PHP {report.summary.loan_balance}</strong></article>
           <article className="portal-card"><span>Loan payments received</span><strong>PHP {report.summary.loan_payments_received}</strong></article>
-          <article className="portal-card"><span>Payment evidence awaiting review</span><strong>{report.pending_payment_submissions}</strong></article>
         </div>
         <h3>Monthly activity</h3>
         <div className="table-wrap"><table><thead><tr><th>Activity</th><th>Value</th></tr></thead><tbody>
@@ -1380,45 +1331,77 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
 function PaymentPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const { data, error, loading } = usePortalData(token, refreshKey, PAYMENT_ENDPOINTS)
-  const [notice, setNotice] = useState('')
+  const [notice, setNotice] = useState(() => {
+    const result = new URLSearchParams(window.location.search).get('payment')
+    if (result === 'success') return 'PayMongo returned you to CoopWise. Your payment is being checked; your account updates only after server confirmation.'
+    if (result === 'cancelled') return 'Checkout was cancelled. No payment has been added to your account.'
+    return ''
+  })
   const [actionError, setActionError] = useState('')
-  const [filter, setFilter] = useState('all')
+  const [purpose, setPurpose] = useState('savings')
+  const [submitting, setSubmitting] = useState(false)
   const loans = data?.[0]?.loans || []
   const cycles = data?.[1]?.cycles || []
-  const submissions = data?.[2]?.submissions || []
-  const [category, setCategory] = useState('loan')
+  const subscriptions = data?.[2]?.subscriptions || []
+  const transactions = data?.[3]?.transactions || []
 
-  async function submitPayment(event) {
-    event.preventDefault()
-    const form = event.currentTarget
-    const values = new FormData(form)
-    if (!values.get('reference_no') && !values.get('screenshot')?.size) {
-      values.set('reference_no', `CW-DEMO-${Date.now()}`)
+  useEffect(() => {
+    let active = true
+    const params = new URLSearchParams(window.location.search)
+    const result = params.get('payment')
+    if (result === 'success') {
+      window.dispatchEvent(new Event('coopwise:refresh'))
+      const transactionId = params.get('transaction')
+      if (transactionId && /^\d+$/.test(transactionId)) {
+        apiRequest(`/checkout-transactions/${transactionId}/sync`, { token, method: 'POST' })
+          .then((response) => {
+            if (active) setNotice(response.message)
+            window.dispatchEvent(new Event('coopwise:refresh'))
+          })
+          .catch((requestError) => {
+            if (active) setActionError(requestError.message)
+          })
+      }
     }
+    return () => { active = false }
+  }, [token])
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        window.dispatchEvent(new Event('coopwise:refresh'))
+      }
+    }, 15000)
+    return () => window.clearInterval(interval)
+  }, [])
+
+  async function startCheckout(event) {
+    event.preventDefault()
     setNotice('')
     setActionError('')
+    setSubmitting(true)
+    const form = event.currentTarget
+    const formData = new FormData(form)
+    const values = { purpose, amount: formData.get('amount') }
+    if (purpose === 'loan') values.loan_id = formData.get('loan_id')
+    if (purpose === 'paluwagan') values.cycle_id = formData.get('cycle_id')
+    if (purpose === 'share_capital') values.subscription_id = formData.get('subscription_id')
     try {
-      const result = await apiRequest('/payment-submissions', { token, method: 'POST', body: values })
-      setNotice(result.message)
-      form.reset()
-      setCategory('loan')
-      window.dispatchEvent(new Event('coopwise:refresh'))
+      const result = await apiRequest('/checkout-transactions', {
+        token, method: 'POST', body: JSON.stringify(values),
+      })
+      window.location.assign(result.checkout_url)
     } catch (requestError) {
       setActionError(requestError.message)
+      setSubmitting(false)
     }
   }
 
-  async function reviewSubmission(id, decision) {
+  async function refreshPayment(transaction) {
     setNotice('')
     setActionError('')
-    if (decision === 'approve' && !window.confirm('Approve this demo payment record? This does not transfer money or update a financial balance.')) return
-    const note = window.prompt(decision === 'reject' ? 'Reason for rejection (recommended):' : 'Optional verification note:')
-    if (note === null) return
-    const review_note = note || ''
     try {
-      const result = await apiRequest(`/payment-submissions/${id}/review`, {
-        token, method: 'POST', body: JSON.stringify({ decision, review_note }),
-      })
+      const result = await apiRequest(`/checkout-transactions/${transaction.id}/sync`, { token, method: 'POST' })
       setNotice(result.message)
       window.dispatchEvent(new Event('coopwise:refresh'))
     } catch (requestError) {
@@ -1430,39 +1413,32 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
     <section className="portal-section">
       <div className="section-heading">
         {!standalone && <div>
-          <div className="eyebrow">{staff ? 'Payment review' : 'Member payments'}</div>
-          <h2>{staff ? 'Payment submissions' : 'Submit a payment'}</h2>
+          <div className="eyebrow">{staff ? 'Confirmed transactions' : 'Secure checkout'}</div>
+          <h2>{staff ? 'Payment transactions' : 'Make a payment'}</h2>
           <p className="muted">{staff
-            ? 'Review demo amounts, references, images, and related loan or Paluwagan cycle.'
-            : 'Submit a demo payment record for staff review. It does not transfer money.'}</p>
+            ? 'Provider-confirmed payments appear here automatically. Members can see only their own transactions.'
+            : 'Choose what to pay. CoopWise records the transaction after PayMongo confirms payment.'}</p>
         </div>}
-        {staff && <label className="filter-control">Payment type
-          <select value={filter} onChange={(event) => setFilter(event.target.value)}>
-            <option value="all">All payments</option>
-            <option value="loan">Loan repayments</option>
-            <option value="paluwagan">Paluwagan contributions</option>
-            <option value="cooperative">Cooperative payments</option>
-          </select>
-        </label>}
       </div>
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
       {!staff && (
         <div className="portal-card payment-instructions">
-          <h3>Simulated payment records</h3>
-          <p>Demo only: CoopWise does not accept or transfer money and is not connected to PayMongo, GCash, or a bank. Do not send funds or upload real payment receipts. Enter a made-up demo reference or leave it blank to generate one automatically.</p>
+          <h3>Pay securely with PayMongo</h3>
+          <p>You will complete payment on PayMongo’s secure checkout page. Your CoopWise balance changes only after the backend receives and verifies PayMongo’s payment confirmation. Do not close checkout before it finishes.</p>
         </div>
       )}
       {!staff && (
-        <form className="portal-card form-grid" onSubmit={submitPayment}>
+        <form className="portal-card form-grid" onSubmit={startCheckout}>
           <label>Payment for
-            <select name="category" value={category} onChange={(event) => setCategory(event.target.value)} required>
+            <select value={purpose} onChange={(event) => setPurpose(event.target.value)} required>
+              <option value="savings">Savings deposit</option>
               <option value="loan">Loan repayment</option>
-              <option value="cooperative">Cooperative payment</option>
               <option value="paluwagan">Paluwagan contribution</option>
+              <option value="share_capital">Share-capital contribution</option>
             </select>
           </label>
-          {category === 'loan' && (
+          {purpose === 'loan' && (
             <label>Loan
               <select name="loan_id" required defaultValue="">
                 <option value="" disabled>Select a loan</option>
@@ -1470,55 +1446,49 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
               </select>
             </label>
           )}
-          {category === 'paluwagan' && (
+          {purpose === 'paluwagan' && (
             <label>Active Paluwagan cycle
               <select name="cycle_id" required defaultValue="">
                 <option value="" disabled>Select a cycle</option>
-                {cycles.filter((cycle) => cycle.status === 'active').map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name} · PHP {cycle.daily_contribution} daily</option>)}
+                {cycles.filter((cycle) => cycle.status === 'active' && !cycle.my_contributed_today).map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name} · PHP {cycle.daily_contribution} daily</option>)}
               </select>
             </label>
           )}
-          <label>Amount (PHP)<input name="amount" type="number" min="0.01" step="0.01" required /></label>
-          <label>Demo reference number (optional)<input name="reference_no" maxLength="100" placeholder="e.g. CW-DEMO-001" /></label>
-          <label className="full">Demo image (optional; do not upload real receipts)
-            <input name="screenshot" type="file" accept="image/jpeg,image/png,image/webp" />
-            <small>JPEG, PNG, or WebP; up to 5 MB.</small>
-          </label>
-          <button className="button button-primary full" type="submit">Submit demo payment</button>
+          {purpose === 'share_capital' && (
+            <label>Share subscription
+              <select name="subscription_id" required defaultValue="">
+                <option value="" disabled>Select an unpaid subscription</option>
+                {subscriptions.filter((item) => item.status === 'active' && Number(item.unpaid_amount) > 0).map((item) => <option key={item.id} value={item.id}>{item.subscription_number} · Unpaid {formatPesos(item.unpaid_amount)}</option>)}
+              </select>
+            </label>
+          )}
+          <label>Amount (PHP)<input name="amount" type="number" min="1.00" max="1000000.00" step="0.01" required /></label>
+          {purpose === 'paluwagan' && <p className="full muted">The amount must equal the selected cycle’s daily contribution. Only one payment is accepted per member per day.</p>}
+          <button className="button button-primary full" type="submit" disabled={submitting}>{submitting ? 'Opening secure checkout…' : 'Continue to PayMongo'}</button>
         </form>
       )}
-      {!staff && <h3>Your payment submissions</h3>}
-      {loading && <StaffEmptyState type="payment" title="Loading payment submissions…" description="Please wait while we check for recent submissions." loading />}
-      {!loading && !error && !staff && data && submissions.length === 0 && <StaffEmptyState type="payment" title="No payment submissions yet." description="When you submit a payment, it will appear here." />}
-      {!loading && !error && staff && data && !submissions.some((submission) => filter === 'all' || submission.category === filter) && <StaffEmptyState
-        type="payment"
-        title={filter === 'all' ? 'No payment submissions yet.' : 'No submissions match this payment type.'}
-        description="When someone submits a payment, it will appear here."
-      />}
-      {submissions.filter((submission) => !staff || filter === 'all' || submission.category === filter).map((submission) => (
-        <article className="portal-card" key={submission.id}>
-          <div className="item-heading">
-            <div><strong>{submission.category} · PHP {submission.amount}</strong><span>{submission.member_number} · {submission.first_name} {submission.last_name} · Submitted {submission.created_at}</span></div>
-            <span className={`status status-${submission.status}`}>{submission.status}</span>
-          </div>
-          <dl className="payment-facts">
-            <div><dt>Amount submitted</dt><dd>PHP {submission.amount}</dd></div>
-            <div><dt>Payment for</dt><dd>{submission.category === 'paluwagan' ? `Paluwagan · ${submission.cycle_name || 'Cycle unavailable'}` : submission.category === 'loan' ? `Loan · ${submission.loan_code || 'Loan unavailable'}` : 'Cooperative payment'}</dd></div>
-            <div><dt>Reference number</dt><dd>{submission.reference_no || 'Not provided'}</dd></div>
-          </dl>
-          {submission.review_note && <p className="notice">Staff note: {submission.review_note}</p>}
-          {!submission.has_screenshot && <p className="muted">No screenshot attached; review the reference number above.</p>}
-          <div className="button-row">
-            {submission.has_screenshot && <button className="button button-outline" type="button" onClick={async () => {
-              try { await openProtectedImage(token, `/payment-submissions/${submission.id}/screenshot`) } catch (requestError) { setActionError(requestError.message) }
-            }}>View payment screenshot</button>}
-            {staff && submission.status === 'pending' && <>
-              <button className="button button-primary" type="button" onClick={() => reviewSubmission(submission.id, 'approve')}>Approve demo record</button>
-              <button className="button button-outline" type="button" onClick={() => reviewSubmission(submission.id, 'reject')}>Reject evidence</button>
-            </>}
-          </div>
-        </article>
-      ))}
+      <div className="item-heading"><h3>{staff ? 'All member transactions' : 'Your transactions'}</h3>
+        <button className="button button-outline" type="button" onClick={() => window.dispatchEvent(new Event('coopwise:refresh'))}>Refresh</button>
+      </div>
+      {loading && <StaffEmptyState type="payment" title="Loading transactions…" description="Please wait while we check provider-confirmed payments." loading />}
+      {!loading && !error && transactions.length === 0 && <StaffEmptyState type="payment" title="No payment transactions yet." description="Confirmed PayMongo payments will appear here automatically." />}
+      {transactions.length > 0 && <div className="table-wrap"><table>
+        <thead><tr>{staff && <th>Member</th>}<th>Date</th><th>Purpose</th><th>Amount</th>{staff && <th>Provider fee / net</th>}<th>Reference</th><th>Status</th>{!staff && <th>Action</th>}</tr></thead>
+        <tbody>{transactions.map((transaction) => <tr key={transaction.id}>
+          {staff && <td>{transaction.member_number} · {transaction.first_name} {transaction.last_name}</td>}
+          <td>{transaction.paid_at || transaction.created_at}</td>
+          <td>{transaction.purpose.replace('_', ' ')}</td>
+          <td>{formatPesos(transaction.amount)}</td>
+          {staff && <td>{transaction.provider_fee === null ? '—' : `${formatPesos(transaction.provider_fee)} fee · ${formatPesos(transaction.net_amount)} net`}</td>}
+          <td>{transaction.reference_no}</td>
+          <td><span className={`status status-${transaction.status}`}>{transaction.status.replace('_', ' ')}</span>
+            {transaction.review_note && <small>{transaction.review_note}</small>}</td>
+          {!staff && <td>{['pending', 'needs_review'].includes(transaction.status) && <>
+            {transaction.checkout_url && <a className="text-button" href={transaction.checkout_url} target="_blank" rel="noreferrer">Open checkout</a>}
+            <button className="text-button" type="button" onClick={() => refreshPayment(transaction)}>Check status</button>
+          </>}</td>}
+        </tr>)}</tbody>
+      </table></div>}
     </section>
   )
 }
@@ -1528,7 +1498,7 @@ const STAFF_NAV_ITEMS = [
   { id: 'loans', label: 'Loans', icon: 'loans' },
   { id: 'share-capital', label: 'Share Capital', icon: 'share-capital' },
   { id: 'reports', label: 'Reports', icon: 'reports' },
-  { id: 'payments', label: 'Payment Submissions', icon: 'payments' },
+  { id: 'payments', label: 'Transactions', icon: 'payments' },
   { id: 'cooperative', label: 'Daily Paluwagan', icon: 'cooperative' },
   { id: 'savings', label: 'Savings', icon: 'savings' },
   { id: 'members', label: 'Members', icon: 'members' },
@@ -1548,9 +1518,9 @@ const STAFF_PAGE_DETAILS = {
   loans: ['Loans', 'Review loan status and explore available loan offers.'],
   'share-capital': ['Share Capital', 'Track member ownership subscriptions and paid-up contributions.'],
   reports: ['Reports', 'View recorded cooperative totals and monthly activity.'],
-  payments: ['Payment Submissions', 'Review submitted amounts, references, and payment evidence.'],
-  cooperative: ['Daily Paluwagan', 'Members contribute the same amount each day. When everyone has contributed, the next person in payout order is ready to receive the pooled amount.'],
-  savings: ['Savings', 'Record savings transactions.'],
+  payments: ['Payment Transactions', 'Review provider-confirmed payments from members.'],
+  cooperative: ['Daily Paluwagan', 'Members contribute through PayMongo checkout. Staff confirm disbursement after all contributions for the day are confirmed.'],
+  savings: ['Savings', 'View PayMongo-confirmed deposits and your savings transaction history.'],
   members: ['Members', 'Member directory and account status.'],
 }
 
@@ -1558,8 +1528,8 @@ const MEMBER_PAGE_DETAILS = {
   dashboard: ['Dashboard', 'Your cooperative services, all in one place.'],
   loans: ['Loans', 'Review your loan documents, offers, and applications.'],
   'share-capital': ['Share Capital', 'View your ownership subscriptions and paid-up contributions.'],
-  payments: ['Online Payments', 'Submit payment details and review your payment evidence.'],
-  cooperative: ['Daily Paluwagan', 'Members contribute the same amount each day. When everyone has contributed, the next person in payout order is ready to receive the pooled amount.'],
+  payments: ['Payments', 'Pay cooperative dues through PayMongo and view transaction history.'],
+  cooperative: ['Daily Paluwagan', 'Pay the same daily contribution through PayMongo. Pooled payouts are disbursed separately by staff.'],
   savings: ['Savings', 'View your savings balance and transaction history.'],
 }
 
@@ -1584,7 +1554,7 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
     { id: 'share-capital', label: 'Share capital' },
     { id: 'savings', label: 'Savings' },
     { id: 'cooperative', label: 'Daily Paluwagan' },
-    { id: 'payments', label: staff ? 'Payment submissions' : 'Online payments' },
+    { id: 'payments', label: staff ? 'Transactions' : 'Payments' },
     ...(staff ? [{ id: 'members', label: 'Members' }, { id: 'reports', label: 'Reports' }] : []),
   ]
 
@@ -1726,7 +1696,7 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
                       ? <PaymentPortal key="payments" token={token} user={user} refreshKey={refreshKey} standalone />
                       : <ReportsPortal key="reports" token={token} refreshKey={refreshKey} standalone />}
         </div>
-        <footer className="staff-footer">CoopWise demo · This system records cooperative activity; it does not transfer money.</footer>
+        <footer className="staff-footer">PayMongo confirms incoming payments. Staff still confirm outgoing Paluwagan payouts.</footer>
       </div>
     </div>
   )
@@ -1743,6 +1713,7 @@ function App() {
   const [fieldErrors, setFieldErrors] = useState({})
   const [busy, setBusy] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [resetEmail, setResetEmail] = useState('')
 
   useEffect(() => {
     if (!token || memberCardToken) return
@@ -1781,6 +1752,21 @@ function App() {
         await apiRequest('/auth/register', { method: 'POST', body: JSON.stringify(values) })
         setMode('login')
         setMessage('Registration complete. Sign in with your email or phone number.')
+      } else if (mode === 'forgot') {
+        const result = await apiRequest('/auth/password-reset/request', {
+          method: 'POST',
+          body: JSON.stringify({ email: values.email }),
+        })
+        setResetEmail(values.email.trim())
+        setMode('reset')
+        setMessage(`${result.message} Enter the code if you receive it. It expires in 10 minutes.`)
+      } else if (mode === 'reset') {
+        const result = await apiRequest('/auth/password-reset/confirm', {
+          method: 'POST',
+          body: JSON.stringify(values),
+        })
+        setMode('login')
+        setMessage(result.message)
       } else {
         const result = await apiRequest('/auth/login', {
           method: 'POST',
@@ -1836,7 +1822,7 @@ function App() {
           <div className="intro">
             <div className="eyebrow">CoopWise cooperative services</div>
             <h1>Built around your cooperative.</h1>
-            <p>Sign in to manage your loans, savings, Paluwagan contributions, and payment records.</p>
+            <p>Sign in to manage your loans, savings, Paluwagan contributions, and payment transactions.</p>
           </div>
 
           <div className="card auth-card">
@@ -1844,7 +1830,7 @@ function App() {
               <button className={mode === 'login' ? 'tab active' : 'tab'} type="button" onClick={() => { setMode('login'); setMessage(''); setFieldErrors({}) }}>Sign in</button>
               <button className={mode === 'register' ? 'tab active' : 'tab'} type="button" onClick={() => { setMode('register'); setMessage(''); setFieldErrors({}) }}>Register</button>
             </div>
-            <h2>{mode === 'login' ? 'Welcome back' : 'Create your member account'}</h2>
+            <h2>{mode === 'login' ? 'Welcome back' : mode === 'register' ? 'Create your member account' : mode === 'forgot' ? 'Reset your password' : 'Enter your reset code'}</h2>
             {message && <div className="message" role="status">{message}</div>}
             <form onSubmit={handleSubmit}>
               {mode === 'register' ? (
@@ -1858,21 +1844,33 @@ function App() {
                   <label>Password<input name="password" type="password" autoComplete="new-password" required minLength="8" maxLength="128" />{fieldErrors.password && <small>{fieldErrors.password}</small>}</label>
                   <label className="full">Confirm password<input name="password_confirmation" type="password" autoComplete="new-password" required minLength="8" maxLength="128" />{fieldErrors.password_confirmation && <small>{fieldErrors.password_confirmation}</small>}</label>
                 </div>
-              ) : (
+              ) : mode === 'login' ? (
                 <>
                   <label>Email or phone number<input name="login" autoComplete="username" required placeholder="Email address or 09123456789" /></label>
                   <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
                 </>
+              ) : mode === 'forgot' ? (
+                <label>Email address<input name="email" type="email" autoComplete="email" required maxLength="254" /></label>
+              ) : (
+                <>
+                  <label>Email address<input name="email" type="email" autoComplete="email" value={resetEmail} onChange={(event) => setResetEmail(event.target.value)} required maxLength="254" /></label>
+                  <label>Six-digit code<input name="otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength="6" required /></label>
+                  <label>New password<input name="password" type="password" autoComplete="new-password" required minLength="8" maxLength="128" /></label>
+                  <label>Confirm new password<input name="password_confirmation" type="password" autoComplete="new-password" required minLength="8" maxLength="128" /></label>
+                  <p className="form-help full">Use 8-128 characters with an uppercase letter, a number, a special character, and no spaces.</p>
+                </>
               )}
               <button className="button button-primary submit" type="submit" disabled={busy}>
-                {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
+                {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : mode === 'forgot' ? 'Send reset code' : 'Change password'}
               </button>
             </form>
+            {mode === 'login' && <button className="text-button auth-reset-link" type="button" onClick={() => { setMode('forgot'); setMessage(''); setFieldErrors({}) }}>Forgot password?</button>}
+            {(mode === 'forgot' || mode === 'reset') && <button className="text-button auth-reset-link" type="button" onClick={() => { setMode('login'); setMessage(''); setFieldErrors({}) }}>Back to sign in</button>}
             {mode === 'register' && <p className="form-help">Names use letters and spaces. Use an 11-digit number starting with 09. Passwords require 8+ characters, one uppercase letter, one number, one special character, and no spaces.</p>}
           </div>
         </section>
       )}
-      <footer>CoopWise demo · This system records cooperative activity; it does not transfer money.</footer>
+      <footer>Incoming payments use PayMongo checkout and require server-side confirmation.</footer>
         </>
       )}
     </main>
