@@ -64,7 +64,13 @@ application and have not yet been moved into this separate frontend.
 
 The staff workspace uses a responsive sidebar, live cooperative overview, and
 consistent page header across loans, share capital, reports, online payments,
-daily Paluwagan, savings, and member management. Members use the same
+daily Paluwagan, savings, member meetings and voting, and member management.
+Staff can post polls with two to six choices and close them; each active member
+can vote once. Ballots are not shown to other members, and member results are
+shown only after a poll closes. The staff activity history records key loan,
+payment, Paluwagan, share-capital, and poll actions. These demo polls do not
+replace a cooperative's bylaws or formal meeting and election requirements.
+Members use the same
 responsive workspace shell with member-only navigation and service tabs.
 
 Run `npm run lint` and `npm run build` to validate the frontend.

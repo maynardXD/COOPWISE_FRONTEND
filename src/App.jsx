@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import './App.css'
 
@@ -1289,6 +1289,184 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   )
 }
 
+function GovernancePortal({ token, user, refreshKey }) {
+  const staff = ['admin', 'officer'].includes(user.role)
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [busyMeeting, setBusyMeeting] = useState(null)
+  const loading = !data && !error
+
+  const reloadGovernance = useCallback(async () => {
+    try {
+      const result = await apiRequest('/governance', { token })
+      setData(result)
+      setError('')
+    } catch (requestError) {
+      setError(requestError.message)
+    }
+  }, [token])
+
+  useEffect(() => {
+    let active = true
+    apiRequest('/governance', { token })
+      .then((result) => {
+        if (active) {
+          setData(result)
+          setError('')
+        }
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.message)
+      })
+    return () => { active = false }
+  }, [token, refreshKey])
+
+  async function createMeeting(event) {
+    event.preventDefault()
+    const form = event.currentTarget
+    const values = Object.fromEntries(new FormData(form).entries())
+    const options = ['option_one', 'option_two', 'option_three', 'option_four', 'option_five', 'option_six']
+      .map((key) => String(values[key] || '').trim())
+      .filter(Boolean)
+    setError('')
+    setNotice('')
+    setBusyMeeting('create')
+    try {
+      const result = await apiRequest('/governance/meetings', {
+        token,
+        method: 'POST',
+        body: JSON.stringify({
+          title: values.title,
+          description: values.description,
+          meeting_date: values.meeting_date,
+          options,
+        }),
+      })
+      setNotice(result.message)
+      form.reset()
+      await reloadGovernance()
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setBusyMeeting(null)
+    }
+  }
+
+  async function vote(meetingId, optionId) {
+    setError('')
+    setNotice('')
+    setBusyMeeting(meetingId)
+    try {
+      const result = await apiRequest(`/governance/meetings/${meetingId}/vote`, {
+        token,
+        method: 'POST',
+        body: JSON.stringify({ option_id: optionId }),
+      })
+      setNotice(result.message)
+      await reloadGovernance()
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setBusyMeeting(null)
+    }
+  }
+
+  async function closePoll(meetingId) {
+    setError('')
+    setNotice('')
+    setBusyMeeting(meetingId)
+    try {
+      const result = await apiRequest(`/governance/meetings/${meetingId}/close`, {
+        token,
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+      setNotice(result.message)
+      await reloadGovernance()
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setBusyMeeting(null)
+    }
+  }
+
+  return (
+    <section className="portal-section">
+      <h2>Member meetings &amp; voting</h2>
+      <p className="muted">Cooperatives are member-owned and democratically governed. Use this area for meeting announcements and simple polls. Each active member can vote once; individual choices are private, and only totals are displayed.</p>
+      <PortalMessage error>{error}</PortalMessage>
+      {error && <button className="button button-outline" type="button" onClick={() => { setError(''); reloadGovernance() }}>Try again</button>}
+      <PortalMessage>{notice}</PortalMessage>
+      {staff && (
+        <details className="portal-card" open={!data?.meetings?.length}>
+          <summary>Create a meeting and poll</summary>
+          <p className="muted">Creating the poll opens it immediately. Share the question and choices clearly with members, then close it when voting ends.</p>
+          <form className="form-grid" onSubmit={createMeeting}>
+            <label>Meeting or poll title<input name="title" maxLength="160" required /></label>
+            <label>Description<textarea name="description" rows="3" maxLength="1000" /></label>
+            <label>Meeting date (optional)<input name="meeting_date" type="date" /></label>
+            <label>Choice 1<input name="option_one" maxLength="200" required /></label>
+            <label>Choice 2<input name="option_two" maxLength="200" required /></label>
+            <label>Choice 3 (optional)<input name="option_three" maxLength="200" /></label>
+            <label>Choice 4 (optional)<input name="option_four" maxLength="200" /></label>
+            <label>Choice 5 (optional)<input name="option_five" maxLength="200" /></label>
+            <label>Choice 6 (optional)<input name="option_six" maxLength="200" /></label>
+            <button className="button button-primary" type="submit" disabled={busyMeeting === 'create'}>{busyMeeting === 'create' ? 'Creating…' : 'Create and open poll'}</button>
+          </form>
+        </details>
+      )}
+      {loading && <p className="muted">Loading meetings and polls…</p>}
+      {!loading && data?.meetings?.length === 0 && <p className="muted">No meetings or polls have been posted yet.</p>}
+      <div className="governance-list">
+        {data?.meetings?.map((meeting) => {
+          const myVote = Number(meeting.my_vote_option_id || 0)
+          return (
+            <article className="portal-card governance-meeting" key={meeting.id}>
+              <div className="item-heading">
+                <div><h3>{meeting.title}</h3><span>{meeting.meeting_date ? `Meeting date: ${meeting.meeting_date}` : `Posted: ${meeting.created_at}`}</span></div>
+                <span className={`status status-${meeting.status}`}>{meeting.status}</span>
+              </div>
+              {meeting.description && <p>{meeting.description}</p>}
+              <div className="governance-options">
+                {meeting.options.map((option) => (
+                  <div className="governance-option" key={option.id}>
+                    <span>{option.option_text}{meeting.results_visible && <small>{option.votes} vote{option.votes === 1 ? '' : 's'}</small>}</span>
+                    {!staff && meeting.status === 'open' && !myVote && (
+                      <button className="button button-outline" type="button" disabled={busyMeeting === meeting.id} onClick={() => vote(meeting.id, option.id)}>
+                        {busyMeeting === meeting.id ? 'Submitting…' : 'Vote'}
+                      </button>
+                    )}
+                    {myVote === Number(option.id) && <strong className="governance-voted">Your vote</strong>}
+                  </div>
+                ))}
+              </div>
+              <p className="muted">{meeting.results_visible ? `${meeting.vote_count} total vote${meeting.vote_count === 1 ? '' : 's'}` : 'Results are hidden until the poll closes.'}{!staff && myVote > 0 && meeting.status === 'open' ? ' · You have voted.' : ''}</p>
+              {staff && meeting.status === 'open' && <button className="button button-outline" type="button" disabled={busyMeeting === meeting.id} onClick={() => closePoll(meeting.id)}>{busyMeeting === meeting.id ? 'Closing…' : 'Close poll'}</button>}
+            </article>
+          )
+        })}
+      </div>
+      {staff && (
+        <section className="governance-audit">
+          <h3>Staff activity history</h3>
+          <p className="muted">Recent important actions are recorded here. Member poll choices are never included in the audit details.</p>
+          {data?.audit_logs?.length ? <div className="table-wrap"><table>
+            <thead><tr><th>Date</th><th>Staff / actor</th><th>Area</th><th>Action</th><th>Details</th></tr></thead>
+            <tbody>{data.audit_logs.map((entry) => <tr key={entry.id}>
+              <td>{entry.created_at}</td>
+              <td>{entry.actor_name || 'System'}<small>{entry.actor_role || 'automated'}</small></td>
+              <td>{entry.module}</td>
+              <td>{entry.action}</td>
+              <td>{entry.details || '—'}</td>
+            </tr>)}</tbody>
+          </table></div> : <p className="muted">No activity has been logged yet.</p>}
+        </section>
+      )}
+    </section>
+  )
+}
+
 function ReportsPortal({ token, refreshKey, standalone = false }) {
   const { data, error, loading } = usePortalData(token, refreshKey, REPORT_ENDPOINTS)
   const report = data?.[0]
@@ -1495,6 +1673,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
 
 const STAFF_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { id: 'governance', label: 'Meetings & Voting', icon: 'governance' },
   { id: 'loans', label: 'Loans', icon: 'loans' },
   { id: 'share-capital', label: 'Share Capital', icon: 'share-capital' },
   { id: 'reports', label: 'Reports', icon: 'reports' },
@@ -1506,6 +1685,7 @@ const STAFF_NAV_ITEMS = [
 
 const MEMBER_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { id: 'governance', label: 'Meetings & Voting', icon: 'governance' },
   { id: 'loans', label: 'Loans', icon: 'loans' },
   { id: 'share-capital', label: 'Share Capital', icon: 'share-capital' },
   { id: 'payments', label: 'Online Payments', icon: 'payments' },
@@ -1515,6 +1695,7 @@ const MEMBER_NAV_ITEMS = [
 
 const STAFF_PAGE_DETAILS = {
   dashboard: ['Dashboard', 'Manage cooperative services and member activity.'],
+  governance: ['Meetings & Voting', 'Post cooperative meetings, run member polls, and review important system activity.'],
   loans: ['Loans', 'Review loan status and explore available loan offers.'],
   'share-capital': ['Share Capital', 'Track member ownership subscriptions and paid-up contributions.'],
   reports: ['Reports', 'View recorded cooperative totals and monthly activity.'],
@@ -1526,6 +1707,7 @@ const STAFF_PAGE_DETAILS = {
 
 const MEMBER_PAGE_DETAILS = {
   dashboard: ['Dashboard', 'Your cooperative services, all in one place.'],
+  governance: ['Meetings & Voting', 'Take part in cooperative meetings and member polls.'],
   loans: ['Loans', 'Review your loan documents, offers, and applications.'],
   'share-capital': ['Share Capital', 'View your ownership subscriptions and paid-up contributions.'],
   payments: ['Payments', 'Pay cooperative dues through Xendit and view transaction history.'],
@@ -1542,6 +1724,7 @@ function StaffIcon({ name }) {
     cooperative: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>,
     savings: <><path d="M19.5 9.5c-1.6-2.4-4.1-3.5-7.5-3.5-4.7 0-8 2.5-8 6s3.3 6 8 6c3.4 0 5.9-1.1 7.5-3.5" /><path d="M18 10h3v4h-3m-7-2h.01" /></>,
     members: <><circle cx="9" cy="8" r="3" /><path d="M3.5 20v-1.5A5.5 5.5 0 0 1 9 13h1a5.5 5.5 0 0 1 5.5 5.5V20z" /><path d="M16 5.5a3 3 0 0 1 0 5.8m2 2a5 5 0 0 1 2.5 4.3V20" /></>,
+    governance: <><path d="M4 4h16v16H4z" /><path d="M8 8h8M8 12h8M8 16h4" /><path d="m6.5 8 .5.5 1-1" /></>,
     'share-capital': <><circle cx="12" cy="12" r="9" /><path d="M12 7v10M15.5 9.5c0-1.4-1.4-2.5-3.5-2.5S8.5 8.1 8.5 9.5 10 11.5 12 12s3.5 1.1 3.5 2.5S14 17 12 17s-3.5-1.1-3.5-2.5" /></>,
   }
   return <svg className="staff-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
@@ -1550,6 +1733,7 @@ function StaffIcon({ name }) {
 function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, refreshKey }) {
   const [memberCardOpen, setMemberCardOpen] = useState(false)
   const tabs = [
+    { id: 'governance', label: 'Meetings & voting' },
     { id: 'loans', label: 'Monthly loans' },
     { id: 'share-capital', label: 'Share capital' },
     { id: 'savings', label: 'Savings' },
@@ -1594,7 +1778,9 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
           </button>
         ))}
       </nav>
-      {selectedTab === 'loans'
+      {selectedTab === 'governance'
+        ? <GovernancePortal key="dashboard-governance" token={token} user={user} refreshKey={refreshKey} />
+        : selectedTab === 'loans'
         ? <LoanPortal key="dashboard-loans" token={token} user={user} refreshKey={refreshKey} />
         : selectedTab === 'members'
           ? <MembersPortal key="dashboard-members" token={token} />
@@ -1682,6 +1868,8 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
         <div className="staff-content">
           {section === 'dashboard'
             ? <ServiceDashboard token={token} user={user} staff={staff} selectedTab={dashboardTab} setSelectedTab={setDashboardTab} refreshKey={refreshKey} />
+            : section === 'governance'
+              ? <GovernancePortal key="governance" token={token} user={user} refreshKey={refreshKey} />
             : section === 'loans'
               ? <LoanPortal key="loans" token={token} user={user} refreshKey={refreshKey} standalone />
               : section === 'share-capital'
