@@ -831,7 +831,7 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
     <section className="portal-section">
       {!standalone && <>
         <h2>Daily rotating savings (Paluwagan)</h2>
-        <p className="muted">Members pay their daily contribution through PayMongo. Once everyone has paid, the next person in the randomized order is ready for the pooled payout. PayMongo collects contributions; staff still confirms when a payout is actually made.</p>
+        <p className="muted">Members pay their daily contribution through Xendit. Once everyone has paid, the next person in the randomized order is ready for the pooled payout. Xendit collects contributions; staff still confirms when a payout is actually made.</p>
       </>}
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
@@ -1333,7 +1333,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
   const { data, error, loading } = usePortalData(token, refreshKey, PAYMENT_ENDPOINTS)
   const [notice, setNotice] = useState(() => {
     const result = new URLSearchParams(window.location.search).get('payment')
-    if (result === 'success') return 'PayMongo returned you to CoopWise. Your payment is being checked; your account updates only after server confirmation.'
+    if (result === 'success') return 'Xendit returned you to CoopWise. Your payment is being checked; your account updates only after server confirmation.'
     if (result === 'cancelled') return 'Checkout was cancelled. No payment has been added to your account.'
     return ''
   })
@@ -1417,15 +1417,15 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
           <h2>{staff ? 'Payment transactions' : 'Make a payment'}</h2>
           <p className="muted">{staff
             ? 'Provider-confirmed payments appear here automatically. Members can see only their own transactions.'
-            : 'Choose what to pay. CoopWise records the transaction after PayMongo confirms payment.'}</p>
+            : 'Choose what to pay. CoopWise records the transaction after Xendit confirms payment.'}</p>
         </div>}
       </div>
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
       {!staff && (
         <div className="portal-card payment-instructions">
-          <h3>Pay securely with PayMongo</h3>
-          <p>You will complete payment on PayMongo’s secure checkout page. Your CoopWise balance changes only after the backend receives and verifies PayMongo’s payment confirmation. Do not close checkout before it finishes.</p>
+          <h3>Pay securely with Xendit</h3>
+          <p>You will complete payment on Xendit’s secure checkout page. Your CoopWise balance changes only after the backend receives and verifies Xendit’s payment confirmation. Do not close checkout before it finishes.</p>
         </div>
       )}
       {!staff && (
@@ -1464,14 +1464,14 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
           )}
           <label>Amount (PHP)<input name="amount" type="number" min="1.00" max="1000000.00" step="0.01" required /></label>
           {purpose === 'paluwagan' && <p className="full muted">The amount must equal the selected cycle’s daily contribution. Only one payment is accepted per member per day.</p>}
-          <button className="button button-primary full" type="submit" disabled={submitting}>{submitting ? 'Opening secure checkout…' : 'Continue to PayMongo'}</button>
+          <button className="button button-primary full" type="submit" disabled={submitting}>{submitting ? 'Opening secure checkout…' : 'Continue to Xendit'}</button>
         </form>
       )}
       <div className="item-heading"><h3>{staff ? 'All member transactions' : 'Your transactions'}</h3>
         <button className="button button-outline" type="button" onClick={() => window.dispatchEvent(new Event('coopwise:refresh'))}>Refresh</button>
       </div>
       {loading && <StaffEmptyState type="payment" title="Loading transactions…" description="Please wait while we check provider-confirmed payments." loading />}
-      {!loading && !error && transactions.length === 0 && <StaffEmptyState type="payment" title="No payment transactions yet." description="Confirmed PayMongo payments will appear here automatically." />}
+      {!loading && !error && transactions.length === 0 && <StaffEmptyState type="payment" title="No payment transactions yet." description="Confirmed Xendit payments will appear here automatically." />}
       {transactions.length > 0 && <div className="table-wrap"><table>
         <thead><tr>{staff && <th>Member</th>}<th>Date</th><th>Purpose</th><th>Amount</th>{staff && <th>Provider fee / net</th>}<th>Reference</th><th>Status</th>{!staff && <th>Action</th>}</tr></thead>
         <tbody>{transactions.map((transaction) => <tr key={transaction.id}>
@@ -1519,8 +1519,8 @@ const STAFF_PAGE_DETAILS = {
   'share-capital': ['Share Capital', 'Track member ownership subscriptions and paid-up contributions.'],
   reports: ['Reports', 'View recorded cooperative totals and monthly activity.'],
   payments: ['Payment Transactions', 'Review provider-confirmed payments from members.'],
-  cooperative: ['Daily Paluwagan', 'Members contribute through PayMongo checkout. Staff confirm disbursement after all contributions for the day are confirmed.'],
-  savings: ['Savings', 'View PayMongo-confirmed deposits and your savings transaction history.'],
+  cooperative: ['Daily Paluwagan', 'Members contribute through Xendit checkout. Staff confirm disbursement after all contributions for the day are confirmed.'],
+  savings: ['Savings', 'View Xendit-confirmed deposits and your savings transaction history.'],
   members: ['Members', 'Member directory and account status.'],
 }
 
@@ -1528,8 +1528,8 @@ const MEMBER_PAGE_DETAILS = {
   dashboard: ['Dashboard', 'Your cooperative services, all in one place.'],
   loans: ['Loans', 'Review your loan documents, offers, and applications.'],
   'share-capital': ['Share Capital', 'View your ownership subscriptions and paid-up contributions.'],
-  payments: ['Payments', 'Pay cooperative dues through PayMongo and view transaction history.'],
-  cooperative: ['Daily Paluwagan', 'Pay the same daily contribution through PayMongo. Pooled payouts are disbursed separately by staff.'],
+  payments: ['Payments', 'Pay cooperative dues through Xendit and view transaction history.'],
+  cooperative: ['Daily Paluwagan', 'Pay the same daily contribution through Xendit. Pooled payouts are disbursed separately by staff.'],
   savings: ['Savings', 'View your savings balance and transaction history.'],
 }
 
@@ -1696,7 +1696,7 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
                       ? <PaymentPortal key="payments" token={token} user={user} refreshKey={refreshKey} standalone />
                       : <ReportsPortal key="reports" token={token} refreshKey={refreshKey} standalone />}
         </div>
-        <footer className="staff-footer">PayMongo confirms incoming payments. Staff still confirm outgoing Paluwagan payouts.</footer>
+        <footer className="staff-footer">Xendit confirms incoming payments. Staff still confirm outgoing Paluwagan payouts.</footer>
       </div>
     </div>
   )
@@ -1870,7 +1870,7 @@ function App() {
           </div>
         </section>
       )}
-      <footer>Incoming payments use PayMongo checkout and require server-side confirmation.</footer>
+      <footer>Incoming payments use Xendit checkout and require server-side confirmation.</footer>
         </>
       )}
     </main>

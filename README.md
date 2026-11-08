@@ -15,16 +15,16 @@ share-capital, savings, loan, online-payment, and daily Paluwagan screens backed
 by the LavaLust API. Members submit loan documents for staff approval before
 loan offers become available, then can apply and view their loan schedules.
 They can make savings, loan, Paluwagan, or share-capital payments using
-PayMongo Hosted Checkout, see their cycle participation, and view their own
+Xendit Hosted Checkout, see their cycle participation, and view their own
 payment/contribution/payout history. Staff can browse the cooperative-wide
-PayMongo transaction history, manage loan products and applications, create
+Xendit transaction history, manage loan products and applications, create
 daily cycles, select multiple members for enrollment, and confirm completed
 Paluwagan payouts. The backend randomizes payout order for the selected members.
 After loan documents are approved, members see active offers configured by
 staff. If none are available, the portal explains that staff need to configure
 an active product. The loan page can refresh approval status after staff review.
-PayMongo payments are recorded only after the backend receives a valid signed
-webhook or confirms the status directly with PayMongo. The transaction history
+Xendit payments are recorded only after the backend verifies the Xendit webhook
+token and confirms the status with Xendit. The transaction history
 refreshes automatically while the page is open. Loan documents are stored
 privately and served through authenticated API routes. Existing demo
 payment-submission records are retained, but the submission and staff approval
@@ -51,7 +51,7 @@ Share capital is ownership investment, not withdrawable savings. Staff can
 record cooperative-approved subscriptions; members see their own subscribed,
 paid-up, and unpaid amounts. Staff can reverse an erroneous contribution with
 an auditable correction instead of deleting the original transaction.
-PayMongo is configured for test mode by default. It requires a server-side
+Xendit is configured for test mode by default. It requires a server-side
 secret key and a configured webhook before checkout can be used. The provider
 does not disburse Paluwagan payouts; staff still confirm those separately.
 Forgot-password uses a six-digit OTP delivered through Brevo. It requires a
