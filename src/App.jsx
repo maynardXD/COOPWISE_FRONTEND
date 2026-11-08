@@ -8,6 +8,7 @@ const LOAN_ENDPOINTS = ['/loan-products', '/loans', '/payments', '/loan-readines
 const COOPERATIVE_ENDPOINTS = ['/cooperative/cycles']
 const PAYMENT_ENDPOINTS = ['/loans', '/cooperative/cycles', '/payment-submissions']
 const SAVINGS_ENDPOINTS = ['/savings']
+const SHARE_CAPITAL_ENDPOINTS = ['/share-capital']
 const REPORT_ENDPOINTS = ['/reports']
 
 async function apiRequest(path, { token, ...options } = {}) {
@@ -732,8 +733,8 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
             {staff && ['approved', 'active'].includes(loan.status) && (
               <form className="inline-form" onSubmit={(event) => submit(event, `/loans/${loan.id}/payments`, 'POST', 'Payment recorded.')}>
                 <input name="amount" type="number" min="0.01" step="0.01" placeholder="Payment amount" required />
-                <select name="method" defaultValue="cash" aria-label="Payment method">
-                  <option value="cash">Cash</option><option value="bank">Bank</option><option value="gcash">GCash</option><option value="check">Check</option>
+                <select name="method" defaultValue="simulation" aria-label="Payment method">
+                  <option value="simulation">Simulated demo payment</option>
                 </select>
                 <button className="button button-primary" type="submit">Record payment</button>
               </form>
@@ -1035,10 +1036,6 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
   function prepareWithdrawal(event) {
     event.preventDefault()
     const values = Object.fromEntries(new FormData(event.currentTarget).entries())
-    if (values.gcash_number !== values.confirm_gcash_number) {
-      setActionError('The GCash numbers do not match. Check both fields and try again.')
-      return
-    }
     setActionError('')
     setWithdrawalConfirmation(values)
   }
@@ -1059,23 +1056,6 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
     }
   }
 
-  async function uploadWithdrawalReceipt(event, requestId) {
-    event.preventDefault()
-    const form = event.currentTarget
-    setNotice('')
-    setActionError('')
-    try {
-      const result = await apiRequest(`/savings/withdrawals/${requestId}/receipt`, {
-        token, method: 'POST', body: new FormData(form),
-      })
-      setNotice(result.message)
-      form.reset()
-      window.dispatchEvent(new Event('coopwise:refresh'))
-    } catch (requestError) {
-      setActionError(requestError.message)
-    }
-  }
-
   async function reviewWithdrawal(request, action) {
     setNotice('')
     setActionError('')
@@ -1089,7 +1069,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
         return
       }
     } else {
-      admin_note = window.prompt('Optional note for this completed transfer:') || ''
+      admin_note = window.prompt('Optional note for this simulated withdrawal:') || ''
     }
     try {
       const result = await apiRequest(`/savings/withdrawals/${request.id}/${action}`, {
@@ -1147,32 +1127,28 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
       <PortalMessage>{notice}</PortalMessage>
       {!staff && (
         <section className="withdrawal-section">
-          <div className="staff-subsection-title"><StaffIcon name="savings" /><div><h3>Withdraw to GCash</h3><p className="muted">Request a transfer of available savings to your GCash account.</p></div></div>
+          <div className="staff-subsection-title"><StaffIcon name="savings" /><div><h3>Simulate a savings withdrawal</h3><p className="muted">This demo changes the displayed ledger only; it does not send money or require payment-account details.</p></div></div>
           {withdrawalConfirmation ? (
             <article className="portal-card withdrawal-confirm-card">
               <span className="eyebrow">Final confirmation</span>
-              <h4>Double-check your transfer details</h4>
-              <dl><div><dt>Amount</dt><dd>{formatPesos(withdrawalConfirmation.amount)}</dd></div><div><dt>GCash account name</dt><dd>{withdrawalConfirmation.gcash_account_name}</dd></div><div><dt>GCash number</dt><dd>{withdrawalConfirmation.gcash_number}</dd></div></dl>
-              <p>Submitting reserves this amount from your savings. Staff will send the GCash transfer manually and attach a receipt. If your request is rejected, the reserved amount will be refunded to your savings.</p>
+              <h4>Confirm the simulated withdrawal</h4>
+              <dl><div><dt>Amount</dt><dd>{formatPesos(withdrawalConfirmation.amount)}</dd></div></dl>
+              <p>Submitting reserves this amount from your savings ledger. Staff can complete or reject the simulation; no money will be transferred. Rejected requests return the reserved amount to the ledger.</p>
               <div className="button-row"><button className="button button-primary" type="button" onClick={submitWithdrawal}>Confirm withdrawal request</button><button className="button button-outline" type="button" onClick={() => setWithdrawalConfirmation(null)}>Edit details</button></div>
             </article>
           ) : (
             <form className="portal-card form-grid withdrawal-form" onSubmit={prepareWithdrawal}>
               <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={((balance || 0) / 100).toFixed(2)} step="0.01" required /></label>
-              <label>GCash account name<input name="gcash_account_name" maxLength="120" autoComplete="name" required /></label>
-              <label>GCash mobile number<input name="gcash_number" type="tel" inputMode="numeric" pattern="09[0-9]{9}" maxLength="11" placeholder="09XXXXXXXXX" required /></label>
-              <label>Confirm GCash mobile number<input name="confirm_gcash_number" type="tel" inputMode="numeric" pattern="09[0-9]{9}" maxLength="11" placeholder="Enter the same number again" required /></label>
-              <button className="button button-primary" type="submit">Review withdrawal details</button>
-              <p className="withdrawal-disclaimer full">This is a manual transfer request, not an instant GCash integration. Do not share your GCash PIN or one-time password.</p>
+              <button className="button button-primary" type="submit">Review simulated withdrawal</button>
+              <p className="withdrawal-disclaimer full">Demo only: no money is transferred and no financial account details are needed.</p>
             </form>
           )}
-          <h4>Your withdrawal history</h4>
-          {withdrawalLoading ? <p className="muted">Loading your requests…</p> : withdrawalRequests.length === 0 ? <p className="muted">No GCash withdrawal requests yet.</p> : (
+          <h4>Your simulated withdrawal history</h4>
+          {withdrawalLoading ? <p className="muted">Loading your requests…</p> : withdrawalRequests.length === 0 ? <p className="muted">No simulated withdrawal requests yet.</p> : (
             <div className="withdrawal-list">{withdrawalRequests.map((request) => (
               <article className="portal-card withdrawal-item" key={request.id}>
                 <div className="item-heading"><div><strong>{formatPesos(request.amount)}</strong><span>{request.request_reference} · {request.requested_at}</span></div><span className={`status status-${request.status}`}>{request.status}</span></div>
                 {request.admin_note && <p className="muted">Staff note: {request.admin_note}</p>}
-                {request.has_receipt && <button className="text-button" type="button" onClick={async () => { try { await openProtectedImage(token, `/savings/withdrawals/${request.id}/receipt`) } catch (requestError) { setActionError(requestError.message) } }}>View transfer receipt</button>}
               </article>
             ))}</div>
           )}
@@ -1181,7 +1157,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
       )}
       {staff && (
         <section className="withdrawal-section">
-          <div className="staff-subsection-title"><StaffIcon name="savings" /><div><h3>GCash withdrawal requests</h3><p className="muted">Review reserved savings, send the transfer manually, then attach proof before completing.</p></div></div>
+          <div className="staff-subsection-title"><StaffIcon name="savings" /><div><h3>Simulated savings withdrawals</h3><p className="muted">Complete or reject requests to demonstrate ledger changes. No money or external payment service is involved.</p></div></div>
           <form className="portal-card withdrawal-filters" onSubmit={(event) => { event.preventDefault(); setWithdrawalLoading(true); setWithdrawalFilters({ ...withdrawalFilters, q: withdrawalSearch.trim(), page: 1 }) }}>
             <label>Search<input value={withdrawalSearch} onChange={(event) => setWithdrawalSearch(event.target.value)} placeholder="Member, number, name, or reference" /></label>
             <label>Status<select value={withdrawalFilters.status} onChange={(event) => { setWithdrawalLoading(true); setWithdrawalFilters({ ...withdrawalFilters, status: event.target.value, page: 1 }) }}><option value="all">All requests</option><option value="pending">Pending</option><option value="completed">Completed</option><option value="rejected">Rejected</option></select></label>
@@ -1192,15 +1168,9 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
             <div className="withdrawal-list">{withdrawalRequests.map((request) => (
               <article className="portal-card withdrawal-item" key={request.id}>
                 <div className="item-heading"><div><strong>{request.first_name} {request.last_name} · {formatPesos(request.amount)}</strong><span>{request.member_number} · {request.request_reference} · {request.requested_at}</span></div><span className={`status status-${request.status}`}>{request.status}</span></div>
-                <p><strong>Send to:</strong> {request.gcash_account_name} · {request.gcash_number}</p>
                 {request.admin_note && <p className="muted">Staff note: {request.admin_note}</p>}
-                {request.has_receipt && <button className="text-button" type="button" onClick={async () => { try { await openProtectedImage(token, `/savings/withdrawals/${request.id}/receipt`) } catch (requestError) { setActionError(requestError.message) } }}>View attached receipt</button>}
                 {request.status === 'pending' && <div className="withdrawal-actions">
-                  <form className="withdrawal-upload-form" onSubmit={(event) => uploadWithdrawalReceipt(event, request.id)}>
-                    <label>GCash transfer receipt<input name="receipt" type="file" accept="image/jpeg,image/png,image/webp" required /></label>
-                    <button className="button button-outline" type="submit">{request.has_receipt ? 'Replace receipt' : 'Attach receipt'}</button>
-                  </form>
-                  <div className="button-row"><button className="button button-primary" type="button" disabled={!request.has_receipt} onClick={() => reviewWithdrawal(request, 'complete')}>Complete transfer</button><button className="button button-outline" type="button" onClick={() => reviewWithdrawal(request, 'reject')}>Reject and refund</button></div>
+                  <div className="button-row"><button className="button button-primary" type="button" onClick={() => reviewWithdrawal(request, 'complete')}>Complete simulation</button><button className="button button-outline" type="button" onClick={() => reviewWithdrawal(request, 'reject')}>Reject and refund</button></div>
                 </div>}
               </article>
             ))}</div>
@@ -1236,6 +1206,137 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
   )
 }
 
+function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
+  const staff = ['admin', 'officer'].includes(user.role)
+  const { data, error, loading } = usePortalData(token, refreshKey, SHARE_CAPITAL_ENDPOINTS)
+  const [notice, setNotice] = useState('')
+  const [actionError, setActionError] = useState('')
+  const capital = data?.[0]
+  const subscriptions = capital?.subscriptions || []
+  const transactions = capital?.transactions || []
+  const members = capital?.members || []
+  const reversedPaymentIds = new Set(transactions
+    .filter((transaction) => transaction.transaction_type === 'reversal')
+    .map((transaction) => Number(transaction.reverses_transaction_id)))
+  const summary = capital?.summary || { subscribed_amount: 0, paid_up_amount: 0, unpaid_amount: 0 }
+
+  async function submit(event, path, successMessage) {
+    event.preventDefault()
+    const form = event.currentTarget
+    const values = Object.fromEntries(new FormData(form).entries())
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest(path, { token, method: 'POST', body: JSON.stringify(values) })
+      setNotice(result.message || successMessage)
+      form.reset()
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
+
+  async function reversePayment(transaction) {
+    const reason = window.prompt('Enter the reason for reversing this payment. The original record will be kept.')
+    if (reason === null) return
+    if (!reason.trim()) {
+      setActionError('Enter a reason before reversing a payment.')
+      return
+    }
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest(`/share-capital/payments/${transaction.id}/reverse`, {
+        token, method: 'POST', body: JSON.stringify({ reason: reason.trim() }),
+      })
+      setNotice(result.message)
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
+
+  return (
+    <section className="portal-section">
+      {!standalone && <h2>Share capital</h2>}
+      <p className="muted">Share capital represents member ownership in the cooperative. It is separate from savings and is not an ordinary savings withdrawal.</p>
+      <PortalMessage error>{error || actionError}</PortalMessage>
+      <PortalMessage>{notice}</PortalMessage>
+      {capital && <div className="report-grid">
+        <article className="portal-card"><span>Subscribed share capital</span><strong>{formatPesos(summary.subscribed_amount)}</strong></article>
+        <article className="portal-card"><span>Paid-up share capital</span><strong>{formatPesos(summary.paid_up_amount)}</strong></article>
+        <article className="portal-card"><span>Unpaid subscriptions</span><strong>{formatPesos(summary.unpaid_amount)}</strong></article>
+      </div>}
+      {staff && capital && <>
+        <details className="portal-card">
+          <summary>Create share subscription</summary>
+          <p className="muted">Use only the share count and par value approved by the cooperative. Creating a subscription records an amount owed; it does not record money received.</p>
+          <form className="form-grid" onSubmit={(event) => submit(event, '/share-capital/subscriptions', 'Subscription created.')}>
+            <label>Member<select name="member_id" required defaultValue="">
+              <option value="" disabled>Select a member</option>
+              {members.map((member) => <option key={member.id} value={member.id}>{member.member_number} · {member.first_name} {member.last_name}</option>)}
+            </select></label>
+            <label>Shares subscribed<input name="subscribed_shares" type="number" min="1" step="1" required /></label>
+            <label>Par value per share (PHP)<input name="par_value" type="number" min="0.01" step="0.01" required /></label>
+            <label>Subscription date<input name="subscription_date" type="date" max={TODAY} defaultValue={TODAY} required /></label>
+            <button className="button button-primary" type="submit">Create subscription</button>
+          </form>
+        </details>
+        <details className="portal-card">
+          <summary>Record share capital contribution</summary>
+          <p className="muted">This records an internal demo contribution only; no money is transferred. A live contribution should be recorded only after the cooperative verifies receipt.</p>
+          <form className="form-grid" onSubmit={(event) => submit(event, '/share-capital/payments', 'Contribution recorded.')}>
+            <label>Active subscription<select name="subscription_id" required defaultValue="">
+              <option value="" disabled>Select a subscription</option>
+              {subscriptions.filter((item) => item.status === 'active' && Number(item.unpaid_amount) > 0).map((item) => (
+                <option key={item.id} value={item.id}>{item.member_number} · {item.first_name} {item.last_name} · {item.subscription_number} · unpaid {formatPesos(item.unpaid_amount)}</option>
+              ))}
+            </select></label>
+            <label>Amount (PHP)<input name="amount" type="number" min="0.01" step="0.01" required /></label>
+            <label>Record as<select name="payment_method" defaultValue="simulation" required>
+              <option value="simulation">Simulated demo payment</option>
+            </select></label>
+            <label>Description (optional)<input name="description" maxLength="255" /></label>
+            <button className="button button-primary" type="submit">Record contribution</button>
+          </form>
+        </details>
+      </>}
+      <h3>Share subscriptions</h3>
+      {loading && <StaffEmptyState type="members" title="Loading share capital…" description="Please wait while share subscriptions are retrieved." loading />}
+      {!loading && capital && !subscriptions.length && <StaffEmptyState type="members" title="No subscriptions recorded" description={staff ? 'Create a subscription using the cooperative-approved share terms.' : 'Your share subscriptions will appear here after cooperative staff records them.'} />}
+      {subscriptions.length > 0 && <div className="table-wrap"><table>
+        <thead><tr>{staff && <th>Member</th>}<th>Subscription</th><th>Shares × par value</th><th>Subscribed</th><th>Paid up</th><th>Unpaid</th><th>Status</th></tr></thead>
+        <tbody>{subscriptions.map((item) => <tr key={item.id}>
+          {staff && <td>{item.member_number} · {item.first_name} {item.last_name}</td>}
+          <td>{item.subscription_number}<small>{item.subscription_date}</small></td>
+          <td>{item.subscribed_shares} × {formatPesos(item.par_value)}</td>
+          <td>{formatPesos(item.subscribed_amount)}</td>
+          <td>{formatPesos(item.paid_up_amount)}</td>
+          <td>{formatPesos(item.unpaid_amount)}</td>
+          <td><span className={`status status-${item.status}`}>{item.status}</span></td>
+        </tr>)}</tbody>
+      </table></div>}
+      <h3>Contribution history</h3>
+      {!loading && capital && !transactions.length && <p className="muted">No share capital contributions or corrections have been recorded.</p>}
+      {transactions.length > 0 && <div className="table-wrap"><table>
+        <thead><tr><th>Date / reference</th>{staff && <th>Member</th>}<th>Subscription</th><th>Activity</th><th>Amount</th><th>Paid-up balance</th><th>Method / reason</th>{staff && <th>Correction</th>}</tr></thead>
+        <tbody>{transactions.map((transaction) => <tr key={transaction.id}>
+          <td>{transaction.created_at}<small>{transaction.transaction_reference}</small></td>
+          {staff && <td>{transaction.member_number} · {transaction.first_name} {transaction.last_name}</td>}
+          <td>{transaction.subscription_number}</td>
+          <td>{transaction.transaction_type === 'reversal' ? `Reversal of #${transaction.reverses_transaction_id}` : 'Contribution'}</td>
+          <td>{transaction.transaction_type === 'reversal' ? '−' : ''}{formatPesos(transaction.amount)}</td>
+          <td>{formatPesos(transaction.balance_after)}</td>
+          <td>{transaction.payment_method === 'simulation'
+            ? 'Simulated demo payment'
+            : transaction.payment_method || transaction.description || '—'}</td>
+          {staff && <td>{transaction.transaction_type === 'payment' && !reversedPaymentIds.has(Number(transaction.id)) && <button className="text-button" type="button" onClick={() => reversePayment(transaction)}>Reverse</button>}</td>}
+        </tr>)}</tbody>
+      </table></div>}
+    </section>
+  )
+}
+
 function ReportsPortal({ token, refreshKey, standalone = false }) {
   const { data, error, loading } = usePortalData(token, refreshKey, REPORT_ENDPOINTS)
   const report = data?.[0]
@@ -1254,6 +1355,7 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
         <div className="report-grid">
           <article className="portal-card"><span>Members</span><strong>{report.summary.members}</strong><small>{report.summary.active_members} active</small></article>
           <article className="portal-card"><span>Savings balance</span><strong>PHP {report.summary.savings_balance}</strong></article>
+          <article className="portal-card"><span>Paid-up share capital</span><strong>PHP {report.summary.share_capital_paid_up || '0.00'}</strong><small>Subscribed: PHP {report.summary.share_capital_subscribed || '0.00'}</small></article>
           <article className="portal-card"><span>Loan portfolio</span><strong>PHP {report.summary.loan_balance}</strong></article>
           <article className="portal-card"><span>Loan payments received</span><strong>PHP {report.summary.loan_payments_received}</strong></article>
           <article className="portal-card"><span>Payment evidence awaiting review</span><strong>{report.pending_payment_submissions}</strong></article>
@@ -1263,6 +1365,7 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
           <tr><td>New members</td><td>{report.monthly.new_members}</td></tr>
           <tr><td>Savings deposits</td><td>PHP {report.monthly.savings_deposits}</td></tr>
           <tr><td>Savings withdrawals</td><td>PHP {report.monthly.savings_withdrawals}</td></tr>
+          <tr><td>Share capital contributions</td><td>PHP {report.monthly.share_capital_payments || '0.00'}</td></tr>
           <tr><td>Loan payments received</td><td>PHP {report.monthly.loan_payments_received}</td></tr>
         </tbody></table></div>
         <h3>Loan applications by status</h3>
@@ -1290,8 +1393,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
     const form = event.currentTarget
     const values = new FormData(form)
     if (!values.get('reference_no') && !values.get('screenshot')?.size) {
-      setActionError('Upload your payment screenshot or enter the transaction reference number.')
-      return
+      values.set('reference_no', `CW-DEMO-${Date.now()}`)
     }
     setNotice('')
     setActionError('')
@@ -1309,7 +1411,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
   async function reviewSubmission(id, decision) {
     setNotice('')
     setActionError('')
-    if (decision === 'approve' && !window.confirm('Only approve if you have independently confirmed the funds were received. This verifies evidence but does not post it to a balance. Continue?')) return
+    if (decision === 'approve' && !window.confirm('Approve this demo payment record? This does not transfer money or update a financial balance.')) return
     const note = window.prompt(decision === 'reject' ? 'Reason for rejection (recommended):' : 'Optional verification note:')
     if (note === null) return
     const review_note = note || ''
@@ -1331,8 +1433,8 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
           <div className="eyebrow">{staff ? 'Payment review' : 'Member payments'}</div>
           <h2>{staff ? 'Payment submissions' : 'Submit a payment'}</h2>
           <p className="muted">{staff
-            ? 'Review submitted amounts, references, screenshots, and related loan or Paluwagan cycle.'
-            : 'Submit a GCash receipt or reference number for staff review.'}</p>
+            ? 'Review demo amounts, references, images, and related loan or Paluwagan cycle.'
+            : 'Submit a demo payment record for staff review. It does not transfer money.'}</p>
         </div>}
         {staff && <label className="filter-control">Payment type
           <select value={filter} onChange={(event) => setFilter(event.target.value)}>
@@ -1347,14 +1449,8 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
       <PortalMessage>{notice}</PortalMessage>
       {!staff && (
         <div className="portal-card payment-instructions">
-          <h3>Pay via QR code</h3>
-          <img className="payment-qr" src="/gcash-qr.jpg" alt="GCash payment QR code" />
-          <ol>
-            <li>Scan the QR code in GCash and send the amount shown in your payment details.</li>
-            <li>Take a screenshot of the completed payment.</li>
-            <li>Attach the screenshot below, or enter the transaction reference number if you cannot upload a screenshot.</li>
-          </ol>
-          <p className="muted">A screenshot or reference number is only evidence for staff review. It does not confirm that funds were received.</p>
+          <h3>Simulated payment records</h3>
+          <p>Demo only: CoopWise does not accept or transfer money and is not connected to PayMongo, GCash, or a bank. Do not send funds or upload real payment receipts. Enter a made-up demo reference or leave it blank to generate one automatically.</p>
         </div>
       )}
       {!staff && (
@@ -1383,12 +1479,12 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
             </label>
           )}
           <label>Amount (PHP)<input name="amount" type="number" min="0.01" step="0.01" required /></label>
-          <label>Transaction reference number (if available)<input name="reference_no" maxLength="100" placeholder="Enter the GCash reference number" /></label>
-          <label className="full">Payment screenshot (optional if you enter a reference number)
+          <label>Demo reference number (optional)<input name="reference_no" maxLength="100" placeholder="e.g. CW-DEMO-001" /></label>
+          <label className="full">Demo image (optional; do not upload real receipts)
             <input name="screenshot" type="file" accept="image/jpeg,image/png,image/webp" />
             <small>JPEG, PNG, or WebP; up to 5 MB.</small>
           </label>
-          <button className="button button-primary full" type="submit">Submit payment evidence</button>
+          <button className="button button-primary full" type="submit">Submit demo payment</button>
         </form>
       )}
       {!staff && <h3>Your payment submissions</h3>}
@@ -1417,7 +1513,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
               try { await openProtectedImage(token, `/payment-submissions/${submission.id}/screenshot`) } catch (requestError) { setActionError(requestError.message) }
             }}>View payment screenshot</button>}
             {staff && submission.status === 'pending' && <>
-              <button className="button button-primary" type="button" onClick={() => reviewSubmission(submission.id, 'approve')}>Verify received</button>
+              <button className="button button-primary" type="button" onClick={() => reviewSubmission(submission.id, 'approve')}>Approve demo record</button>
               <button className="button button-outline" type="button" onClick={() => reviewSubmission(submission.id, 'reject')}>Reject evidence</button>
             </>}
           </div>
@@ -1430,6 +1526,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
 const STAFF_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
   { id: 'loans', label: 'Loans', icon: 'loans' },
+  { id: 'share-capital', label: 'Share Capital', icon: 'share-capital' },
   { id: 'reports', label: 'Reports', icon: 'reports' },
   { id: 'payments', label: 'Payment Submissions', icon: 'payments' },
   { id: 'cooperative', label: 'Daily Paluwagan', icon: 'cooperative' },
@@ -1440,6 +1537,7 @@ const STAFF_NAV_ITEMS = [
 const MEMBER_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
   { id: 'loans', label: 'Loans', icon: 'loans' },
+  { id: 'share-capital', label: 'Share Capital', icon: 'share-capital' },
   { id: 'payments', label: 'Online Payments', icon: 'payments' },
   { id: 'cooperative', label: 'Daily Paluwagan', icon: 'cooperative' },
   { id: 'savings', label: 'Savings', icon: 'savings' },
@@ -1448,6 +1546,7 @@ const MEMBER_NAV_ITEMS = [
 const STAFF_PAGE_DETAILS = {
   dashboard: ['Dashboard', 'Manage cooperative services and member activity.'],
   loans: ['Loans', 'Review loan status and explore available loan offers.'],
+  'share-capital': ['Share Capital', 'Track member ownership subscriptions and paid-up contributions.'],
   reports: ['Reports', 'View recorded cooperative totals and monthly activity.'],
   payments: ['Payment Submissions', 'Review submitted amounts, references, and payment evidence.'],
   cooperative: ['Daily Paluwagan', 'Members contribute the same amount each day. When everyone has contributed, the next person in payout order is ready to receive the pooled amount.'],
@@ -1458,6 +1557,7 @@ const STAFF_PAGE_DETAILS = {
 const MEMBER_PAGE_DETAILS = {
   dashboard: ['Dashboard', 'Your cooperative services, all in one place.'],
   loans: ['Loans', 'Review your loan documents, offers, and applications.'],
+  'share-capital': ['Share Capital', 'View your ownership subscriptions and paid-up contributions.'],
   payments: ['Online Payments', 'Submit payment details and review your payment evidence.'],
   cooperative: ['Daily Paluwagan', 'Members contribute the same amount each day. When everyone has contributed, the next person in payout order is ready to receive the pooled amount.'],
   savings: ['Savings', 'View your savings balance and transaction history.'],
@@ -1472,6 +1572,7 @@ function StaffIcon({ name }) {
     cooperative: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>,
     savings: <><path d="M19.5 9.5c-1.6-2.4-4.1-3.5-7.5-3.5-4.7 0-8 2.5-8 6s3.3 6 8 6c3.4 0 5.9-1.1 7.5-3.5" /><path d="M18 10h3v4h-3m-7-2h.01" /></>,
     members: <><circle cx="9" cy="8" r="3" /><path d="M3.5 20v-1.5A5.5 5.5 0 0 1 9 13h1a5.5 5.5 0 0 1 5.5 5.5V20z" /><path d="M16 5.5a3 3 0 0 1 0 5.8m2 2a5 5 0 0 1 2.5 4.3V20" /></>,
+    'share-capital': <><circle cx="12" cy="12" r="9" /><path d="M12 7v10M15.5 9.5c0-1.4-1.4-2.5-3.5-2.5S8.5 8.1 8.5 9.5 10 11.5 12 12s3.5 1.1 3.5 2.5S14 17 12 17s-3.5-1.1-3.5-2.5" /></>,
   }
   return <svg className="staff-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
@@ -1480,6 +1581,7 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
   const [memberCardOpen, setMemberCardOpen] = useState(false)
   const tabs = [
     { id: 'loans', label: 'Monthly loans' },
+    { id: 'share-capital', label: 'Share capital' },
     { id: 'savings', label: 'Savings' },
     { id: 'cooperative', label: 'Daily Paluwagan' },
     { id: 'payments', label: staff ? 'Payment submissions' : 'Online payments' },
@@ -1526,6 +1628,8 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
         ? <LoanPortal key="dashboard-loans" token={token} user={user} refreshKey={refreshKey} />
         : selectedTab === 'members'
           ? <MembersPortal key="dashboard-members" token={token} />
+          : selectedTab === 'share-capital'
+            ? <ShareCapitalPortal key="dashboard-share-capital" token={token} user={user} refreshKey={refreshKey} />
           : selectedTab === 'savings'
             ? <SavingsPortal key="dashboard-savings" token={token} user={user} refreshKey={refreshKey} />
             : selectedTab === 'cooperative'
@@ -1610,6 +1714,8 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
             ? <ServiceDashboard token={token} user={user} staff={staff} selectedTab={dashboardTab} setSelectedTab={setDashboardTab} refreshKey={refreshKey} />
             : section === 'loans'
               ? <LoanPortal key="loans" token={token} user={user} refreshKey={refreshKey} standalone />
+              : section === 'share-capital'
+                ? <ShareCapitalPortal key="share-capital" token={token} user={user} refreshKey={refreshKey} standalone />
               : section === 'members'
                 ? <MembersPortal key="members" token={token} standalone />
                 : section === 'savings'
