@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import './App.css'
 
@@ -10,6 +10,27 @@ const PAYMENT_ENDPOINTS = ['/loans', '/cooperative/cycles', '/share-capital', '/
 const SAVINGS_ENDPOINTS = ['/savings']
 const SHARE_CAPITAL_ENDPOINTS = ['/share-capital']
 const REPORT_ENDPOINTS = ['/reports']
+const PORTAL_CACHE_MAX_AGE_MS = 15_000
+const portalDataCache = new Map()
+let portalCacheRevision = 0
+
+function invalidatePortalDataCache() {
+  portalCacheRevision += 1
+  portalDataCache.clear()
+}
+
+function portalCacheKey(token, endpoint) {
+  return `${token || 'anonymous'}:${endpoint}`
+}
+
+function readPortalCache(token, endpoints) {
+  const cached = endpoints.map((endpoint) => portalDataCache.get(portalCacheKey(token, endpoint)))
+  if (!cached.some(Boolean)) return null
+  return {
+    data: cached.map((entry) => entry?.data ?? null),
+    fresh: cached.every((entry) => entry && Date.now() - entry.savedAt < PORTAL_CACHE_MAX_AGE_MS),
+  }
+}
 
 async function apiRequest(path, { token, ...options } = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -48,22 +69,35 @@ async function openProtectedImage(token, path) {
 }
 
 function usePortalData(token, refreshKey, endpoints) {
-  const [data, setData] = useState(null)
+  const [data, setData] = useState(() => readPortalCache(token, endpoints)?.data || null)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !readPortalCache(token, endpoints))
+  const previousData = useRef(data)
+
+  useEffect(() => {
+    previousData.current = data
+  }, [data])
 
   useEffect(() => {
     let active = true
+    const requestRevision = portalCacheRevision
+    const cached = readPortalCache(token, endpoints)
+    if (cached?.fresh) return () => { active = false }
+
     Promise.all(endpoints.map(async (path) => {
       try {
-        return { result: await apiRequest(path, { token }) }
+        const result = await apiRequest(path, { token })
+        if (requestRevision === portalCacheRevision) {
+          portalDataCache.set(portalCacheKey(token, path), { data: result, savedAt: Date.now() })
+        }
+        return { result }
       } catch (requestError) {
         return { error: `${path}: ${requestError.message}` }
       }
     }))
       .then((results) => {
         if (active) {
-          setData(results.map((item) => item.result || null))
+          setData(results.map((item, index) => item.result ?? previousData.current?.[index] ?? null))
           setError(results.filter((item) => item.error).map((item) => item.error).join(' · '))
         }
       })
@@ -1291,7 +1325,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
 
 function GovernancePortal({ token, user, refreshKey }) {
   const staff = ['admin', 'officer'].includes(user.role)
-  const [data, setData] = useState(null)
+  const [data, setData] = useState(() => readPortalCache(token, ['/governance'])?.data[0] || null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busyMeeting, setBusyMeeting] = useState(null)
@@ -1300,6 +1334,7 @@ function GovernancePortal({ token, user, refreshKey }) {
   const reloadGovernance = useCallback(async () => {
     try {
       const result = await apiRequest('/governance', { token })
+      portalDataCache.set(portalCacheKey(token, '/governance'), { data: result, savedAt: Date.now() })
       setData(result)
       setError('')
     } catch (requestError) {
@@ -1309,9 +1344,16 @@ function GovernancePortal({ token, user, refreshKey }) {
 
   useEffect(() => {
     let active = true
+    const requestRevision = portalCacheRevision
+    const cached = readPortalCache(token, ['/governance'])
+    if (cached?.fresh) return () => { active = false }
+
     apiRequest('/governance', { token })
       .then((result) => {
         if (active) {
+          if (requestRevision === portalCacheRevision) {
+            portalDataCache.set(portalCacheKey(token, '/governance'), { data: result, savedAt: Date.now() })
+          }
           setData(result)
           setError('')
         }
@@ -1924,7 +1966,10 @@ function App() {
   }, [token, memberCardToken])
 
   useEffect(() => {
-    const refresh = () => setRefreshKey((key) => key + 1)
+    const refresh = () => {
+      invalidatePortalDataCache()
+      setRefreshKey((key) => key + 1)
+    }
     window.addEventListener('coopwise:refresh', refresh)
     return () => window.removeEventListener('coopwise:refresh', refresh)
   }, [])
@@ -1975,6 +2020,7 @@ function App() {
 
   function signOut() {
     if (!window.confirm('Are you sure you want to sign out?')) return
+    invalidatePortalDataCache()
     sessionStorage.removeItem('coopwise_access_token')
     setToken(null)
     setUser(null)

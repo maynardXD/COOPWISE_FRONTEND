@@ -73,6 +73,12 @@ replace a cooperative's bylaws or formal meeting and election requirements.
 Members use the same
 responsive workspace shell with member-only navigation and service tabs.
 
+Portal data is cached in browser memory for up to 15 seconds per signed-in
+session, so returning to a recently opened tab can show its last result
+immediately instead of blocking on the same API requests. Expired data refreshes
+in the background; successful changes clear the cache and reload active views.
+The cache is not written to local storage and is cleared when the user signs out.
+
 Run `npm run lint` and `npm run build` to validate the frontend.
 
 The ledger and member-card features use the backend’s `/api/savings/ledger`,
