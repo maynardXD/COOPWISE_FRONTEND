@@ -24,8 +24,11 @@ After loan documents are approved, members see active offers configured by
 staff. If none are available, the portal explains that staff need to configure
 an active product. The loan page can refresh approval status after staff review.
 Xendit payments are recorded only after the backend verifies the Xendit webhook
-token and confirms the status with Xendit. The transaction history
-refreshes automatically while the page is open. Loan documents are stored
+token and confirms the status with Xendit. While a member has an unsettled
+checkout open, only the payment transaction list is refreshed in the background;
+the page does not repeatedly reload loan, Paluwagan, and share-capital data.
+Returning from checkout triggers an immediate server-side status check.
+Loan documents are stored
 privately and served through authenticated API routes. Existing demo
 payment-submission records are retained, but the submission and staff approval
 workflow is no longer used.

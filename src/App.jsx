@@ -96,7 +96,7 @@ function usePortalData(token, refreshKey, endpoints) {
       }
     }))
       .then((results) => {
-        if (active) {
+      if (active && requestRevision === portalCacheRevision) {
           setData(results.map((item, index) => item.result ?? previousData.current?.[index] ?? null))
           setError(results.filter((item) => item.error).map((item) => item.error).join(' · '))
         }
@@ -107,7 +107,25 @@ function usePortalData(token, refreshKey, endpoints) {
     return () => { active = false }
   }, [token, refreshKey, endpoints])
 
-  return { data, error, loading }
+  const refreshEndpoint = useCallback(async (endpoint) => {
+    const index = endpoints.indexOf(endpoint)
+    if (index < 0) return
+    const requestRevision = portalCacheRevision
+    const result = await apiRequest(endpoint, { token })
+    if (requestRevision !== portalCacheRevision) return
+    portalDataCache.set(portalCacheKey(token, endpoint), { data: result, savedAt: Date.now() })
+    setData((current) => {
+      const updated = [...(current || endpoints.map(() => null))]
+      updated[index] = result
+      return updated
+    })
+    setError((current) => current
+      .split(' · ')
+      .filter((message) => message && !message.startsWith(`${endpoint}:`))
+      .join(' · '))
+  }, [endpoints, token])
+
+  return { data, error, loading, refreshEndpoint }
 }
 
 function PortalMessage({ children, error = false }) {
@@ -1550,56 +1568,82 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
 
 function PaymentPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
-  const { data, error, loading } = usePortalData(token, refreshKey, PAYMENT_ENDPOINTS)
+  const { data, error, loading, refreshEndpoint } = usePortalData(token, refreshKey, PAYMENT_ENDPOINTS)
   const [notice, setNotice] = useState(() => {
     const result = new URLSearchParams(window.location.search).get('payment')
-    if (result === 'success') return 'Xendit returned you to CoopWise. Your payment is being checked; your account updates only after server confirmation.'
+    if (result === 'success') return 'Xendit returned you to CoopWise. We are checking the payment; your account changes after Xendit confirms it.'
     if (result === 'cancelled') return 'Checkout was cancelled. No payment has been added to your account.'
     return ''
   })
   const [actionError, setActionError] = useState('')
   const [purpose, setPurpose] = useState('savings')
   const [submitting, setSubmitting] = useState(false)
+  const [slowCheckout, setSlowCheckout] = useState(false)
+  const [checkingPayment, setCheckingPayment] = useState(null)
   const loans = data?.[0]?.loans || []
   const cycles = data?.[1]?.cycles || []
   const subscriptions = data?.[2]?.subscriptions || []
   const transactions = data?.[3]?.transactions || []
+  const hasUnsettledCheckout = transactions.some((transaction) =>
+    transaction.status === 'pending' || (transaction.status === 'needs_review' && transaction.checkout_url)
+  )
 
   useEffect(() => {
     let active = true
     const params = new URLSearchParams(window.location.search)
     const result = params.get('payment')
+    const transactionId = params.get('transaction')
+    if (result === 'success' || result === 'cancelled') {
+      params.delete('payment')
+      params.delete('transaction')
+      const query = params.toString()
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`
+      )
+    }
     if (result === 'success') {
-      window.dispatchEvent(new Event('coopwise:refresh'))
-      const transactionId = params.get('transaction')
       if (transactionId && /^\d+$/.test(transactionId)) {
         apiRequest(`/checkout-transactions/${transactionId}/sync`, { token, method: 'POST' })
           .then((response) => {
-            if (active) setNotice(response.message)
-            window.dispatchEvent(new Event('coopwise:refresh'))
+            if (active) {
+              setNotice(response.status === 'paid'
+                ? 'Payment confirmed. Your CoopWise account has been updated.'
+                : 'Payment is still processing. CoopWise will update after Xendit confirms it.')
+            }
           })
           .catch((requestError) => {
             if (active) setActionError(requestError.message)
           })
+          .finally(() => {
+            if (active) window.dispatchEvent(new Event('coopwise:refresh'))
+          })
+      } else {
+        window.dispatchEvent(new Event('coopwise:refresh'))
       }
     }
     return () => { active = false }
   }, [token])
 
   useEffect(() => {
+    if (staff || !hasUnsettledCheckout) return undefined
+
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
-        window.dispatchEvent(new Event('coopwise:refresh'))
+        refreshEndpoint('/checkout-transactions').catch((requestError) => setActionError(requestError.message))
       }
-    }, 15000)
+    }, 10000)
     return () => window.clearInterval(interval)
-  }, [])
+  }, [refreshEndpoint, staff, hasUnsettledCheckout])
 
   async function startCheckout(event) {
     event.preventDefault()
     setNotice('')
     setActionError('')
     setSubmitting(true)
+    setSlowCheckout(false)
+    const slowCheckoutTimer = window.setTimeout(() => setSlowCheckout(true), 4000)
     const form = event.currentTarget
     const formData = new FormData(form)
     const values = { purpose, amount: formData.get('amount') }
@@ -1610,22 +1654,30 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
       const result = await apiRequest('/checkout-transactions', {
         token, method: 'POST', body: JSON.stringify(values),
       })
+      window.clearTimeout(slowCheckoutTimer)
       window.location.assign(result.checkout_url)
     } catch (requestError) {
+      window.clearTimeout(slowCheckoutTimer)
       setActionError(requestError.message)
       setSubmitting(false)
+      setSlowCheckout(false)
     }
   }
 
   async function refreshPayment(transaction) {
     setNotice('')
     setActionError('')
+    setCheckingPayment(transaction.id)
     try {
       const result = await apiRequest(`/checkout-transactions/${transaction.id}/sync`, { token, method: 'POST' })
-      setNotice(result.message)
+      setNotice(result.status === 'paid'
+        ? 'Payment confirmed. Your CoopWise account has been updated.'
+        : 'Payment is still processing. CoopWise will update after Xendit confirms it.')
       window.dispatchEvent(new Event('coopwise:refresh'))
     } catch (requestError) {
       setActionError(requestError.message)
+    } finally {
+      setCheckingPayment(null)
     }
   }
 
@@ -1685,6 +1737,9 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
           <label>Amount (PHP)<input name="amount" type="number" min="1.00" max="1000000.00" step="0.01" required /></label>
           {purpose === 'paluwagan' && <p className="full muted">The amount must equal the selected cycle’s daily contribution. Only one payment is accepted per member per day.</p>}
           <button className="button button-primary full" type="submit" disabled={submitting}>{submitting ? 'Opening secure checkout…' : 'Continue to Xendit'}</button>
+          {submitting && <p className="full muted" role="status">{slowCheckout
+            ? 'The payment service is taking longer than usual to respond. Please wait; do not click again. No payment is taken until you complete Xendit checkout.'
+            : 'Connecting securely to Xendit. Please wait before leaving this page.'}</p>}
         </form>
       )}
       <div className="item-heading"><h3>{staff ? 'All member transactions' : 'Your transactions'}</h3>
@@ -1705,7 +1760,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
             {transaction.review_note && <small>{transaction.review_note}</small>}</td>
           {!staff && <td>{['pending', 'needs_review'].includes(transaction.status) && <>
             {transaction.checkout_url && <a className="text-button" href={transaction.checkout_url} target="_blank" rel="noreferrer">Open checkout</a>}
-            <button className="text-button" type="button" onClick={() => refreshPayment(transaction)}>Check status</button>
+            <button className="text-button" type="button" disabled={checkingPayment === transaction.id} onClick={() => refreshPayment(transaction)}>{checkingPayment === transaction.id ? 'Checking…' : 'Check status'}</button>
           </>}</td>}
         </tr>)}</tbody>
       </table></div>}
