@@ -80,6 +80,14 @@ tab and are removed on sign-out.
 Forgot-password uses a six-digit OTP delivered through Brevo. It requires a
 Brevo API key and a verified sender address. Neither provider credential is
 stored in the frontend.
+The authentication page reads public provider settings from `/api/auth/config`.
+When both Cloudflare Turnstile keys are configured on the backend, a verified
+challenge is required for password sign-in, member registration, Google
+sign-in, and password-reset requests/confirmation. Google Identity Services
+sign-in is shown only when `GOOGLE_OAUTH_CLIENT_ID` is configured; it can only
+sign in an existing active member account with the same verified email and
+cannot create accounts or sign in staff. The Google sign-in SDK and Turnstile
+widget are loaded only when configured.
 The reset API allows up to three requests per IP per minute, and an active
 code prevents duplicate sends within one minute. Rate-limit responses tell the
 user how long to wait. If Brevo rejects delivery, the backend response includes
@@ -89,6 +97,9 @@ Staff reports use recorded database totals and monthly activity rather than
 the old screen's static sample figures. Access tokens are kept in per-tab
 session storage. Other legacy pages are still available in the LavaLust
 application and have not yet been moved into this separate frontend.
+The staff Reports page also visualizes monthly financial activity and all-time
+loan application statuses with Google Charts. The existing text and table
+summaries remain available if Google's chart loader cannot be reached.
 The Reports page also retains the recent activity audit log; meetings and
 voting are no longer part of the application.
 The Cooperative Learning Center explains the system and shows staff-editable

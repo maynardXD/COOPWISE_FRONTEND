@@ -12,6 +12,72 @@ const POLICY_ENDPOINTS = ['/cooperative/policies']
 const PORTAL_CACHE_MAX_AGE_MS = 15_000
 const portalDataCache = new Map()
 let portalCacheRevision = 0
+let googleChartsPromise = null
+let googleIdentityPromise = null
+let turnstilePromise = null
+
+function loadExternalScript(src, ready) {
+  if (ready()) return Promise.resolve()
+  const existing = document.querySelector(`script[src="${src}"]`)
+  return new Promise((resolve, reject) => {
+    const script = existing || document.createElement('script')
+    const onLoad = () => ready() ? resolve() : reject(new Error('The external service did not initialize.'))
+    const onError = () => {
+      script.remove()
+      reject(new Error('The external service could not be loaded. Check your connection and try again.'))
+    }
+    script.addEventListener('load', onLoad, { once: true })
+    script.addEventListener('error', onError, { once: true })
+    if (!existing) {
+      script.src = src
+      script.async = true
+      script.defer = true
+      document.head.appendChild(script)
+    }
+  })
+}
+
+function loadGoogleCharts() {
+  if (!googleChartsPromise) {
+    googleChartsPromise = loadExternalScript(
+      'https://www.gstatic.com/charts/loader.js',
+      () => Boolean(window.google?.charts?.load),
+    ).then(() => new Promise((resolve) => {
+      window.google.charts.load('current', { packages: ['corechart'] })
+      window.google.charts.setOnLoadCallback(resolve)
+    })).catch((error) => {
+      googleChartsPromise = null
+      throw error
+    })
+  }
+  return googleChartsPromise
+}
+
+function loadGoogleIdentity() {
+  if (!googleIdentityPromise) {
+    googleIdentityPromise = loadExternalScript(
+      'https://accounts.google.com/gsi/client',
+      () => Boolean(window.google?.accounts?.id),
+    ).catch((error) => {
+      googleIdentityPromise = null
+      throw error
+    })
+  }
+  return googleIdentityPromise
+}
+
+function loadTurnstile() {
+  if (!turnstilePromise) {
+    turnstilePromise = loadExternalScript(
+      'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit',
+      () => Boolean(window.turnstile?.render),
+    ).catch((error) => {
+      turnstilePromise = null
+      throw error
+    })
+  }
+  return turnstilePromise
+}
 
 function invalidatePortalDataCache() {
   portalCacheRevision += 1
@@ -109,6 +175,87 @@ function refreshSession(refreshToken) {
       .finally(() => { refreshRequest = null })
   }
   return refreshRequest
+}
+
+function TurnstileWidget({ siteKey, action, resetKey, onToken, onLoadError }) {
+  const containerRef = useRef(null)
+  const tokenCallback = useRef(onToken)
+  const errorCallback = useRef(onLoadError)
+
+  useEffect(() => { tokenCallback.current = onToken }, [onToken])
+  useEffect(() => { errorCallback.current = onLoadError }, [onLoadError])
+
+  useEffect(() => {
+    let active = true
+    let widgetId = null
+    const container = containerRef.current
+    loadTurnstile()
+      .then(() => {
+        if (!active || !container) return
+        widgetId = window.turnstile.render(container, {
+          sitekey: siteKey,
+          action,
+          theme: 'auto',
+          callback: (token) => tokenCallback.current(token),
+          'expired-callback': () => tokenCallback.current(''),
+          'error-callback': () => {
+            tokenCallback.current('')
+            errorCallback.current('The security check could not load. Refresh the page and try again.')
+          },
+        })
+      })
+      .catch((error) => {
+        if (active) errorCallback.current(error.message)
+      })
+    return () => {
+      active = false
+      tokenCallback.current('')
+      if (widgetId !== null) window.turnstile?.remove(widgetId)
+    }
+  }, [action, resetKey, siteKey])
+
+  return <div ref={containerRef} className="turnstile-widget" />
+}
+
+function GoogleSignInButton({ clientId, disabled, onCredential, onLoadError }) {
+  const containerRef = useRef(null)
+  const credentialCallback = useRef(onCredential)
+  const errorCallback = useRef(onLoadError)
+
+  useEffect(() => { credentialCallback.current = onCredential }, [onCredential])
+  useEffect(() => { errorCallback.current = onLoadError }, [onLoadError])
+
+  useEffect(() => {
+    let active = true
+    const container = containerRef.current
+    loadGoogleIdentity()
+      .then(() => {
+        if (!active || !container) return
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: (response) => {
+            if (response?.credential) credentialCallback.current(response.credential)
+          },
+        })
+        window.google.accounts.id.renderButton(container, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'rectangular',
+          width: 280,
+        })
+      })
+      .catch((error) => {
+        if (active) errorCallback.current(error.message)
+      })
+    return () => {
+      active = false
+      if (container) container.replaceChildren()
+    }
+  }, [clientId])
+
+  return <div className={`google-signin-button${disabled ? ' disabled' : ''}`} aria-disabled={disabled} ref={containerRef} />
 }
 
 async function openProtectedImage(token, path) {
@@ -1827,9 +1974,88 @@ function DemoGuide({ setSection, standalone = false }) {
   </section>
 }
 
+function GoogleReportChart({ title, rows, type = 'column' }) {
+  const containerRef = useRef(null)
+  const [chartError, setChartError] = useState('')
+  const hasValues = rows.length > 1 && rows.slice(1).some((row) => Number(row[1]) > 0)
+
+  useEffect(() => {
+    let active = true
+    let chart = null
+    let resizeObserver = null
+    let resizeListener = null
+
+    if (!hasValues) return undefined
+
+    loadGoogleCharts()
+      .then(() => {
+        if (!active || !containerRef.current) return
+        const chartData = window.google.visualization.arrayToDataTable(rows)
+        const options = {
+          backgroundColor: 'transparent',
+          chartArea: { left: 58, top: 20, width: '82%', height: '72%' },
+          colors: ['#17815b', '#68b997', '#e3a343', '#6b85c2', '#b56c8d', '#69aab7'],
+          fontName: 'Arial',
+          height: 300,
+          legend: type === 'pie' ? { position: 'bottom', textStyle: { color: '#52665c' } } : { position: 'none' },
+          pieHole: type === 'pie' ? 0.48 : undefined,
+          vAxis: type === 'column' ? { minValue: 0, textStyle: { color: '#52665c' } } : undefined,
+          hAxis: type === 'column' ? { textStyle: { color: '#52665c' } } : undefined,
+        }
+        chart = type === 'pie'
+          ? new window.google.visualization.PieChart(containerRef.current)
+          : new window.google.visualization.ColumnChart(containerRef.current)
+        const draw = () => {
+          if (active && containerRef.current) {
+            options.width = Math.max(280, containerRef.current.clientWidth)
+            chart.draw(chartData, options)
+          }
+        }
+        draw()
+        if (window.ResizeObserver) {
+          resizeObserver = new window.ResizeObserver(draw)
+          resizeObserver.observe(containerRef.current)
+        } else {
+          resizeListener = draw
+          window.addEventListener('resize', resizeListener)
+        }
+      })
+      .catch((error) => {
+        if (active) setChartError(error.message)
+      })
+
+    return () => {
+      active = false
+      resizeObserver?.disconnect()
+      if (resizeListener) window.removeEventListener('resize', resizeListener)
+      chart?.clearChart()
+    }
+  }, [hasValues, rows, type])
+
+  return <article className="portal-card report-chart-card">
+    <h4>{title}</h4>
+    {!hasValues
+      ? <p className="muted">No chart data is available for this period.</p>
+      : chartError
+        ? <p className="muted">Chart unavailable: {chartError}</p>
+        : <div ref={containerRef} className="google-report-chart" role="img" aria-label={title} />}
+  </article>
+}
+
 function ReportsPortal({ token, refreshKey, standalone = false }) {
   const { data, error, loading } = usePortalData(token, refreshKey, REPORT_ENDPOINTS)
   const report = data?.[0]
+  const financialChartRows = useMemo(() => report ? [
+    ['Activity', 'PHP'],
+    ['Savings deposits', Number(report.monthly.savings_deposits) || 0],
+    ['Savings withdrawals', Number(report.monthly.savings_withdrawals) || 0],
+    ['Share capital contributions', Number(report.monthly.share_capital_payments) || 0],
+    ['Loan payments', Number(report.monthly.loan_payments_received) || 0],
+  ] : [], [report])
+  const loanStatusChartRows = useMemo(() => report ? [
+    ['Loan status', 'Applications'],
+    ...(report.loan_statuses || []).map((entry) => [entry.status, Number(entry.total) || 0]),
+  ] : [], [report])
   return (
     <section className="portal-section">
       <PortalMessage error>{error}</PortalMessage>
@@ -1856,6 +2082,12 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
           <article className="portal-card"><span>Active Paluwagan cycles</span><strong>{report.operations?.active_paluwagan_cycles ?? '—'}</strong></article>
           <article className="portal-card"><span>Payouts awaiting confirmation</span><strong>{report.operations?.payouts_awaiting_confirmation ?? '—'}</strong></article>
           <article className="portal-card"><span>Overdue installments</span><strong>{report.operations?.overdue_installment_count ?? '—'}</strong><small>Outstanding: PHP {report.operations?.overdue_installment_balance ?? '—'}</small></article>
+        </div>
+        <h3>Visual summaries</h3>
+        <p className="muted">Charts use cooperative-wide totals from recorded CoopWise activity. They do not display member names or account-level details.</p>
+        <div className="report-chart-grid">
+          <GoogleReportChart title={`Monthly financial activity · ${report.period}`} rows={financialChartRows} />
+          <GoogleReportChart title="Loan applications by status · all time" rows={loanStatusChartRows} type="pie" />
         </div>
         <h3>Monthly activity</h3>
         <div className="table-wrap"><table><thead><tr><th>Activity</th><th>Value</th></tr></thead><tbody>
@@ -2395,6 +2627,23 @@ function App() {
   const [resetEmail, setResetEmail] = useState('')
   const [sessionError, setSessionError] = useState('')
   const [sessionAttempt, setSessionAttempt] = useState(0)
+  const [authConfig, setAuthConfig] = useState(null)
+  const [authConfigError, setAuthConfigError] = useState('')
+  const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileError, setTurnstileError] = useState('')
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0)
+
+  useEffect(() => {
+    let active = true
+    apiRequest('/auth/config')
+      .then((config) => {
+        if (active) setAuthConfig(config)
+      })
+      .catch((requestError) => {
+        if (active) setAuthConfigError(requestError.message)
+      })
+    return () => { active = false }
+  }, [])
 
   useEffect(() => {
     if (!token || memberCardToken) return
@@ -2441,16 +2690,43 @@ function App() {
     return () => window.removeEventListener('coopwise:session-expired', expired)
   }, [])
 
+  function finishSignIn(result) {
+    sessionStorage.setItem('coopwise_access_token', result.access_token)
+    sessionStorage.setItem('coopwise_refresh_token', result.refresh_token)
+    setToken(result.access_token)
+    setUser(result.user)
+    setSessionError('')
+    setSection('dashboard')
+  }
+
+  function switchAuthMode(nextMode) {
+    setMode(nextMode)
+    setMessage('')
+    setFieldErrors({})
+    setTurnstileToken('')
+    setTurnstileError('')
+    setTurnstileResetKey((key) => key + 1)
+  }
+
   async function handleSubmit(event) {
     event.preventDefault()
+    if (authConfig?.turnstile_configuration_incomplete) {
+      setMessage('The sign-in security check is not configured correctly. Contact cooperative staff.')
+      return
+    }
+    if (authConfig?.turnstile_enabled && !turnstileToken) {
+      setMessage('Complete the security check before continuing.')
+      return
+    }
     setBusy(true)
     setMessage('')
     setFieldErrors({})
     const values = Object.fromEntries(new FormData(event.currentTarget).entries())
+    values.turnstile_token = turnstileToken
     try {
       if (mode === 'register') {
         await apiRequest('/auth/register', { method: 'POST', body: JSON.stringify(values) })
-        setMode('login')
+        switchAuthMode('login')
         setMessage('Registration complete. Sign in with your email or phone number.')
       } else if (mode === 'forgot') {
         const result = await apiRequest('/auth/password-reset/request', {
@@ -2458,32 +2734,65 @@ function App() {
           body: JSON.stringify({ email: values.email }),
         })
         setResetEmail(values.email.trim())
-        setMode('reset')
+        switchAuthMode('reset')
         setMessage(`${result.message} Enter the code if you receive it. It expires in 10 minutes.`)
       } else if (mode === 'reset') {
         const result = await apiRequest('/auth/password-reset/confirm', {
           method: 'POST',
           body: JSON.stringify(values),
         })
-        setMode('login')
+        switchAuthMode('login')
         setMessage(result.message)
       } else {
         const result = await apiRequest('/auth/login', {
           method: 'POST',
-          body: JSON.stringify({ login: values.login, password: values.password }),
+          body: JSON.stringify({
+            login: values.login,
+            password: values.password,
+            turnstile_token: values.turnstile_token,
+          }),
         })
-        sessionStorage.setItem('coopwise_access_token', result.access_token)
-        sessionStorage.setItem('coopwise_refresh_token', result.refresh_token)
-        setToken(result.access_token)
-        setUser(result.user)
-        setSessionError('')
-        setSection('dashboard')
+        finishSignIn(result)
       }
     } catch (requestError) {
       setMessage(requestError.message)
       setFieldErrors(requestError.fields || {})
     } finally {
       setBusy(false)
+      setTurnstileToken('')
+      setTurnstileResetKey((key) => key + 1)
+    }
+  }
+
+  async function handleGoogleCredential(idToken) {
+    if (busy) return
+    if (authConfig?.turnstile_configuration_incomplete) {
+      setMessage('The sign-in security check is not configured correctly. Contact cooperative staff.')
+      return
+    }
+    if (authConfig?.turnstile_enabled && !turnstileToken) {
+      setMessage('Complete the security check before continuing with Google.')
+      return
+    }
+    setBusy(true)
+    setMessage('')
+    setFieldErrors({})
+    try {
+      const result = await apiRequest('/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({
+          id_token: idToken,
+          turnstile_token: turnstileToken,
+        }),
+      })
+      finishSignIn(result)
+    } catch (requestError) {
+      setMessage(requestError.message)
+      setFieldErrors(requestError.fields || {})
+    } finally {
+      setBusy(false)
+      setTurnstileToken('')
+      setTurnstileResetKey((key) => key + 1)
     }
   }
 
@@ -2553,11 +2862,14 @@ function App() {
               }}>Retry session</button>
             </div>}
             <div className="tabs" role="tablist" aria-label="Account options">
-              <button className={mode === 'login' ? 'tab active' : 'tab'} type="button" onClick={() => { setMode('login'); setMessage(''); setFieldErrors({}) }}>Sign in</button>
-              <button className={mode === 'register' ? 'tab active' : 'tab'} type="button" onClick={() => { setMode('register'); setMessage(''); setFieldErrors({}) }}>Register</button>
+              <button className={mode === 'login' ? 'tab active' : 'tab'} type="button" onClick={() => switchAuthMode('login')}>Sign in</button>
+              <button className={mode === 'register' ? 'tab active' : 'tab'} type="button" onClick={() => switchAuthMode('register')}>Register</button>
             </div>
             <h2>{mode === 'login' ? 'Welcome back' : mode === 'register' ? 'Create your member account' : mode === 'forgot' ? 'Reset your password' : 'Enter your reset code'}</h2>
             {message && <div className="message" role="status">{message}</div>}
+            {authConfigError && <div className="message message-error" role="alert">Sign-in provider settings could not be loaded: {authConfigError}</div>}
+            {authConfig?.turnstile_configuration_incomplete && <div className="message message-error" role="alert">The Turnstile site key and secret key both need to be configured before this security check can be used.</div>}
+            {turnstileError && <div className="message message-error" role="alert">{turnstileError}</div>}
             <form onSubmit={handleSubmit}>
               {mode === 'register' ? (
                 <div className="form-grid">
@@ -2586,12 +2898,33 @@ function App() {
                   <p className="form-help full">Use 8-128 characters with an uppercase letter, a number, a special character, and no spaces.</p>
                 </>
               )}
+              {authConfig?.turnstile_enabled && <div className="auth-security-check full">
+                <span className="form-help">Complete the security check to continue.</span>
+                <TurnstileWidget
+                  key={`${mode}-${turnstileResetKey}`}
+                  siteKey={authConfig.turnstile_site_key}
+                  action={mode === 'register' ? 'register' : mode === 'forgot' ? 'password_reset_request' : mode === 'reset' ? 'password_reset_confirm' : 'login'}
+                  resetKey={turnstileResetKey}
+                  onToken={setTurnstileToken}
+                  onLoadError={setTurnstileError}
+                />
+              </div>}
               <button className="button button-primary submit" type="submit" disabled={busy}>
                 {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : mode === 'forgot' ? 'Send reset code' : 'Change password'}
               </button>
             </form>
-            {mode === 'login' && <button className="text-button auth-reset-link" type="button" onClick={() => { setMode('forgot'); setMessage(''); setFieldErrors({}) }}>Forgot password?</button>}
-            {(mode === 'forgot' || mode === 'reset') && <button className="text-button auth-reset-link" type="button" onClick={() => { setMode('login'); setMessage(''); setFieldErrors({}) }}>Back to sign in</button>}
+            {mode === 'login' && authConfig?.google_client_id && <div className="google-signin-section">
+              <span className="google-signin-divider">or</span>
+              <GoogleSignInButton
+                clientId={authConfig.google_client_id}
+                disabled={busy}
+                onCredential={handleGoogleCredential}
+                onLoadError={setTurnstileError}
+              />
+              <small className="form-help">Google sign-in is available for existing active member accounts with a matching verified email.</small>
+            </div>}
+            {mode === 'login' && <button className="text-button auth-reset-link" type="button" onClick={() => switchAuthMode('forgot')}>Forgot password?</button>}
+            {(mode === 'forgot' || mode === 'reset') && <button className="text-button auth-reset-link" type="button" onClick={() => switchAuthMode('login')}>Back to sign in</button>}
             {mode === 'register' && <p className="form-help">Names use letters and spaces. Use an 11-digit number starting with 09. Passwords require 8+ characters, one uppercase letter, one number, one special character, and no spaces.</p>}
           </div>
         </section>
