@@ -33,15 +33,6 @@
 .tagline,.muted,.optional,.form-help { color: var(--muted); }
 .tagline { font-size: 14px; }
 
-.governance-list { display: grid; gap: 16px; margin-top: 20px; }
-.governance-meeting h3 { margin: 0 0 6px; }
-.governance-options { display: grid; gap: 8px; margin: 18px 0 10px; }
-.governance-option { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 9px; }
-.governance-option small { display: block; color: var(--muted); margin-top: 3px; }
-.governance-voted { color: var(--green); white-space: nowrap; }
-.governance-audit { margin-top: 32px; }
-.governance-audit h3 { margin-bottom: 6px; }
-
 .auth-layout {
   position: relative;
   flex: 1;
@@ -940,28 +931,10 @@ footer {
 .autopay-option small { color:#6f8178; font-size:12px; line-height:1.5; }
 .autopay-card .autopay-caveat { margin-bottom:0; color:#846228; font-size:11px; }
 .withdrawal-section { margin:24px 0; }
-.withdrawal-section > h4 { margin:20px 0 10px; color:#244638; }
 .withdrawal-section .staff-subsection-title { margin-bottom:12px; }
 .withdrawal-section .staff-subsection-title .muted { margin:4px 0 0; }
 .withdrawal-form .full { grid-column:1 / -1; }
 .withdrawal-disclaimer { margin:0; color:#71837b; font-size:11px; line-height:1.5; }
-.withdrawal-confirm-card { margin-bottom:14px; }
-.withdrawal-confirm-card h4 { margin:7px 0 14px; color:#17392f; }
-.withdrawal-confirm-card dl { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:0 0 14px; }
-.withdrawal-confirm-card dl div { display:grid; gap:4px; }
-.withdrawal-confirm-card dt { color:#71837b; font-size:11px; }
-.withdrawal-confirm-card dd { margin:0; color:#244638; font-size:13px; font-weight:700; overflow-wrap:anywhere; }
-.withdrawal-confirm-card > p { color:#647970; font-size:12px; line-height:1.55; }
-.withdrawal-list { display:grid; gap:12px; }
-.withdrawal-item { margin:0; }
-.withdrawal-item > p { color:#50685d; font-size:13px; }
-.withdrawal-actions { display:grid; gap:12px; margin-top:14px; padding-top:14px; border-top:1px solid #e5ece8; }
-.withdrawal-upload-form { display:flex; align-items:flex-end; flex-wrap:wrap; gap:10px; }
-.withdrawal-upload-form label { flex:1 1 240px; margin:0; color:#486256; font-size:12px; font-weight:650; }
-.withdrawal-upload-form input { margin-top:6px; }
-.withdrawal-filters { display:flex; align-items:flex-end; flex-wrap:wrap; gap:12px; margin-bottom:14px; }
-.withdrawal-filters label { flex:1 1 170px; margin:0; color:#486256; font-size:12px; font-weight:650; }
-.withdrawal-pagination { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:14px 0; color:#6f8178; font-size:12px; }
 
 @media (max-width:720px) {
   .autopay-heading { align-items:flex-start; flex-direction:column; }
@@ -970,10 +943,6 @@ footer {
   .loan-schedule-print-area { padding:16px; }
   .loan-schedule-print-area .ledger-document-header { align-items:flex-start; }
   .loan-schedule-print-area .ledger-document-title strong { max-width:145px; line-height:1.4; }
-  .withdrawal-confirm-card dl { grid-template-columns:1fr; }
-  .withdrawal-upload-form { align-items:stretch; flex-direction:column; }
-  .withdrawal-upload-form .button { width:100%; }
-  .withdrawal-pagination { align-items:flex-start; flex-direction:column; }
 }
 
 @media print {

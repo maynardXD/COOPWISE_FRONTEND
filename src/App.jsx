@@ -317,7 +317,7 @@ function SavingsLedgerDialog({ token, member, onClose }) {
           </div>
           <div className="ledger-summary">
             <div><span>Opening balance</span><strong>{formatPesos(ledger.opening_balance)}</strong></div>
-            <div><span>Total deposits</span><strong>{formatPesos(ledger.deposits_total)}</strong></div>
+            <div><span>Total credits</span><strong>{formatPesos(ledger.deposits_total)}</strong></div>
             <div><span>Total withdrawals</span><strong>{formatPesos(ledger.withdrawals_total)}</strong></div>
             <div><span>Closing balance</span><strong>{formatPesos(ledger.closing_balance)}</strong></div>
           </div>
@@ -329,7 +329,7 @@ function SavingsLedgerDialog({ token, member, onClose }) {
                 {ledger.transactions.map((transaction) => (
                   <tr key={transaction.id}>
                     <td>{transaction.created_at}<small>{transaction.reference_no}</small></td>
-                    <td>{transaction.description || (transaction.type === 'deposit' ? 'Savings deposit' : 'Savings withdrawal')}</td>
+                    <td>{transaction.description || (transaction.type === 'deposit' ? 'Member balance credit' : 'Member balance withdrawal')}</td>
                     <td>{transaction.type === 'deposit' ? formatPesos(transaction.amount) : '—'}</td>
                     <td>{transaction.type === 'withdrawal' ? formatPesos(transaction.amount) : '—'}</td>
                     <td>{formatPesos(transaction.balance_after)}</td>
@@ -883,7 +883,7 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
     <section className="portal-section">
       {!standalone && <>
         <h2>Daily rotating savings (Paluwagan)</h2>
-        <p className="muted">Members pay their daily contribution through Xendit. Once everyone has paid, the next person in the randomized order is ready for the pooled payout. Xendit collects contributions; staff still confirms when a payout is actually made.</p>
+        <p className="muted">Members pay their daily contribution through Xendit. Once everyone has paid, the next person in the randomized order is ready for the pooled payout. Staff confirm the simulated payout, which is then added to that member’s available balance.</p>
       </>}
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
@@ -931,7 +931,7 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
             <div className="payout-callout">
               <strong>Pooled payout ready: PHP {cycle.ready_payout.amount}</strong>
               <span>Recipient: {cycle.ready_payout.first_name} {cycle.ready_payout.last_name} (order {cycle.ready_payout.payout_order})</span>
-              {staff && <button className="button button-primary" type="button" onClick={() => changeCycle('/cooperative/payouts/mark-paid', { payout_id: cycle.ready_payout.id }, 'Payout marked paid.')}>Confirm payout paid</button>}
+              {staff && <button className="button button-primary" type="button" onClick={() => changeCycle('/cooperative/payouts/mark-paid', { payout_id: cycle.ready_payout.id }, 'Payout marked paid and added to the member balance.')}>Confirm payout paid</button>}
             </div>
           )}
           <h3>Agreed payout order</h3>
@@ -1041,32 +1041,13 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [ledgerOpen, setLedgerOpen] = useState(false)
-  const [withdrawalRequests, setWithdrawalRequests] = useState([])
-  const [withdrawalLoading, setWithdrawalLoading] = useState(true)
-  const [withdrawalFilters, setWithdrawalFilters] = useState({ q: '', status: 'all', sort: 'newest', page: 1 })
-  const [withdrawalSearch, setWithdrawalSearch] = useState('')
-  const [withdrawalConfirmation, setWithdrawalConfirmation] = useState(null)
-  const [withdrawalSummary, setWithdrawalSummary] = useState({ page: 1, pages: 1, total: 0 })
+  const [withdrawalSubmitting, setWithdrawalSubmitting] = useState(false)
+  const [withdrawalRequestKey, setWithdrawalRequestKey] = useState(null)
   const [autoPayDraft, setAutoPayDraft] = useState(null)
   const [autoPaySaving, setAutoPaySaving] = useState(false)
   const transactions = data?.[0]?.transactions || []
   const balance = data?.[0]?.balance
   const autoPaySettings = autoPayDraft || data?.[0]?.auto_pay_preferences || { loan: false, paluwagan: false }
-
-  useEffect(() => {
-    let active = true
-    const query = new URLSearchParams(withdrawalFilters)
-    apiRequest(`/savings/withdrawals?${query}`, { token })
-      .then((result) => {
-        if (active) {
-          setWithdrawalRequests(result.withdrawals || [])
-          setWithdrawalSummary({ page: result.page || 1, pages: result.pages || 1, total: result.total || 0 })
-        }
-      })
-      .catch((requestError) => { if (active) setActionError(requestError.message) })
-      .finally(() => { if (active) setWithdrawalLoading(false) })
-    return () => { active = false }
-  }, [token, refreshKey, withdrawalFilters])
 
   async function saveAutoPay(event) {
     event.preventDefault()
@@ -1087,70 +1068,38 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
     }
   }
 
-  function prepareWithdrawal(event) {
+  async function submitWithdrawal(event) {
     event.preventDefault()
-    const values = Object.fromEntries(new FormData(event.currentTarget).entries())
     setActionError('')
-    setWithdrawalConfirmation(values)
-  }
-
-  async function submitWithdrawal() {
-    if (!withdrawalConfirmation) return
     setNotice('')
-    setActionError('')
+    setWithdrawalSubmitting(true)
+    const form = event.currentTarget
+    const amount = new FormData(form).get('amount')
+    const requestId = withdrawalRequestKey || crypto.randomUUID()
+    setWithdrawalRequestKey(requestId)
     try {
-      const result = await apiRequest('/savings/withdrawals', {
-        token, method: 'POST', body: JSON.stringify(withdrawalConfirmation),
+      const result = await apiRequest('/savings/withdraw', {
+        token, method: 'POST', body: JSON.stringify({ amount, request_id: requestId }),
       })
       setNotice(result.message)
-      setWithdrawalConfirmation(null)
+      setWithdrawalRequestKey(null)
+      form.reset()
       window.dispatchEvent(new Event('coopwise:refresh'))
     } catch (requestError) {
       setActionError(requestError.message)
+    } finally {
+      setWithdrawalSubmitting(false)
     }
-  }
-
-  async function reviewWithdrawal(request, action) {
-    setNotice('')
-    setActionError('')
-    let admin_note = ''
-    if (action === 'reject') {
-      admin_note = window.prompt('Enter the reason for rejecting this request. The reserved savings will be refunded.')
-      if (admin_note === null) return
-      admin_note = admin_note.trim()
-      if (!admin_note) {
-        setActionError('Enter a rejection reason before continuing.')
-        return
-      }
-    } else {
-      admin_note = window.prompt('Optional note for this simulated withdrawal:') || ''
-    }
-    try {
-      const result = await apiRequest(`/savings/withdrawals/${request.id}/${action}`, {
-        token, method: 'POST', body: JSON.stringify({ admin_note }),
-      })
-      setNotice(result.message)
-      window.dispatchEvent(new Event('coopwise:refresh'))
-    } catch (requestError) {
-      setActionError(requestError.message)
-    }
-  }
-
-  function withdrawalPagination() {
-    if (withdrawalSummary.pages <= 1) return null
-    return <div className="withdrawal-pagination"><span>{withdrawalSummary.total} requests · Page {withdrawalSummary.page} of {withdrawalSummary.pages}</span><div className="button-row">
-      <button className="button button-outline" type="button" disabled={withdrawalSummary.page <= 1 || withdrawalLoading} onClick={() => { setWithdrawalLoading(true); setWithdrawalFilters({ ...withdrawalFilters, page: withdrawalSummary.page - 1 }) }}>Previous</button>
-      <button className="button button-outline" type="button" disabled={withdrawalSummary.page >= withdrawalSummary.pages || withdrawalLoading} onClick={() => { setWithdrawalLoading(true); setWithdrawalFilters({ ...withdrawalFilters, page: withdrawalSummary.page + 1 }) }}>Next</button>
-    </div></div>
   }
 
   return (
     <section className="portal-section">
       {!standalone && <h2>Savings</h2>}
       {!staff && <div className="savings-member-overview">
-        <div className="portal-card savings-balance"><span>Your available savings</span><strong>{loading && !data ? 'Loading…' : formatPesos((balance || 0) / 100)}</strong></div>
+        <div className="portal-card savings-balance"><span>Your available member balance</span><strong>{loading && !data ? 'Loading…' : formatPesos((balance || 0) / 100)}</strong></div>
         <button className="button button-primary" type="button" onClick={() => setLedgerOpen(true)}>View / print my savings ledger</button>
       </div>}
+      {!staff && <p className="muted">Demo balance is credited when a loan is approved or a Paluwagan payout is marked paid. Xendit is not used to deposit funds.</p>}
       {!staff && data && (
         <form className="portal-card autopay-card" onSubmit={saveAutoPay}>
           <div className="autopay-heading"><div><span className="eyebrow">Optional convenience</span><h3>Automatic payments from savings</h3></div><button className="button button-primary" type="submit" disabled={autoPaySaving}>{autoPaySaving ? 'Saving…' : 'Save choices'}</button></div>
@@ -1165,55 +1114,12 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
       <PortalMessage>{notice}</PortalMessage>
       {!staff && (
         <section className="withdrawal-section">
-          <div className="staff-subsection-title"><StaffIcon name="savings" /><div><h3>Simulate a savings withdrawal</h3><p className="muted">This demo changes the displayed ledger only; it does not send money or require payment-account details.</p></div></div>
-          {withdrawalConfirmation ? (
-            <article className="portal-card withdrawal-confirm-card">
-              <span className="eyebrow">Final confirmation</span>
-              <h4>Confirm the simulated withdrawal</h4>
-              <dl><div><dt>Amount</dt><dd>{formatPesos(withdrawalConfirmation.amount)}</dd></div></dl>
-              <p>Submitting reserves this amount from your savings ledger. Staff can complete or reject the simulation; no money will be transferred. Rejected requests return the reserved amount to the ledger.</p>
-              <div className="button-row"><button className="button button-primary" type="button" onClick={submitWithdrawal}>Confirm withdrawal request</button><button className="button button-outline" type="button" onClick={() => setWithdrawalConfirmation(null)}>Edit details</button></div>
-            </article>
-          ) : (
-            <form className="portal-card form-grid withdrawal-form" onSubmit={prepareWithdrawal}>
-              <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={((balance || 0) / 100).toFixed(2)} step="0.01" required /></label>
-              <button className="button button-primary" type="submit">Review simulated withdrawal</button>
-              <p className="withdrawal-disclaimer full">Demo only: no money is transferred and no financial account details are needed.</p>
-            </form>
-          )}
-          <h4>Your simulated withdrawal history</h4>
-          {withdrawalLoading ? <p className="muted">Loading your requests…</p> : withdrawalRequests.length === 0 ? <p className="muted">No simulated withdrawal requests yet.</p> : (
-            <div className="withdrawal-list">{withdrawalRequests.map((request) => (
-              <article className="portal-card withdrawal-item" key={request.id}>
-                <div className="item-heading"><div><strong>{formatPesos(request.amount)}</strong><span>{request.request_reference} · {request.requested_at}</span></div><span className={`status status-${request.status}`}>{request.status}</span></div>
-                {request.admin_note && <p className="muted">Staff note: {request.admin_note}</p>}
-              </article>
-            ))}</div>
-          )}
-          {withdrawalPagination()}
-        </section>
-      )}
-      {staff && (
-        <section className="withdrawal-section">
-          <div className="staff-subsection-title"><StaffIcon name="savings" /><div><h3>Simulated savings withdrawals</h3><p className="muted">Complete or reject requests to demonstrate ledger changes. No money or external payment service is involved.</p></div></div>
-          <form className="portal-card withdrawal-filters" onSubmit={(event) => { event.preventDefault(); setWithdrawalLoading(true); setWithdrawalFilters({ ...withdrawalFilters, q: withdrawalSearch.trim(), page: 1 }) }}>
-            <label>Search<input value={withdrawalSearch} onChange={(event) => setWithdrawalSearch(event.target.value)} placeholder="Member, number, name, or reference" /></label>
-            <label>Status<select value={withdrawalFilters.status} onChange={(event) => { setWithdrawalLoading(true); setWithdrawalFilters({ ...withdrawalFilters, status: event.target.value, page: 1 }) }}><option value="all">All requests</option><option value="pending">Pending</option><option value="completed">Completed</option><option value="rejected">Rejected</option></select></label>
-            <label>Sort<select value={withdrawalFilters.sort} onChange={(event) => { setWithdrawalLoading(true); setWithdrawalFilters({ ...withdrawalFilters, sort: event.target.value, page: 1 }) }}><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="amount_desc">Highest amount</option><option value="amount_asc">Lowest amount</option><option value="member">Member name</option></select></label>
-            <button className="button button-outline" type="submit">Search</button>
+          <div className="staff-subsection-title"><StaffIcon name="savings" /><div><h3>Simulate a withdrawal</h3><p className="muted">The amount is deducted from your available member balance immediately. No money is transferred and staff approval is not needed.</p></div></div>
+          <form className="portal-card form-grid withdrawal-form" onSubmit={submitWithdrawal}>
+            <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={((balance || 0) / 100).toFixed(2)} step="0.01" required /></label>
+            <button className="button button-primary" type="submit" disabled={withdrawalSubmitting || loading || !(balance > 0)}>{withdrawalSubmitting ? 'Processing…' : 'Simulate withdrawal now'}</button>
+            <p className="withdrawal-disclaimer full">Demo only: this updates the member ledger; it does not send money or use Xendit. The withdrawal appears in the transaction history below.</p>
           </form>
-          {withdrawalLoading ? <p className="muted">Loading withdrawal requests…</p> : withdrawalRequests.length === 0 ? <p className="muted">No withdrawal requests match these filters.</p> : (
-            <div className="withdrawal-list">{withdrawalRequests.map((request) => (
-              <article className="portal-card withdrawal-item" key={request.id}>
-                <div className="item-heading"><div><strong>{request.first_name} {request.last_name} · {formatPesos(request.amount)}</strong><span>{request.member_number} · {request.request_reference} · {request.requested_at}</span></div><span className={`status status-${request.status}`}>{request.status}</span></div>
-                {request.admin_note && <p className="muted">Staff note: {request.admin_note}</p>}
-                {request.status === 'pending' && <div className="withdrawal-actions">
-                  <div className="button-row"><button className="button button-primary" type="button" onClick={() => reviewWithdrawal(request, 'complete')}>Complete simulation</button><button className="button button-outline" type="button" onClick={() => reviewWithdrawal(request, 'reject')}>Reject and refund</button></div>
-                </div>}
-              </article>
-            ))}</div>
-          )}
-          {withdrawalPagination()}
         </section>
       )}
       <div className="staff-subsection-title"><StaffIcon name="savings" /><h3>Transaction history</h3></div>
@@ -1341,192 +1247,6 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   )
 }
 
-function GovernancePortal({ token, user, refreshKey }) {
-  const staff = ['admin', 'officer'].includes(user.role)
-  const [data, setData] = useState(() => readPortalCache(token, ['/governance'])?.data[0] || null)
-  const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
-  const [busyMeeting, setBusyMeeting] = useState(null)
-  const loading = !data && !error
-
-  const reloadGovernance = useCallback(async () => {
-    try {
-      const result = await apiRequest('/governance', { token })
-      portalDataCache.set(portalCacheKey(token, '/governance'), { data: result, savedAt: Date.now() })
-      setData(result)
-      setError('')
-    } catch (requestError) {
-      setError(requestError.message)
-    }
-  }, [token])
-
-  useEffect(() => {
-    let active = true
-    const requestRevision = portalCacheRevision
-    const cached = readPortalCache(token, ['/governance'])
-    if (cached?.fresh) return () => { active = false }
-
-    apiRequest('/governance', { token })
-      .then((result) => {
-        if (active) {
-          if (requestRevision === portalCacheRevision) {
-            portalDataCache.set(portalCacheKey(token, '/governance'), { data: result, savedAt: Date.now() })
-          }
-          setData(result)
-          setError('')
-        }
-      })
-      .catch((requestError) => {
-        if (active) setError(requestError.message)
-      })
-    return () => { active = false }
-  }, [token, refreshKey])
-
-  async function createMeeting(event) {
-    event.preventDefault()
-    const form = event.currentTarget
-    const values = Object.fromEntries(new FormData(form).entries())
-    const options = ['option_one', 'option_two', 'option_three', 'option_four', 'option_five', 'option_six']
-      .map((key) => String(values[key] || '').trim())
-      .filter(Boolean)
-    setError('')
-    setNotice('')
-    setBusyMeeting('create')
-    try {
-      const result = await apiRequest('/governance/meetings', {
-        token,
-        method: 'POST',
-        body: JSON.stringify({
-          title: values.title,
-          description: values.description,
-          meeting_date: values.meeting_date,
-          options,
-        }),
-      })
-      setNotice(result.message)
-      form.reset()
-      await reloadGovernance()
-    } catch (requestError) {
-      setError(requestError.message)
-    } finally {
-      setBusyMeeting(null)
-    }
-  }
-
-  async function vote(meetingId, optionId) {
-    setError('')
-    setNotice('')
-    setBusyMeeting(meetingId)
-    try {
-      const result = await apiRequest(`/governance/meetings/${meetingId}/vote`, {
-        token,
-        method: 'POST',
-        body: JSON.stringify({ option_id: optionId }),
-      })
-      setNotice(result.message)
-      await reloadGovernance()
-    } catch (requestError) {
-      setError(requestError.message)
-    } finally {
-      setBusyMeeting(null)
-    }
-  }
-
-  async function closePoll(meetingId) {
-    setError('')
-    setNotice('')
-    setBusyMeeting(meetingId)
-    try {
-      const result = await apiRequest(`/governance/meetings/${meetingId}/close`, {
-        token,
-        method: 'POST',
-        body: JSON.stringify({}),
-      })
-      setNotice(result.message)
-      await reloadGovernance()
-    } catch (requestError) {
-      setError(requestError.message)
-    } finally {
-      setBusyMeeting(null)
-    }
-  }
-
-  return (
-    <section className="portal-section">
-      <h2>Member meetings &amp; voting</h2>
-      <p className="muted">Cooperatives are member-owned and democratically governed. Use this area for meeting announcements and simple polls. Each active member can vote once; individual choices are private, and only totals are displayed.</p>
-      <PortalMessage error>{error}</PortalMessage>
-      {error && <button className="button button-outline" type="button" onClick={() => { setError(''); reloadGovernance() }}>Try again</button>}
-      <PortalMessage>{notice}</PortalMessage>
-      {staff && (
-        <details className="portal-card" open={!data?.meetings?.length}>
-          <summary>Create a meeting and poll</summary>
-          <p className="muted">Creating the poll opens it immediately. Share the question and choices clearly with members, then close it when voting ends.</p>
-          <form className="form-grid" onSubmit={createMeeting}>
-            <label>Meeting or poll title<input name="title" maxLength="160" required /></label>
-            <label>Description<textarea name="description" rows="3" maxLength="1000" /></label>
-            <label>Meeting date (optional)<input name="meeting_date" type="date" /></label>
-            <label>Choice 1<input name="option_one" maxLength="200" required /></label>
-            <label>Choice 2<input name="option_two" maxLength="200" required /></label>
-            <label>Choice 3 (optional)<input name="option_three" maxLength="200" /></label>
-            <label>Choice 4 (optional)<input name="option_four" maxLength="200" /></label>
-            <label>Choice 5 (optional)<input name="option_five" maxLength="200" /></label>
-            <label>Choice 6 (optional)<input name="option_six" maxLength="200" /></label>
-            <button className="button button-primary" type="submit" disabled={busyMeeting === 'create'}>{busyMeeting === 'create' ? 'Creating…' : 'Create and open poll'}</button>
-          </form>
-        </details>
-      )}
-      {loading && <p className="muted">Loading meetings and polls…</p>}
-      {!loading && data?.meetings?.length === 0 && <p className="muted">No meetings or polls have been posted yet.</p>}
-      <div className="governance-list">
-        {data?.meetings?.map((meeting) => {
-          const myVote = Number(meeting.my_vote_option_id || 0)
-          return (
-            <article className="portal-card governance-meeting" key={meeting.id}>
-              <div className="item-heading">
-                <div><h3>{meeting.title}</h3><span>{meeting.meeting_date ? `Meeting date: ${meeting.meeting_date}` : `Posted: ${meeting.created_at}`}</span></div>
-                <span className={`status status-${meeting.status}`}>{meeting.status}</span>
-              </div>
-              {meeting.description && <p>{meeting.description}</p>}
-              <div className="governance-options">
-                {meeting.options.map((option) => (
-                  <div className="governance-option" key={option.id}>
-                    <span>{option.option_text}{meeting.results_visible && <small>{option.votes} vote{option.votes === 1 ? '' : 's'}</small>}</span>
-                    {!staff && meeting.status === 'open' && !myVote && (
-                      <button className="button button-outline" type="button" disabled={busyMeeting === meeting.id} onClick={() => vote(meeting.id, option.id)}>
-                        {busyMeeting === meeting.id ? 'Submitting…' : 'Vote'}
-                      </button>
-                    )}
-                    {myVote === Number(option.id) && <strong className="governance-voted">Your vote</strong>}
-                  </div>
-                ))}
-              </div>
-              <p className="muted">{meeting.results_visible ? `${meeting.vote_count} total vote${meeting.vote_count === 1 ? '' : 's'}` : 'Results are hidden until the poll closes.'}{!staff && myVote > 0 && meeting.status === 'open' ? ' · You have voted.' : ''}</p>
-              {staff && meeting.status === 'open' && <button className="button button-outline" type="button" disabled={busyMeeting === meeting.id} onClick={() => closePoll(meeting.id)}>{busyMeeting === meeting.id ? 'Closing…' : 'Close poll'}</button>}
-            </article>
-          )
-        })}
-      </div>
-      {staff && (
-        <section className="governance-audit">
-          <h3>Staff activity history</h3>
-          <p className="muted">Recent important actions are recorded here. Member poll choices are never included in the audit details.</p>
-          {data?.audit_logs?.length ? <div className="table-wrap"><table>
-            <thead><tr><th>Date</th><th>Staff / actor</th><th>Area</th><th>Action</th><th>Details</th></tr></thead>
-            <tbody>{data.audit_logs.map((entry) => <tr key={entry.id}>
-              <td>{entry.created_at}</td>
-              <td>{entry.actor_name || 'System'}<small>{entry.actor_role || 'automated'}</small></td>
-              <td>{entry.module}</td>
-              <td>{entry.action}</td>
-              <td>{entry.details || '—'}</td>
-            </tr>)}</tbody>
-          </table></div> : <p className="muted">No activity has been logged yet.</p>}
-        </section>
-      )}
-    </section>
-  )
-}
-
 function ReportsPortal({ token, refreshKey, standalone = false }) {
   const { data, error, loading } = usePortalData(token, refreshKey, REPORT_ENDPOINTS)
   const report = data?.[0]
@@ -1544,7 +1264,7 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
         <p className="muted">Live totals from recorded CoopWise transactions. Monthly activity: {report.period}.</p>
         <div className="report-grid">
           <article className="portal-card"><span>Members</span><strong>{report.summary.members}</strong><small>{report.summary.active_members} active</small></article>
-          <article className="portal-card"><span>Savings balance</span><strong>PHP {report.summary.savings_balance}</strong></article>
+          <article className="portal-card"><span>Available member balance</span><strong>PHP {report.summary.savings_balance}</strong></article>
           <article className="portal-card"><span>Paid-up share capital</span><strong>PHP {report.summary.share_capital_paid_up || '0.00'}</strong><small>Subscribed: PHP {report.summary.share_capital_subscribed || '0.00'}</small></article>
           <article className="portal-card"><span>Loan portfolio</span><strong>PHP {report.summary.loan_balance}</strong></article>
           <article className="portal-card"><span>Loan payments received</span><strong>PHP {report.summary.loan_payments_received}</strong></article>
@@ -1552,8 +1272,8 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
         <h3>Monthly activity</h3>
         <div className="table-wrap"><table><thead><tr><th>Activity</th><th>Value</th></tr></thead><tbody>
           <tr><td>New members</td><td>{report.monthly.new_members}</td></tr>
-          <tr><td>Savings deposits</td><td>PHP {report.monthly.savings_deposits}</td></tr>
-          <tr><td>Savings withdrawals</td><td>PHP {report.monthly.savings_withdrawals}</td></tr>
+          <tr><td>Member balance credits</td><td>PHP {report.monthly.savings_deposits}</td></tr>
+          <tr><td>Member balance withdrawals</td><td>PHP {report.monthly.savings_withdrawals}</td></tr>
           <tr><td>Share capital contributions</td><td>PHP {report.monthly.share_capital_payments || '0.00'}</td></tr>
           <tr><td>Loan payments received</td><td>PHP {report.monthly.loan_payments_received}</td></tr>
         </tbody></table></div>
@@ -1561,6 +1281,17 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
         {Object.keys(report.monthly.loan_applications).length
           ? <ul className="member-order">{Object.entries(report.monthly.loan_applications).map(([status, count]) => <li key={status}>{status}: {count}</li>)}</ul>
           : <p className="muted">No loan applications this month.</p>}
+        <h3>Recent activity</h3>
+        {report.activity_logs?.length ? <div className="table-wrap"><table>
+          <thead><tr><th>Date</th><th>Actor</th><th>Area</th><th>Action</th><th>Details</th></tr></thead>
+          <tbody>{report.activity_logs.map((entry) => <tr key={entry.id}>
+            <td>{entry.created_at}</td>
+            <td>{entry.actor_name || 'System'}<small>{entry.actor_role || 'automated'}</small></td>
+            <td>{entry.module}</td>
+            <td>{entry.action}</td>
+            <td>{entry.details || '—'}</td>
+          </tr>)}</tbody>
+        </table></div> : <p className="muted">No staff activity has been recorded.</p>}
       </>}
     </section>
   )
@@ -1576,7 +1307,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
     return ''
   })
   const [actionError, setActionError] = useState('')
-  const [purpose, setPurpose] = useState('savings')
+  const [purpose, setPurpose] = useState('loan')
   const [submitting, setSubmitting] = useState(false)
   const [slowCheckout, setSlowCheckout] = useState(false)
   const [checkingPayment, setCheckingPayment] = useState(null)
@@ -1704,7 +1435,6 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
         <form className="portal-card form-grid" onSubmit={startCheckout}>
           <label>Payment for
             <select value={purpose} onChange={(event) => setPurpose(event.target.value)} required>
-              <option value="savings">Savings deposit</option>
               <option value="loan">Loan repayment</option>
               <option value="paluwagan">Paluwagan contribution</option>
               <option value="share_capital">Share-capital contribution</option>
@@ -1770,7 +1500,6 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
 
 const STAFF_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { id: 'governance', label: 'Meetings & Voting', icon: 'governance' },
   { id: 'loans', label: 'Loans', icon: 'loans' },
   { id: 'share-capital', label: 'Share Capital', icon: 'share-capital' },
   { id: 'reports', label: 'Reports', icon: 'reports' },
@@ -1782,7 +1511,6 @@ const STAFF_NAV_ITEMS = [
 
 const MEMBER_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { id: 'governance', label: 'Meetings & Voting', icon: 'governance' },
   { id: 'loans', label: 'Loans', icon: 'loans' },
   { id: 'share-capital', label: 'Share Capital', icon: 'share-capital' },
   { id: 'payments', label: 'Online Payments', icon: 'payments' },
@@ -1792,24 +1520,22 @@ const MEMBER_NAV_ITEMS = [
 
 const STAFF_PAGE_DETAILS = {
   dashboard: ['Dashboard', 'Manage cooperative services and member activity.'],
-  governance: ['Meetings & Voting', 'Post cooperative meetings, run member polls, and review important system activity.'],
   loans: ['Loans', 'Review loan status and explore available loan offers.'],
   'share-capital': ['Share Capital', 'Track member ownership subscriptions and paid-up contributions.'],
   reports: ['Reports', 'View recorded cooperative totals and monthly activity.'],
   payments: ['Payment Transactions', 'Review provider-confirmed payments from members.'],
-  cooperative: ['Daily Paluwagan', 'Members contribute through Xendit checkout. Staff confirm disbursement after all contributions for the day are confirmed.'],
-  savings: ['Savings', 'View Xendit-confirmed deposits and your savings transaction history.'],
+  cooperative: ['Daily Paluwagan', 'Members contribute through Xendit checkout. Staff confirm the payout and add it to the recipient’s available balance.'],
+  savings: ['Savings', 'Review member balances funded by approved loans and completed Paluwagan payouts.'],
   members: ['Members', 'Member directory and account status.'],
 }
 
 const MEMBER_PAGE_DETAILS = {
   dashboard: ['Dashboard', 'Your cooperative services, all in one place.'],
-  governance: ['Meetings & Voting', 'Take part in cooperative meetings and member polls.'],
   loans: ['Loans', 'Review your loan documents, offers, and applications.'],
   'share-capital': ['Share Capital', 'View your ownership subscriptions and paid-up contributions.'],
   payments: ['Payments', 'Pay cooperative dues through Xendit and view transaction history.'],
-  cooperative: ['Daily Paluwagan', 'Pay the same daily contribution through Xendit. Pooled payouts are disbursed separately by staff.'],
-  savings: ['Savings', 'View your savings balance and transaction history.'],
+  cooperative: ['Daily Paluwagan', 'Pay the agreed contribution through Xendit. Once staff confirm the pooled payout, it is added to the recipient’s available balance.'],
+  savings: ['Savings', 'View your available demo balance and transaction history.'],
 }
 
 function StaffIcon({ name }) {
@@ -1821,7 +1547,6 @@ function StaffIcon({ name }) {
     cooperative: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>,
     savings: <><path d="M19.5 9.5c-1.6-2.4-4.1-3.5-7.5-3.5-4.7 0-8 2.5-8 6s3.3 6 8 6c3.4 0 5.9-1.1 7.5-3.5" /><path d="M18 10h3v4h-3m-7-2h.01" /></>,
     members: <><circle cx="9" cy="8" r="3" /><path d="M3.5 20v-1.5A5.5 5.5 0 0 1 9 13h1a5.5 5.5 0 0 1 5.5 5.5V20z" /><path d="M16 5.5a3 3 0 0 1 0 5.8m2 2a5 5 0 0 1 2.5 4.3V20" /></>,
-    governance: <><path d="M4 4h16v16H4z" /><path d="M8 8h8M8 12h8M8 16h4" /><path d="m6.5 8 .5.5 1-1" /></>,
     'share-capital': <><circle cx="12" cy="12" r="9" /><path d="M12 7v10M15.5 9.5c0-1.4-1.4-2.5-3.5-2.5S8.5 8.1 8.5 9.5 10 11.5 12 12s3.5 1.1 3.5 2.5S14 17 12 17s-3.5-1.1-3.5-2.5" /></>,
   }
   return <svg className="staff-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
@@ -1830,7 +1555,6 @@ function StaffIcon({ name }) {
 function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, refreshKey }) {
   const [memberCardOpen, setMemberCardOpen] = useState(false)
   const tabs = [
-    { id: 'governance', label: 'Meetings & voting' },
     { id: 'loans', label: 'Monthly loans' },
     { id: 'share-capital', label: 'Share capital' },
     { id: 'savings', label: 'Savings' },
@@ -1875,9 +1599,7 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
           </button>
         ))}
       </nav>
-      {selectedTab === 'governance'
-        ? <GovernancePortal key="dashboard-governance" token={token} user={user} refreshKey={refreshKey} />
-        : selectedTab === 'loans'
+      {selectedTab === 'loans'
         ? <LoanPortal key="dashboard-loans" token={token} user={user} refreshKey={refreshKey} />
         : selectedTab === 'members'
           ? <MembersPortal key="dashboard-members" token={token} />
@@ -1965,8 +1687,6 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
         <div className="staff-content">
           {section === 'dashboard'
             ? <ServiceDashboard token={token} user={user} staff={staff} selectedTab={dashboardTab} setSelectedTab={setDashboardTab} refreshKey={refreshKey} />
-            : section === 'governance'
-              ? <GovernancePortal key="governance" token={token} user={user} refreshKey={refreshKey} />
             : section === 'loans'
               ? <LoanPortal key="loans" token={token} user={user} refreshKey={refreshKey} standalone />
               : section === 'share-capital'
@@ -1981,7 +1701,7 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
                       ? <PaymentPortal key="payments" token={token} user={user} refreshKey={refreshKey} standalone />
                       : <ReportsPortal key="reports" token={token} refreshKey={refreshKey} standalone />}
         </div>
-        <footer className="staff-footer">Xendit confirms incoming payments. Staff still confirm outgoing Paluwagan payouts.</footer>
+        <footer className="staff-footer">Xendit confirms incoming payments. Confirmed Paluwagan payouts are credited to the recipient’s demo balance.</footer>
       </div>
     </div>
   )

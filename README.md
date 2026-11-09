@@ -14,12 +14,13 @@ The frontend supports member registration and sign-in, then shows role-based
 share-capital, savings, loan, online-payment, and daily Paluwagan screens backed
 by the LavaLust API. Members submit loan documents for staff approval before
 loan offers become available, then can apply and view their loan schedules.
-They can make savings, loan, Paluwagan, or share-capital payments using
-Xendit Hosted Checkout, see their cycle participation, and view their own
+They can make loan, Paluwagan, or share-capital payments using Xendit Hosted
+Checkout, see their cycle participation, and view their own
 payment/contribution/payout history. Staff can browse the cooperative-wide
 Xendit transaction history, manage loan products and applications, create
 daily cycles, select multiple members for enrollment, and confirm completed
-Paluwagan payouts. The backend randomizes payout order for the selected members.
+Paluwagan payouts, which are credited to the recipient’s demo balance. The
+backend randomizes payout order for the selected members.
 After loan documents are approved, members see active offers configured by
 staff. If none are available, the portal explains that staff need to configure
 an active product. The loan page can refresh approval status after staff review.
@@ -43,10 +44,11 @@ The card QR contains a signed member identifier, not savings or contact data;
 scanning it checks the current membership status.
 Members see a flat-interest estimate while applying for a loan and can print
 the final approved installment schedule or save it as PDF. Approval credits
-the principal into savings; members can request a simulated withdrawal without
-providing financial-account details and track their own request history. Staff
-search, filter, sort, and page through requests, then complete or reject/refund
-each simulation. No money is transferred and no receipt is required.
+the principal into the member’s available balance. Members can immediately
+simulate a withdrawal that debits their balance and appears in their ledger.
+No staff approval, financial-account details, receipt, Xendit payout, or real
+money transfer is involved. Loan proceeds and confirmed Paluwagan payouts are
+the member balance’s sources; new Xendit savings deposits are disabled.
 Members may independently opt in to loan or daily Paluwagan auto-pay from
 savings. The preferences default off, and automatic payments will not run
 until the backend daily CLI job is configured.
@@ -55,8 +57,9 @@ record cooperative-approved subscriptions; members see their own subscribed,
 paid-up, and unpaid amounts. Staff can reverse an erroneous contribution with
 an auditable correction instead of deleting the original transaction.
 Xendit is configured for test mode by default. It requires a server-side
-secret key and a configured webhook before checkout can be used. The provider
-does not disburse Paluwagan payouts; staff still confirm those separately.
+secret key and a configured webhook before incoming checkout can be used. The
+provider does not disburse Paluwagan payouts; staff confirm the simulated payout
+and the backend credits the recipient’s available demo balance.
 Forgot-password uses a six-digit OTP delivered through Brevo. It requires a
 Brevo API key and a verified sender address. Neither provider credential is
 stored in the frontend.
@@ -64,16 +67,12 @@ Staff reports use recorded database totals and monthly activity rather than
 the old screen's static sample figures. Access tokens are kept in per-tab
 session storage. Other legacy pages are still available in the LavaLust
 application and have not yet been moved into this separate frontend.
+The Reports page also retains the recent activity audit log; meetings and
+voting are no longer part of the application.
 
 The staff workspace uses a responsive sidebar, live cooperative overview, and
 consistent page header across loans, share capital, reports, online payments,
-daily Paluwagan, savings, member meetings and voting, and member management.
-Staff can post polls with two to six choices and close them; each active member
-can vote once. Ballots are not shown to other members, and member results are
-shown only after a poll closes. The staff activity history records key loan,
-payment, Paluwagan, share-capital, and poll actions. These demo polls do not
-replace a cooperative's bylaws or formal meeting and election requirements.
-Members use the same
+daily Paluwagan, savings, and member management. Members use the same
 responsive workspace shell with member-only navigation and service tabs.
 
 Portal data is cached in browser memory for up to 15 seconds per signed-in
