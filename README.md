@@ -38,8 +38,12 @@ activity, this month, last month, or a custom date range. Staff can open the
 same date-filtered ledger from each member’s row in the directory. Ledgers show
 opening and closing balances, period deposit/withdrawal totals, and each
 transaction’s date, reference, description, credit/debit, and running balance;
-the browser print dialog can also save the statement as PDF. Members can also
-view/print their ID card, and staff can create one from the member directory.
+the browser print dialog can also save the statement as PDF. Members can email
+a generated PDF of the selected ledger period to their own registered account
+email; the backend derives the recipient from the authenticated account and
+does not accept an email address from the browser. Brevo delivery must be
+configured. Members can also view/print their ID card, and staff can create
+one from the member directory.
 The card QR contains a signed member identifier, not savings or contact data;
 scanning it checks the current membership status.
 Members see a flat-interest estimate while applying for a loan and can print
@@ -86,7 +90,10 @@ submitting an application. Staff reports include operational review counts,
 while Savings provides balance summaries, member search, ledger shortcuts,
 date/type filters, and filtered CSV export. Staff cannot silently edit balances.
 
-The staff workspace uses a responsive sidebar, live cooperative overview, and
+After login, the dashboard opens on Savings by default. The Loans page
+has separate Loan offers and Document reviews tabs; pending document reviews
+show a red count badge and the page opens that tab automatically when reviews
+are waiting. The staff workspace uses a responsive sidebar, live cooperative overview, and
 consistent page header across loans, share capital, reports, online payments,
 daily Paluwagan, savings, and member management. Members use the same
 responsive workspace shell with member-only navigation and service tabs.

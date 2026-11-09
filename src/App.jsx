@@ -180,6 +180,105 @@ function formatPesos(value) {
   return `PHP ${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+async function createSavingsLedgerPdf(ledger) {
+  const { jsPDF } = await import('jspdf')
+  const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+  const margin = 12
+  const pageWidth = pdf.internal.pageSize.getWidth()
+  const pageHeight = pdf.internal.pageSize.getHeight()
+  const columnWidths = [29, 41, 95, 34, 34, 40]
+  const headers = ['Date', 'Reference', 'Description', 'Credit', 'Debit', 'Balance']
+  const safeText = (value) => String(value ?? '-').replace(/[^\x20-\x7E]/g, ' ')
+  const columnX = columnWidths.map((_, index) =>
+    margin + columnWidths.slice(0, index).reduce((total, width) => total + width, 0)
+  )
+
+  function drawPageHeader() {
+    pdf.setTextColor(25, 68, 51)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(16)
+    pdf.text('CoopWise Savings Transaction Statement', margin, 16)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(9)
+    pdf.text(`Member: ${safeText(ledger.member.full_name)}  |  Member number: ${safeText(ledger.member.member_number)}`, margin, 23)
+    pdf.text(`Status: ${safeText(ledger.member.status)}  |  Period: ${ledger.period.from} to ${ledger.period.to}  |  Generated: ${ledger.generated_at}`, margin, 29)
+
+    const summary = [
+      ['Opening balance', ledger.opening_balance],
+      ['Total credits', ledger.deposits_total],
+      ['Total withdrawals', ledger.withdrawals_total],
+      ['Closing balance', ledger.closing_balance],
+    ]
+    const summaryWidth = (pageWidth - margin * 2) / summary.length
+    summary.forEach(([label, amount], index) => {
+      const x = margin + index * summaryWidth
+      pdf.setFillColor(239, 247, 242)
+      pdf.roundedRect(x, 34, summaryWidth - 3, 13, 2, 2, 'F')
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(8)
+      pdf.setTextColor(92, 113, 102)
+      pdf.text(label, x + 3, 39)
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(10)
+      pdf.setTextColor(25, 68, 51)
+      pdf.text(formatPesos(amount), x + 3, 45)
+    })
+
+    pdf.setFillColor(228, 241, 234)
+    pdf.rect(margin, 52, pageWidth - margin * 2, 8, 'F')
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(8)
+    pdf.setTextColor(44, 75, 59)
+    headers.forEach((header, index) => pdf.text(header, columnX[index] + 2, 57))
+    return 62
+  }
+
+  let y = drawPageHeader()
+  const rows = [
+    ['Opening balance', '-', 'Balance at start of period', '-', '-', formatPesos(ledger.opening_balance)],
+    ...ledger.transactions.map((transaction) => [
+      transaction.created_at,
+      transaction.reference_no,
+      transaction.description || (transaction.type === 'deposit' ? 'Member balance credit' : 'Member balance withdrawal'),
+      transaction.type === 'deposit' ? formatPesos(transaction.amount) : '-',
+      transaction.type === 'withdrawal' ? formatPesos(transaction.amount) : '-',
+      formatPesos(transaction.balance_after),
+    ]),
+  ]
+  if (!ledger.transactions.length) rows.push(['-', '-', 'No savings transactions in this period.', '-', '-', formatPesos(ledger.closing_balance)])
+
+  rows.forEach((row) => {
+    const wrapped = row.map((value, index) => pdf.splitTextToSize(safeText(value), columnWidths[index] - 4))
+    const rowHeight = Math.max(8, ...wrapped.map((lines) => lines.length * 3.8 + 4))
+    if (y + rowHeight > pageHeight - 14) {
+      pdf.addPage()
+      y = drawPageHeader()
+    }
+    pdf.setDrawColor(224, 233, 228)
+    pdf.line(margin, y + rowHeight, pageWidth - margin, y + rowHeight)
+    wrapped.forEach((lines, index) => {
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(7.5)
+      pdf.setTextColor(38, 57, 47)
+      const x = index >= 3
+        ? columnX[index] + columnWidths[index] - 2
+        : columnX[index] + 2
+      pdf.text(lines, x, y + 4, index >= 3 ? { align: 'right' } : undefined)
+    })
+    y += rowHeight
+  })
+
+  const pages = pdf.getNumberOfPages()
+  for (let page = 1; page <= pages; page += 1) {
+    pdf.setPage(page)
+    pdf.setFontSize(7)
+    pdf.setTextColor(115, 128, 120)
+    pdf.text(`This statement reflects CoopWise records. Page ${page} of ${pages}.`, margin, pageHeight - 6)
+  }
+  const dataUri = pdf.output('datauristring')
+  return dataUri.slice(dataUri.indexOf(',') + 1)
+}
+
 function localDateString(date) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -230,6 +329,9 @@ function SavingsLedgerDialog({ token, member, onClose }) {
   const [range, setRange] = useState({ preset: 'all', from: '', to: '' })
   const [ledger, setLedger] = useState(null)
   const [error, setError] = useState('')
+  const [emailNotice, setEmailNotice] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [emailSending, setEmailSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const endpoint = member ? `/savings/ledger/${member.id}` : '/savings/ledger'
 
@@ -268,6 +370,8 @@ function SavingsLedgerDialog({ token, member, onClose }) {
   function changeRange(nextRange) {
     setRange(nextRange)
     setLedger(null)
+    setEmailNotice('')
+    setEmailError('')
     setError(nextRange.preset === 'custom' && nextRange.from && nextRange.to && nextRange.from > nextRange.to
       ? 'The start date must be on or before the end date.'
       : '')
@@ -285,6 +389,26 @@ function SavingsLedgerDialog({ token, member, onClose }) {
       to: localDateString(new Date(now.getFullYear(), now.getMonth(), 0)),
     })
     changeRange({ preset: 'custom', from: localDateString(new Date(now.getFullYear(), now.getMonth(), 1)), to: today })
+  }
+
+  async function emailLedgerPdf() {
+    if (!ledger || member || emailSending) return
+    setEmailNotice('')
+    setEmailError('')
+    setEmailSending(true)
+    try {
+      const pdfBase64 = await createSavingsLedgerPdf(ledger)
+      const result = await apiRequest('/savings/ledger/email', {
+        token,
+        method: 'POST',
+        body: JSON.stringify({ pdf_base64: pdfBase64 }),
+      })
+      setEmailNotice(result.message)
+    } catch (requestError) {
+      setEmailError(requestError.message)
+    } finally {
+      setEmailSending(false)
+    }
   }
 
   return (
@@ -308,7 +432,11 @@ function SavingsLedgerDialog({ token, member, onClose }) {
             <label>Through<input type="date" value={range.to} min={range.from || undefined} max={TODAY} onChange={(event) => changeRange({ ...range, to: event.target.value })} /></label>
           </>}
           <button className="button button-primary" type="button" onClick={printRecord} disabled={!ledger || loading}>Print / Save PDF</button>
+          {!member && <button className="button button-outline" type="button" onClick={emailLedgerPdf} disabled={!ledger || loading || emailSending}>
+            {emailSending ? 'Emailing PDF…' : 'Email PDF to my account'}
+          </button>}
         </div>
+        <div className="no-print"><PortalMessage error>{emailError}</PortalMessage><PortalMessage>{emailNotice}</PortalMessage></div>
         {error && <PortalMessage error>{error}</PortalMessage>}
         {loading && <StaffEmptyState type="savings" title="Preparing savings ledger…" description="Loading the selected member’s transactions and balances." loading />}
         {ledger && !loading && <article className="ledger-print-area print-target">
@@ -521,12 +649,14 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const [actionError, setActionError] = useState('')
   const [schedule, setSchedule] = useState(null)
   const [applicationInputs, setApplicationInputs] = useState({})
+  const [staffLoanTab, setStaffLoanTab] = useState(null)
   const products = data?.[0]?.products || []
   const loans = data?.[1]?.loans || []
   const payments = data?.[2]?.payments || []
   const readiness = data?.[3]?.readiness
   const readinessAvailable = data?.[3]?.available !== false
   const readinessSubmissions = data?.[3]?.submissions || []
+  const activeStaffLoanTab = staffLoanTab || (readinessSubmissions.length ? 'documents' : 'offers')
   const productLoadFailed = error.includes('/loan-products:')
 
   function refreshLoanData() {
@@ -644,7 +774,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       {!standalone && <div className="section-heading">
         <div>
           <div className="eyebrow">Credit services</div>
-          <h2>Monthly loans</h2>
+          <h2>Loans</h2>
           <p className="muted">Review your document status and explore available loan offers.</p>
         </div>
         <button className="button button-outline" type="button" onClick={refreshLoanData} disabled={loading}>
@@ -656,7 +786,15 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       <PortalMessage>{notice}</PortalMessage>
       {loading && <p className="loading-note" role="status">Loading your loan information…</p>}
 
-      {!loading && staff && (
+      {staff && <nav className="loan-subtabs" aria-label="Loan management sections">
+        <button className={`loan-subtab${activeStaffLoanTab === 'offers' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'offers' ? 'page' : undefined} onClick={() => setStaffLoanTab('offers')}>Loan offers</button>
+        <button className={`loan-subtab${activeStaffLoanTab === 'documents' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'documents' ? 'page' : undefined} onClick={() => setStaffLoanTab('documents')}>
+          Document reviews
+          {readinessSubmissions.length > 0 && <span className="loan-review-badge" aria-label={`${readinessSubmissions.length} pending document reviews`}>{readinessSubmissions.length}</span>}
+        </button>
+      </nav>}
+
+      {!loading && staff && activeStaffLoanTab === 'documents' && (
         <section>
           <h3>Loan document reviews</h3>
           {data && readinessSubmissions.length === 0 && <p className="muted">No loan documents are waiting for review.</p>}
@@ -682,7 +820,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           ))}
         </section>
       )}
-      {!loading && staff ? (
+      {!loading && staff && activeStaffLoanTab === 'offers' && (
         <>
           <section className="offers-section">
             <h3>Loan offers</h3>
@@ -717,7 +855,8 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
             </form>
           </details>
         </>
-      ) : !loading && (
+      )}
+      {!loading && !staff && (
         <>
           {!readinessAvailable ? <p className="notice">Loan document review and loan applications are available to members aged 18 and over.</p> : (
             <section className="portal-card">
@@ -1798,7 +1937,7 @@ const STAFF_PAGE_DETAILS = {
   dashboard: ['Dashboard', 'Manage cooperative services and member activity.'],
   learning: ['Cooperative Learning Center', 'Explain membership, share capital, loans, Paluwagan, and demo balance rules.'],
   'demo-guide': ['Guided Demo Walkthrough', 'Show the main cooperative flow using examples without changing database records.'],
-  loans: ['Loans', 'Review loan status and explore available loan offers.'],
+  loans: ['Loans', 'Review loan documents, applications, and available loan offers.'],
   'share-capital': ['Share Capital', 'Track member ownership subscriptions and paid-up contributions.'],
   reports: ['Reports', 'View recorded cooperative totals and monthly activity.'],
   payments: ['Payment Transactions', 'Review provider-confirmed payments from members.'],
@@ -1837,7 +1976,7 @@ function StaffIcon({ name }) {
 function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, refreshKey }) {
   const [memberCardOpen, setMemberCardOpen] = useState(false)
   const tabs = [
-    { id: 'loans', label: 'Monthly loans' },
+    { id: 'loans', label: 'Loans' },
     { id: 'share-capital', label: 'Share capital' },
     { id: 'savings', label: 'Savings' },
     { id: 'cooperative', label: 'Daily Paluwagan' },
@@ -1901,7 +2040,7 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
 
 function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOut }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [dashboardTab, setDashboardTab] = useState('loans')
+  const [dashboardTab, setDashboardTab] = useState('savings')
   const staff = ['admin', 'officer'].includes(user.role)
   const navItems = staff ? STAFF_NAV_ITEMS : MEMBER_NAV_ITEMS
   const pageDetails = staff ? STAFF_PAGE_DETAILS : MEMBER_PAGE_DETAILS
