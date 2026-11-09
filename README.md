@@ -26,8 +26,10 @@ balance. The backend randomizes payout order for the selected members.
 After loan documents are approved, members see active offers configured by
 staff. If none are available, the portal explains that staff need to configure
 an active product. The loan page can refresh approval status after staff review.
-Xendit payments are recorded only after the backend verifies the Xendit webhook
-token and confirms the status with Xendit. While a member has an unsettled
+Xendit payments and savings deposits are recorded only after the backend
+verifies the Xendit webhook token and confirms the status with Xendit. Deposits
+are accepted only in Xendit Test Mode and never from a browser-only success
+redirect. While a member has an unsettled
 checkout open, only the payment transaction list is refreshed in the background;
 the page does not repeatedly reload loan, Paluwagan, and share-capital data.
 Returning from checkout triggers an immediate server-side status check.
@@ -53,8 +55,8 @@ the final approved installment schedule or save it as PDF. Approval credits
 the principal into the member’s available balance. Members can immediately
 simulate a withdrawal that debits their balance and appears in their ledger.
 No staff approval, financial-account details, receipt, Xendit payout, or real
-money transfer is involved. Loan proceeds and confirmed Paluwagan payouts are
-the member balance’s sources; new Xendit savings deposits are disabled.
+money transfer is involved. Loan proceeds, confirmed Paluwagan payouts, and
+provider-confirmed Xendit Test Mode deposits can fund the member balance.
 The withdrawal screen lets the member choose a demo e-wallet (GCash/Maya) or
 bank (BDO/BPI/UnionBank). It stores the chosen destination in the transaction
 description for the receipt; it does not collect destination account details
@@ -70,6 +72,11 @@ Xendit is configured for test mode by default. It requires a server-side
 secret key and a configured webhook before incoming checkout can be used. The
 provider does not disburse Paluwagan payouts; staff confirm the simulated payout
 and the backend credits the recipient’s available demo balance.
+Payment, savings, loan, and share-capital histories load in bounded pages.
+Savings review filters are applied by the backend, while filtered CSV export
+retrieves all matching pages. Access tokens renew through a rotating,
+server-stored refresh token; both tokens are isolated to the current browser
+tab and are removed on sign-out.
 Forgot-password uses a six-digit OTP delivered through Brevo. It requires a
 Brevo API key and a verified sender address. Neither provider credential is
 stored in the frontend.
@@ -108,7 +115,9 @@ immediately instead of blocking on the same API requests. Expired data refreshes
 in the background; successful changes clear the cache and reload active views.
 The cache is not written to local storage and is cleared when the user signs out.
 
-Run `npm run lint` and `npm run build` to validate the frontend.
+Run `npm run lint` and `npm run build` to validate the frontend. The backend
+financial workflow unit tests can be run with
+`php tests/financial_workflows.php` from the backend repository.
 
 The ledger and member-card features use the backend’s `/api/savings/ledger`,
 `/api/member-card`, `/api/members/{member_id}/card`, and

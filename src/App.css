@@ -316,6 +316,7 @@ small {
 .payment-facts dd { margin:5px 0 0; color:var(--ink); font-size:14px; font-weight:650; overflow-wrap:anywhere; }
 
 .button-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.pagination-controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:12px; margin:14px 0 24px; color:var(--muted); font-size:13px; }
 .inline-form { display:flex; flex-wrap:wrap; align-items:center; gap:8px; flex:1 1 100%; }
 .inline-form input,.inline-form select { flex:1 1 150px; width:auto; margin:0; }
 .payout-callout { display:flex; flex-wrap:wrap; align-items:center; gap:12px; background:#f0f5f0; border-radius:7px; padding:14px; margin:16px 0; }

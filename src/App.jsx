@@ -1,13 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import './App.css'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost/COOPWISE/LavaLust-COOPWISE/api').replace(/\/+$/, '')
 const TODAY = new Date().toISOString().slice(0, 10)
 const LOAN_ENDPOINTS = ['/loan-products', '/loans', '/payments', '/loan-readiness']
-const COOPERATIVE_ENDPOINTS = ['/cooperative/cycles']
 const PAYMENT_ENDPOINTS = ['/loans', '/cooperative/cycles', '/share-capital', '/checkout-transactions', '/savings']
-const SAVINGS_ENDPOINTS = ['/savings']
 const SHARE_CAPITAL_ENDPOINTS = ['/share-capital']
 const REPORT_ENDPOINTS = ['/reports']
 const POLICY_ENDPOINTS = ['/cooperative/policies']
@@ -42,19 +40,75 @@ async function apiRequest(path, { token, ...options } = {}) {
       ...options.headers,
     },
   })
-  const body = await response.json().catch(() => ({}))
-  if (!response.ok) {
+  let resolvedResponse = response
+  if (response.status === 401 && token) {
+    const refreshToken = sessionStorage.getItem('coopwise_refresh_token')
+    if (!refreshToken) {
+      expireSession()
+    } else {
+      const accessToken = await refreshSession(refreshToken)
+      if (accessToken) {
+        resolvedResponse = await fetch(`${API_BASE}${path}`, {
+          ...options,
+          headers: {
+            ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
+            Authorization: `Bearer ${accessToken}`,
+            ...options.headers,
+          },
+        })
+        if (resolvedResponse.status === 401) expireSession()
+      }
+    }
+  }
+  const body = await resolvedResponse.json().catch(() => ({}))
+  if (!resolvedResponse.ok) {
     const retryAfter = Number(body.retry_after || 0)
-    const message = response.status === 429 && retryAfter > 0
+    const message = resolvedResponse.status === 429 && retryAfter > 0
       ? `Too many requests. Please wait ${retryAfter} seconds before trying again.`
-      : body.message || body.error || `Request failed (${response.status}).`
+      : body.message || body.error || `Request failed (${resolvedResponse.status}).`
     const error = new Error(message)
     error.fields = body.errors || {}
-    error.status = response.status
+    error.status = resolvedResponse.status
     error.retryAfter = retryAfter
     throw error
   }
   return body
+}
+
+let refreshRequest = null
+
+function expireSession() {
+  sessionStorage.removeItem('coopwise_access_token')
+  sessionStorage.removeItem('coopwise_refresh_token')
+  window.dispatchEvent(new Event('coopwise:session-expired'))
+}
+
+function refreshSession(refreshToken) {
+  if (!refreshRequest) {
+    refreshRequest = fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+      .then(async (response) => {
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) expireSession()
+          const error = new Error(body.message || `Session refresh failed (${response.status}).`)
+          error.status = response.status
+          throw error
+        }
+        const tokens = body.tokens
+        if (!tokens?.access_token || !tokens?.refresh_token) {
+          throw new Error('The server returned an invalid session refresh response.')
+        }
+        sessionStorage.setItem('coopwise_access_token', tokens.access_token)
+        sessionStorage.setItem('coopwise_refresh_token', tokens.refresh_token)
+        return tokens.access_token
+      })
+      .finally(() => { refreshRequest = null })
+  }
+  return refreshRequest
 }
 
 async function openProtectedImage(token, path) {
@@ -62,11 +116,24 @@ async function openProtectedImage(token, path) {
   if (!preview) throw new Error('Allow pop-ups to view this private image.')
   try {
     const response = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${token}` } })
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}))
+    let imageResponse = response
+    if (response.status === 401) {
+      const refreshToken = sessionStorage.getItem('coopwise_refresh_token')
+      if (!refreshToken) {
+        expireSession()
+      } else {
+        const accessToken = await refreshSession(refreshToken)
+        if (accessToken) {
+          imageResponse = await fetch(`${API_BASE}${path}`, { headers: { Authorization: `Bearer ${accessToken}` } })
+          if (imageResponse.status === 401) expireSession()
+        }
+      }
+    }
+    if (!imageResponse.ok) {
+      const body = await imageResponse.json().catch(() => ({}))
       throw new Error(body.message || body.error || 'The image could not be opened.')
     }
-    const objectUrl = URL.createObjectURL(await response.blob())
+    const objectUrl = URL.createObjectURL(await imageResponse.blob())
     preview.location.href = objectUrl
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000)
   } catch (error) {
@@ -89,7 +156,16 @@ function usePortalData(token, refreshKey, endpoints) {
     let active = true
     const requestRevision = portalCacheRevision
     const cached = readPortalCache(token, endpoints)
-    if (cached?.fresh) return () => { active = false }
+    if (cached?.fresh) {
+      Promise.resolve().then(() => {
+        if (active) {
+          setData(cached.data)
+          setError('')
+          setLoading(false)
+        }
+      })
+      return () => { active = false }
+    }
 
     Promise.all(endpoints.map(async (path) => {
       try {
@@ -644,7 +720,14 @@ function LoanComparison({ products }) {
 
 function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
-  const { data, error, loading } = usePortalData(token, refreshKey, LOAN_ENDPOINTS)
+  const [loansPage, setLoansPage] = useState(1)
+  const [paymentsPage, setPaymentsPage] = useState(1)
+  const endpoints = useMemo(() => LOAN_ENDPOINTS.map((path) => {
+    if (path === '/loans') return `${path}?page=${loansPage}&per_page=25`
+    if (path === '/payments') return `${path}?page=${paymentsPage}&per_page=25`
+    return path
+  }), [loansPage, paymentsPage])
+  const { data, error, loading } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [schedule, setSchedule] = useState(null)
@@ -657,8 +740,9 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const readinessAvailable = data?.[3]?.available !== false
   const readinessSubmissions = data?.[3]?.submissions || []
   const pendingLoanApplications = loans.filter((loan) => loan.status === 'pending')
+  const pendingLoanCount = data?.[1]?.pending_count ?? pendingLoanApplications.length
   const activeStaffLoanTab = staffLoanTab || (
-    readinessSubmissions.length ? 'documents' : pendingLoanApplications.length ? 'applications' : 'offers'
+    readinessSubmissions.length ? 'documents' : pendingLoanCount ? 'applications' : 'offers'
   )
   const productLoadFailed = error.includes('/loan-products:')
 
@@ -797,7 +881,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
         </button>
         <button className={`loan-subtab${activeStaffLoanTab === 'applications' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'applications' ? 'page' : undefined} onClick={() => setStaffLoanTab('applications')}>
           Applications
-          {pendingLoanApplications.length > 0 && <span className="loan-review-badge" aria-label={`${pendingLoanApplications.length} loan applications awaiting review`}>{pendingLoanApplications.length}</span>}
+          {pendingLoanCount > 0 && <span className="loan-review-badge" aria-label={`${pendingLoanCount} loan applications awaiting review`}>{pendingLoanCount}</span>}
         </button>
       </nav>}
 
@@ -966,10 +1050,20 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           </div>
         </article>
       ))}
+      {data?.[1]?.pagination && <div className="pagination-controls" aria-label="Loan history pages">
+        <button className="button button-outline" type="button" disabled={loansPage <= 1 || loading} onClick={() => setLoansPage((page) => page - 1)}>Previous</button>
+        <span>Page {loansPage}</span>
+        <button className="button button-outline" type="button" disabled={!data[1].pagination.has_more || loading} onClick={() => setLoansPage((page) => page + 1)}>Next</button>
+      </div>}
       {staff && <details className="portal-card"><summary>Recent payments</summary>
         {payments.length ? <div className="table-wrap"><table><thead><tr><th>Loan</th><th>Member</th><th>Amount</th><th>Method</th><th>Date</th></tr></thead>
           <tbody>{payments.map((payment) => <tr key={payment.id}><td>{payment.loan_code}</td><td>{payment.first_name} {payment.last_name}</td><td>PHP {payment.amount_paid}</td><td>{payment.payment_method}</td><td>{payment.payment_date}</td></tr>)}</tbody>
         </table></div> : <p className="muted">No payments recorded.</p>}
+        {data?.[2]?.pagination && <div className="pagination-controls" aria-label="Loan payment pages">
+          <button className="button button-outline" type="button" disabled={paymentsPage <= 1 || loading} onClick={() => setPaymentsPage((page) => page - 1)}>Previous</button>
+          <span>Page {paymentsPage}</span>
+          <button className="button button-outline" type="button" disabled={!data[2].pagination.has_more || loading} onClick={() => setPaymentsPage((page) => page + 1)}>Next</button>
+        </div>}
       </details>}
       </>}
       {schedule && (
@@ -1003,7 +1097,12 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
 
 function CooperativePortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
-  const { data, error, loading } = usePortalData(token, refreshKey, COOPERATIVE_ENDPOINTS)
+  const [contributionPage, setContributionPage] = useState(1)
+  const [payoutPage, setPayoutPage] = useState(1)
+  const endpoints = useMemo(() => [
+    `/cooperative/cycles?contribution_page=${contributionPage}&payout_page=${payoutPage}&per_page=50`
+  ], [contributionPage, payoutPage])
+  const { data, error, loading } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [draftCycleId, setDraftCycleId] = useState('')
@@ -1130,10 +1229,20 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
         {cyclesData.contributions.length ? <div className="table-wrap"><table><thead><tr><th>Cycle</th><th>Member</th><th>Date</th><th>Amount</th></tr></thead>
           <tbody>{cyclesData.contributions.map((item) => <tr key={item.id}><td>{item.cycle_name}</td><td>{item.first_name} {item.last_name}</td><td>{item.contribution_date}</td><td>PHP {item.amount}</td></tr>)}</tbody>
         </table></div> : <p className="muted">No contributions recorded.</p>}
+        {cyclesData.contributions_pagination && <div className="pagination-controls" aria-label="Paluwagan contribution pages">
+          <button className="button button-outline" type="button" disabled={contributionPage <= 1 || loading} onClick={() => setContributionPage((page) => page - 1)}>Previous</button>
+          <span>Page {contributionPage}</span>
+          <button className="button button-outline" type="button" disabled={!cyclesData.contributions_pagination.has_more || loading} onClick={() => setContributionPage((page) => page + 1)}>Next</button>
+        </div>}
         <h3>Payout history</h3>
         {cyclesData.payouts.length ? <div className="table-wrap"><table><thead><tr><th>Cycle</th><th>Recipient</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead>
           <tbody>{cyclesData.payouts.map((item) => <tr key={item.id}><td>{item.cycle_name}</td><td>{item.first_name} {item.last_name}</td><td>{item.payout_date}</td><td>PHP {item.amount}</td><td>{item.status}</td></tr>)}</tbody>
         </table></div> : <p className="muted">No payouts are recorded.</p>}
+        {cyclesData.payouts_pagination && <div className="pagination-controls" aria-label="Paluwagan payout pages">
+          <button className="button button-outline" type="button" disabled={payoutPage <= 1 || loading} onClick={() => setPayoutPage((page) => page - 1)}>Previous</button>
+          <span>Page {payoutPage}</span>
+          <button className="button button-outline" type="button" disabled={!cyclesData.payouts_pagination.has_more || loading} onClick={() => setPayoutPage((page) => page + 1)}>Next</button>
+        </div>}
       </>}
     </section>
   )
@@ -1219,7 +1328,17 @@ function MembersPortal({ token, standalone = false }) {
 
 function SavingsPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
-  const { data, error, loading } = usePortalData(token, refreshKey, SAVINGS_ENDPOINTS)
+  const [transactionPage, setTransactionPage] = useState(1)
+  const [appliedTransactionFilters, setAppliedTransactionFilters] = useState({ q: '', type: 'all', from: '', to: '' })
+  const endpoints = useMemo(() => {
+    const params = new URLSearchParams({ page: String(transactionPage), per_page: '50' })
+    if (staff && appliedTransactionFilters.q.trim()) params.set('q', appliedTransactionFilters.q.trim())
+    if (staff && appliedTransactionFilters.type !== 'all') params.set('type', appliedTransactionFilters.type)
+    if (staff && appliedTransactionFilters.from) params.set('from', appliedTransactionFilters.from)
+    if (staff && appliedTransactionFilters.to) params.set('to', appliedTransactionFilters.to)
+    return [`/savings?${params}`]
+  }, [staff, transactionPage, appliedTransactionFilters])
+  const { data, error, loading } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [ledgerOpen, setLedgerOpen] = useState(false)
@@ -1234,6 +1353,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
   const [autoPaySaving, setAutoPaySaving] = useState(false)
   const [memberSearch, setMemberSearch] = useState('')
   const [transactionFilters, setTransactionFilters] = useState({ q: '', type: 'all', from: '', to: '' })
+  const [exportingTransactions, setExportingTransactions] = useState(false)
   const transactions = data?.[0]?.transactions || []
   const balance = data?.[0]?.balance
   const memberBalances = data?.[0]?.member_balances || []
@@ -1252,7 +1372,34 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
       && (!transactionFilters.to || date <= transactionFilters.to)
   })
 
-  function exportSavingsTransactions() {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setTransactionPage(1)
+      setAppliedTransactionFilters(transactionFilters)
+    }, 350)
+    return () => window.clearTimeout(timer)
+  }, [transactionFilters])
+
+  async function exportSavingsTransactions() {
+    setExportingTransactions(true)
+    setActionError('')
+    try {
+      const params = new URLSearchParams({ per_page: '100' })
+      if (appliedTransactionFilters.q.trim()) params.set('q', appliedTransactionFilters.q.trim())
+      if (appliedTransactionFilters.type !== 'all') params.set('type', appliedTransactionFilters.type)
+      if (appliedTransactionFilters.from) params.set('from', appliedTransactionFilters.from)
+      if (appliedTransactionFilters.to) params.set('to', appliedTransactionFilters.to)
+      const allTransactions = []
+      let page = 1
+      let hasMore = true
+      while (hasMore && page <= 10000) {
+        params.set('page', String(page))
+        const result = await apiRequest(`/savings?${params}`, { token })
+        allTransactions.push(...(result.transactions || []))
+        hasMore = Boolean(result.pagination?.has_more)
+        page++
+      }
+      if (hasMore) throw new Error('The filtered export is too large to complete safely. Narrow the date range and try again.')
     const escapeCsv = (value) => {
       let text = String(value ?? '')
       if (/^\s*[=+\-@]/.test(text)) text = `'${text}`
@@ -1260,7 +1407,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
     }
     const rows = [
       ['Date', 'Member number', 'Member', 'Type', 'Amount PHP', 'Balance after PHP', 'Reference', 'Description'],
-      ...filteredTransactions.map((entry) => [
+      ...allTransactions.map((entry) => [
         entry.created_at,
         entry.member_number || '',
         `${entry.first_name || ''} ${entry.last_name || ''}`.trim(),
@@ -1278,6 +1425,11 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
     anchor.download = 'coopwise-savings-transactions.csv'
     anchor.click()
     URL.revokeObjectURL(url)
+    } catch (requestError) {
+      setActionError(requestError.message)
+    } finally {
+      setExportingTransactions(false)
+    }
   }
 
   async function saveAutoPay(event) {
@@ -1385,7 +1537,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
         <div className="portal-card savings-balance"><span>Your available member balance</span><strong>{loading && !data ? 'Loading…' : formatPesos((balance || 0) / 100)}</strong></div>
         <button className="button button-primary" type="button" onClick={() => { setSelectedSavingsMember(null); setLedgerOpen(true) }}>View / print my savings ledger</button>
       </div>}
-      {!staff && <p className="muted">Demo balance is credited when a loan is approved or a Paluwagan payout is marked paid. Xendit is not used to deposit funds.</p>}
+      {!staff && <p className="muted">Demo balance is credited when a loan is approved, a Paluwagan payout is marked paid, or a Xendit Test Mode savings deposit is confirmed.</p>}
       {!staff && data?.[0]?.balance_breakdown && <div className="report-grid savings-balance-breakdown">
         <article className="portal-card"><span>Loan proceeds credited</span><strong>{formatPesos(data[0].balance_breakdown.loan_credits)}</strong></article>
         <article className="portal-card"><span>Paluwagan payouts credited</span><strong>{formatPesos(data[0].balance_breakdown.paluwagan_credits)}</strong></article>
@@ -1437,7 +1589,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
           <label>Type<select value={transactionFilters.type} onChange={(event) => setTransactionFilters({ ...transactionFilters, type: event.target.value })}><option value="all">All activity</option><option value="deposit">Credits</option><option value="withdrawal">Withdrawals</option></select></label>
           <label>From<input type="date" value={transactionFilters.from} onChange={(event) => setTransactionFilters({ ...transactionFilters, from: event.target.value })} /></label>
           <label>To<input type="date" value={transactionFilters.to} onChange={(event) => setTransactionFilters({ ...transactionFilters, to: event.target.value })} /></label>
-          <button className="button button-outline" type="button" onClick={exportSavingsTransactions} disabled={!filteredTransactions.length}>Export filtered CSV</button>
+          <button className="button button-outline" type="button" onClick={exportSavingsTransactions} disabled={!filteredTransactions.length || exportingTransactions}>{exportingTransactions ? 'Preparing export…' : 'Export filtered CSV'}</button>
         </div>
       </div>}
       <div className="staff-subsection-title"><StaffIcon name="savings" /><h3>Transaction history</h3></div>
@@ -1450,6 +1602,11 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
         <td>{entry.created_at}</td>{staff && <td>{entry.member_number} · {entry.first_name} {entry.last_name}</td>}
         <td>{entry.type}</td><td>PHP {entry.amount}</td><td>PHP {entry.balance_after}</td><td>{entry.reference_no}</td><td>{entry.description || '—'}</td>
       </tr>)}</tbody></table></div>}
+      {data?.[0]?.pagination && <div className="pagination-controls" aria-label="Savings history pages">
+        <button className="button button-outline" type="button" disabled={transactionPage <= 1 || loading} onClick={() => setTransactionPage((page) => page - 1)}>Previous</button>
+        <span>Page {transactionPage}</span>
+        <button className="button button-outline" type="button" disabled={!data[0].pagination.has_more || loading} onClick={() => setTransactionPage((page) => page + 1)}>Next</button>
+      </div>}
       {ledgerOpen && <SavingsLedgerDialog token={token} member={selectedSavingsMember} onClose={() => { setLedgerOpen(false); setSelectedSavingsMember(null) }} />}
     </section>
   )
@@ -1457,7 +1614,9 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
 
 function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
-  const { data, error, loading } = usePortalData(token, refreshKey, SHARE_CAPITAL_ENDPOINTS)
+  const [transactionsPage, setTransactionsPage] = useState(1)
+  const endpoints = useMemo(() => [`${SHARE_CAPITAL_ENDPOINTS[0]}?page=${transactionsPage}&per_page=50`], [transactionsPage])
+  const { data, error, loading } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const capital = data?.[0]
@@ -1559,9 +1718,14 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
           <td>{transaction.transaction_type === 'reversal' ? '−' : ''}{formatPesos(transaction.amount)}</td>
           <td>{formatPesos(transaction.balance_after)}</td>
           <td>{transaction.payment_method || transaction.description || '—'}</td>
-          {staff && <td>{transaction.transaction_type === 'payment' && !reversedPaymentIds.has(Number(transaction.id)) && <button className="text-button" type="button" onClick={() => reversePayment(transaction)}>Reverse</button>}</td>}
+          {staff && <td>{transaction.transaction_type === 'payment' && !Number(transaction.is_reversed) && !reversedPaymentIds.has(Number(transaction.id)) && <button className="text-button" type="button" onClick={() => reversePayment(transaction)}>Reverse</button>}</td>}
         </tr>)}</tbody>
       </table></div>}
+      {capital?.pagination && <div className="pagination-controls" aria-label="Share capital history pages">
+        <button className="button button-outline" type="button" disabled={transactionsPage <= 1 || loading} onClick={() => setTransactionsPage((page) => page - 1)}>Previous</button>
+        <span>Page {transactionsPage}</span>
+        <button className="button button-outline" type="button" disabled={!capital.pagination.has_more || loading} onClick={() => setTransactionsPage((page) => page + 1)}>Next</button>
+      </div>}
     </section>
   )
 }
@@ -1634,7 +1798,7 @@ function DemoGuide({ setSection, standalone = false }) {
     { title: 'Understand the cooperative', section: 'learning', description: 'Learn what membership, share capital, loans, and Paluwagan mean in this classroom demo.' },
     { title: 'Compare sample loan offers', section: 'loans', description: 'Review the example interest rate and repayment schedule before applying. Staff review the application.' },
     { title: 'Explore a Paluwagan cycle', section: 'cooperative', description: 'See the contribution amount, randomized order, daily records, and payout status.' },
-    { title: 'Review your balance sources', section: 'savings', description: 'Loan approval and a confirmed Paluwagan payout can credit the available demo balance.' },
+    { title: 'Review your balance sources', section: 'savings', description: 'Loan approval, a confirmed Paluwagan payout, or a confirmed Xendit Test Mode deposit can credit the available demo balance.' },
     { title: 'Try a simulated withdrawal', section: 'savings', description: 'Choose a demo e-wallet or bank destination. The ledger updates, but no real money is transferred.' },
   ]
   return <section className="portal-section demo-guide">
@@ -1719,7 +1883,11 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
 
 function PaymentPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
-  const { data, error, loading, refreshEndpoint } = usePortalData(token, refreshKey, PAYMENT_ENDPOINTS)
+  const [transactionsPage, setTransactionsPage] = useState(1)
+  const endpoints = useMemo(() => PAYMENT_ENDPOINTS.map((path) =>
+    path === '/checkout-transactions' ? `${path}?page=${transactionsPage}&per_page=25` : path
+  ), [transactionsPage])
+  const { data, error, loading, refreshEndpoint } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState(() => {
     const result = new URLSearchParams(window.location.search).get('payment')
     if (result === 'success') return 'Xendit returned you to CoopWise. We are checking the payment; your account changes after Xendit confirms it.'
@@ -1737,7 +1905,9 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
   const cycles = data?.[1]?.cycles || []
   const subscriptions = data?.[2]?.subscriptions || []
   const transactions = data?.[3]?.transactions || []
+  const transactionsPagination = data?.[3]?.pagination
   const savingsBalance = data?.[4]?.balance
+  const effectivePaymentMethod = purpose === 'savings' ? 'xendit' : paymentMethod
   const hasUnsettledCheckout = transactions.some((transaction) =>
     transaction.status === 'pending' || (transaction.status === 'needs_review' && transaction.checkout_url)
   )
@@ -1785,11 +1955,11 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
 
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
-        refreshEndpoint('/checkout-transactions').catch((requestError) => setActionError(requestError.message))
+        refreshEndpoint(`/checkout-transactions?page=${transactionsPage}&per_page=25`).catch((requestError) => setActionError(requestError.message))
       }
     }, 10000)
     return () => window.clearInterval(interval)
-  }, [refreshEndpoint, staff, hasUnsettledCheckout])
+  }, [refreshEndpoint, staff, hasUnsettledCheckout, transactionsPage])
 
   async function startCheckout(event) {
     event.preventDefault()
@@ -1869,8 +2039,8 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
       <PortalMessage>{notice}</PortalMessage>
       {!staff && (
         <div className="portal-card payment-instructions">
-          <h3>{paymentMethod === 'xendit' ? 'Pay securely with Xendit' : 'Pay from your savings balance'}</h3>
-          <p>{paymentMethod === 'xendit'
+          <h3>{effectivePaymentMethod === 'xendit' ? 'Pay securely with Xendit' : 'Pay from your savings balance'}</h3>
+          <p>{effectivePaymentMethod === 'xendit'
             ? 'Complete payment on Xendit’s secure checkout page. CoopWise updates your account only after the backend verifies Xendit’s payment confirmation.'
             : 'The amount is deducted from your available savings and applied to the selected payment immediately. No external transfer is made.'}</p>
           <strong>Available savings: {savingsBalance === undefined || savingsBalance === null ? 'Loading…' : formatPesos(savingsBalance / 100)}</strong>
@@ -1879,7 +2049,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
       {!staff && (
         <form className="portal-card form-grid" onSubmit={startCheckout}>
           <label>Payment method
-            <select name="payment_method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} required>
+            <select name="payment_method" value={purpose === 'savings' ? 'xendit' : paymentMethod} disabled={purpose === 'savings'} onChange={(event) => setPaymentMethod(event.target.value)} required>
               <option value="xendit">Xendit checkout</option>
               <option value="savings">Deduct from savings</option>
             </select>
@@ -1889,6 +2059,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
               <option value="loan">Loan repayment</option>
               <option value="paluwagan">Paluwagan contribution</option>
               <option value="share_capital">Share-capital contribution</option>
+              <option value="savings">Deposit to savings</option>
             </select>
           </label>
           {purpose === 'loan' && (
@@ -1916,11 +2087,12 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
             </label>
           )}
           <label>Amount (PHP)<input name="amount" type="number" min="1.00" max="1000000.00" step="0.01" required /></label>
+          {purpose === 'savings' && <p className="full muted">The balance is credited only after Xendit Test Mode confirms the checkout. This does not move real money.</p>}
           {purpose === 'paluwagan' && <p className="full muted">The amount must equal the selected cycle’s daily contribution. Only one payment is accepted per member per day.</p>}
           <button className="button button-primary full" type="submit" disabled={submitting}>{submitting
-            ? (paymentMethod === 'xendit' ? 'Opening secure checkout…' : 'Processing savings payment…')
-            : (paymentMethod === 'xendit' ? 'Continue to Xendit' : 'Pay from savings')}</button>
-          {submitting && paymentMethod === 'xendit' && <p className="full muted" role="status">{slowCheckout
+            ? (effectivePaymentMethod === 'xendit' ? 'Opening secure checkout…' : 'Processing savings payment…')
+            : (purpose === 'savings' ? 'Continue to Xendit Test Mode' : effectivePaymentMethod === 'xendit' ? 'Continue to Xendit' : 'Pay from savings')}</button>
+          {submitting && effectivePaymentMethod === 'xendit' && <p className="full muted" role="status">{slowCheckout
             ? 'The payment service is taking longer than usual to respond. Please wait; do not click again. No payment is taken until you complete Xendit checkout.'
             : 'Connecting securely to Xendit. Please wait before leaving this page.'}</p>}
         </form>
@@ -1929,13 +2101,13 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
         <button className="button button-outline" type="button" onClick={() => window.dispatchEvent(new Event('coopwise:refresh'))}>Refresh</button>
       </div>
       {loading && <StaffEmptyState type="payment" title="Loading transactions…" description="Please wait while we check recent payment records." loading />}
-      {!loading && !error && transactions.length === 0 && <StaffEmptyState type="payment" title="No payment transactions yet." description="Completed Xendit and savings-funded payments will appear here." />}
+      {!loading && !error && transactions.length === 0 && <StaffEmptyState type="payment" title="No payment transactions yet." description="Completed Xendit payments, savings deposits, and savings-funded payments will appear here." />}
       {transactions.length > 0 && <div className="table-wrap"><table>
         <thead><tr>{staff && <th>Member</th>}<th>Date</th><th>Purpose</th><th>Amount</th><th>Payment method</th>{staff && <th>Provider fee / net</th>}<th>Reference</th><th>Status</th>{!staff && <th>Action</th>}</tr></thead>
         <tbody>{transactions.map((transaction) => <tr key={transaction.id}>
           {staff && <td>{transaction.member_number} · {transaction.first_name} {transaction.last_name}</td>}
           <td>{transaction.paid_at || transaction.created_at}</td>
-          <td>{transaction.purpose.replace('_', ' ')}</td>
+          <td>{transaction.purpose === 'savings' ? 'Savings deposit' : transaction.purpose.replace('_', ' ')}</td>
           <td>{formatPesos(transaction.amount)}</td>
           <td>{transaction.payment_method === 'savings' ? 'Savings balance' : 'Xendit'}</td>
           {staff && <td>{transaction.provider_fee === null ? '—' : `${formatPesos(transaction.provider_fee)} fee · ${formatPesos(transaction.net_amount)} net`}</td>}
@@ -1948,6 +2120,11 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
           </>}</td>}
         </tr>)}</tbody>
       </table></div>}
+      {transactionsPagination && <div className="pagination-controls" aria-label="Payment history pages">
+        <button className="button button-outline" type="button" disabled={transactionsPage <= 1 || loading} onClick={() => setTransactionsPage((page) => page - 1)}>Previous</button>
+        <span>Page {transactionsPage}</span>
+        <button className="button button-outline" type="button" disabled={!transactionsPagination.has_more || loading} onClick={() => setTransactionsPage((page) => page + 1)}>Next</button>
+      </div>}
     </section>
   )
 }
@@ -2187,6 +2364,8 @@ function App() {
   const [busy, setBusy] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [resetEmail, setResetEmail] = useState('')
+  const [sessionError, setSessionError] = useState('')
+  const [sessionAttempt, setSessionAttempt] = useState(0)
 
   useEffect(() => {
     if (!token || memberCardToken) return
@@ -2198,15 +2377,17 @@ function App() {
         setSection('dashboard')
         setAuthenticating(false)
       })
-      .catch(() => {
+      .catch((requestError) => {
         if (!active) return
         setAuthenticating(false)
-        sessionStorage.removeItem('coopwise_access_token')
-        setToken(null)
-        setUser(null)
+        if (requestError.status === 401) {
+          expireSession()
+        } else {
+          setSessionError(requestError.message || 'Your session could not be checked. Check your connection and try again.')
+        }
       })
     return () => { active = false }
-  }, [token, memberCardToken])
+  }, [token, memberCardToken, sessionAttempt])
 
   useEffect(() => {
     const refresh = () => {
@@ -2215,6 +2396,20 @@ function App() {
     }
     window.addEventListener('coopwise:refresh', refresh)
     return () => window.removeEventListener('coopwise:refresh', refresh)
+  }, [])
+
+  useEffect(() => {
+    const expired = () => {
+      invalidatePortalDataCache()
+      setToken(null)
+      setUser(null)
+      setAuthenticating(false)
+      setSessionError('')
+      setMode('login')
+      setMessage('Your session expired. Please sign in again.')
+    }
+    window.addEventListener('coopwise:session-expired', expired)
+    return () => window.removeEventListener('coopwise:session-expired', expired)
   }, [])
 
   async function handleSubmit(event) {
@@ -2249,8 +2444,10 @@ function App() {
           body: JSON.stringify({ login: values.login, password: values.password }),
         })
         sessionStorage.setItem('coopwise_access_token', result.access_token)
+        sessionStorage.setItem('coopwise_refresh_token', result.refresh_token)
         setToken(result.access_token)
         setUser(result.user)
+        setSessionError('')
         setSection('dashboard')
       }
     } catch (requestError) {
@@ -2261,14 +2458,29 @@ function App() {
     }
   }
 
-  function signOut() {
+  async function signOut() {
     if (!window.confirm('Are you sure you want to sign out?')) return
+    const refreshToken = sessionStorage.getItem('coopwise_refresh_token')
+    let revokeError = ''
+    if (refreshToken) {
+      try {
+        await apiRequest('/auth/logout', {
+          method: 'POST',
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        })
+      } catch (requestError) {
+        revokeError = requestError.message
+      }
+    }
     invalidatePortalDataCache()
     sessionStorage.removeItem('coopwise_access_token')
+    sessionStorage.removeItem('coopwise_refresh_token')
     setToken(null)
     setUser(null)
     setMode('login')
-    setMessage('You have signed out.')
+    setMessage(revokeError
+      ? `Signed out on this device. The server could not revoke the session: ${revokeError}`
+      : 'You have signed out.')
   }
 
   if (memberCardToken) return <MemberCardVerification verificationToken={memberCardToken} />
@@ -2303,6 +2515,14 @@ function App() {
           </div>
 
           <div className="card auth-card">
+            {sessionError && token && <div className="message message-error" role="alert">
+              <p>{sessionError}</p>
+              <button className="text-button" type="button" onClick={() => {
+                setSessionError('')
+                setAuthenticating(true)
+                setSessionAttempt((attempt) => attempt + 1)
+              }}>Retry session</button>
+            </div>}
             <div className="tabs" role="tablist" aria-label="Account options">
               <button className={mode === 'login' ? 'tab active' : 'tab'} type="button" onClick={() => { setMode('login'); setMessage(''); setFieldErrors({}) }}>Sign in</button>
               <button className={mode === 'register' ? 'tab active' : 'tab'} type="button" onClick={() => { setMode('register'); setMessage(''); setFieldErrors({}) }}>Register</button>
