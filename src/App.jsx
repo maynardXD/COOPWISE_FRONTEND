@@ -2136,13 +2136,13 @@ const STAFF_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
   { id: 'learning', label: 'Co-op Guide', icon: 'learning' },
   { id: 'demo-guide', label: 'Demo Walkthrough', icon: 'guide' },
-  { id: 'loans', label: 'Loans', icon: 'loans' },
-  { id: 'share-capital', label: 'Share Capital', icon: 'share-capital' },
-  { id: 'reports', label: 'Reports', icon: 'reports' },
-  { id: 'payments', label: 'Transactions', icon: 'payments' },
-  { id: 'cooperative', label: 'Daily Paluwagan', icon: 'cooperative' },
   { id: 'savings', label: 'Savings', icon: 'savings' },
+  { id: 'loans', label: 'Loans', icon: 'loans' },
+  { id: 'cooperative', label: 'Daily Paluwagan', icon: 'cooperative' },
+  { id: 'share-capital', label: 'Share Capital', icon: 'share-capital' },
+  { id: 'payments', label: 'Transactions', icon: 'payments' },
   { id: 'members', label: 'Members', icon: 'members' },
+  { id: 'reports', label: 'Reports', icon: 'reports' },
 ]
 
 const MEMBER_NAV_ITEMS = [
@@ -2199,10 +2199,10 @@ function StaffIcon({ name }) {
 function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, refreshKey }) {
   const [memberCardOpen, setMemberCardOpen] = useState(false)
   const tabs = [
-    { id: 'loans', label: 'Loans' },
-    { id: 'share-capital', label: 'Share capital' },
     { id: 'savings', label: 'Savings' },
+    { id: 'loans', label: 'Loans' },
     { id: 'cooperative', label: 'Daily Paluwagan' },
+    { id: 'share-capital', label: 'Share capital' },
     { id: 'payments', label: staff ? 'Transactions' : 'Payments' },
     ...(staff ? [{ id: 'members', label: 'Members' }, { id: 'reports', label: 'Reports' }] : []),
   ]
