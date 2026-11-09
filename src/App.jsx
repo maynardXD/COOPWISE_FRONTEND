@@ -4,10 +4,11 @@ import './App.css'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost/COOPWISE/LavaLust-COOPWISE/api').replace(/\/+$/, '')
 const TODAY = new Date().toISOString().slice(0, 10)
-const LOAN_ENDPOINTS = ['/loan-products', '/loans', '/payments', '/loan-readiness']
+const CURRENT_YEAR = Number(TODAY.slice(0, 4))
+const LOAN_ENDPOINTS = ['/loan-products', '/loans', '/payments', '/loan-readiness', '/loans/eligibility']
 const PAYMENT_ENDPOINTS = ['/loans', '/cooperative/cycles', '/share-capital', '/checkout-transactions', '/savings']
-const SHARE_CAPITAL_ENDPOINTS = ['/share-capital']
-const REPORT_ENDPOINTS = ['/reports']
+const SHARE_CAPITAL_ENDPOINTS = ['/share-capital', '/cooperative/finance']
+const REPORT_ENDPOINTS = ['/reports', '/cooperative/finance', '/cooperative/surplus']
 const POLICY_ENDPOINTS = ['/cooperative/policies']
 const PORTAL_CACHE_MAX_AGE_MS = 15_000
 const portalDataCache = new Map()
@@ -911,6 +912,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const loans = data?.[1]?.loans || []
   const payments = data?.[2]?.payments || []
   const readiness = data?.[3]?.readiness
+  const eligibility = data?.[4]?.eligibility
   const readinessAvailable = data?.[3]?.available !== false
   const readinessSubmissions = data?.[3]?.submissions || []
   const pendingLoanApplications = loans.filter((loan) => loan.status === 'pending')
@@ -1123,6 +1125,20 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       )}
       {!loading && !staff && (
         <>
+          {eligibility && <article className="portal-card loan-eligibility-card">
+            <h3>Loan eligibility check</h3>
+            <p>{eligibility.eligible
+              ? `You may apply for up to ${formatPesos(eligibility.max_eligible_amount)}. Staff still review every application.`
+              : 'You are not currently eligible to apply. Meeting these requirements allows an application; it does not guarantee loan approval.'}</p>
+            <dl className="offer-facts">
+              <div><dt>Paid-up share capital</dt><dd>{formatPesos(eligibility.paid_up_share_capital)} / {formatPesos(eligibility.criteria.minimum_paid_up_share_capital)} minimum</dd></div>
+              <div><dt>Membership</dt><dd>{eligibility.membership_days} / {eligibility.criteria.minimum_membership_days} days</dd></div>
+              <div><dt>Savings balance</dt><dd>{formatPesos(eligibility.savings_balance)} / {formatPesos(eligibility.criteria.minimum_savings_balance)} minimum</dd></div>
+              <div><dt>Outstanding loan balance</dt><dd>{formatPesos(eligibility.active_loan_balance)}</dd></div>
+            </dl>
+            {eligibility.reasons?.length > 0 && <ul className="member-order">{eligibility.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
+            <small>These are the current sample rules set by cooperative staff. Share capital is not deducted when a loan is approved.</small>
+          </article>}
           {!readinessAvailable ? <p className="notice">Loan document review and loan applications are available to members aged 18 and over.</p> : (
             <section className="portal-card">
               <h3>Loan document approval</h3>
@@ -1167,14 +1183,16 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                     </div>
                     <dl className="offer-facts">
                       <div><dt>Monthly rate</dt><dd>{product.interest_rate}%</dd></div>
-                      <div><dt>Maximum amount</dt><dd>PHP {product.max_amount}</dd></div>
+                      <div><dt>Product maximum</dt><dd>{formatPesos(product.max_amount)}</dd></div>
+                      <div><dt>Your current limit</dt><dd>{formatPesos(Math.min(Number(product.max_amount), Number(eligibility?.max_eligible_amount || 0)))}</dd></div>
                       <div><dt>Maximum term</dt><dd>{product.max_term_months} months</dd></div>
                     </dl>
                     <details className="offer-application">
                       <summary>Apply for this offer</summary>
+                      {!eligibility?.eligible && <p className="notice">You cannot submit an application yet. Review the eligibility reasons above.</p>}
                       <form className="form-grid" onSubmit={(event) => submit(event, '/loans', 'POST', 'Loan application submitted.')}>
                         <input type="hidden" name="loan_type_id" value={product.id} />
-                        <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={product.max_amount} step="0.01" required onChange={(event) => setApplicationInputs({ ...applicationInputs, [product.id]: { ...applicationInputs[product.id], amount: event.target.value } })} /></label>
+                        <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={Math.min(Number(product.max_amount), Number(eligibility?.max_eligible_amount || 0))} step="0.01" required disabled={!eligibility?.eligible} onChange={(event) => setApplicationInputs({ ...applicationInputs, [product.id]: { ...applicationInputs[product.id], amount: event.target.value } })} /></label>
                         <label>Term (months)<input name="term_months" type="number" min="1" max={product.max_term_months} required onChange={(event) => setApplicationInputs({ ...applicationInputs, [product.id]: { ...applicationInputs[product.id], term: event.target.value } })} /></label>
                         <label className="full">Purpose<input name="purpose" maxLength="255" required /></label>
                         {buildLoanSchedulePreview(applicationInputs[product.id]?.amount, applicationInputs[product.id]?.term, product.interest_rate) && (
@@ -1189,7 +1207,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                             <small>This is an estimate, not approval. The final schedule is generated after staff approval.</small>
                           </div>
                         )}
-                        <button className="button button-primary" type="submit">Submit application</button>
+                        <button className="button button-primary" type="submit" disabled={!eligibility?.eligible}>Submit application for staff review</button>
                       </form>
                     </details>
                   </article>
@@ -1230,8 +1248,8 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
         <button className="button button-outline" type="button" disabled={!data[1].pagination.has_more || loading} onClick={() => setLoansPage((page) => page + 1)}>Next</button>
       </div>}
       {staff && <details className="portal-card"><summary>Recent payments</summary>
-        {payments.length ? <div className="table-wrap"><table><thead><tr><th>Loan</th><th>Member</th><th>Amount</th><th>Method</th><th>Date</th></tr></thead>
-          <tbody>{payments.map((payment) => <tr key={payment.id}><td>{payment.loan_code}</td><td>{payment.first_name} {payment.last_name}</td><td>PHP {payment.amount_paid}</td><td>{payment.payment_method}</td><td>{payment.payment_date}</td></tr>)}</tbody>
+        {payments.length ? <div className="table-wrap"><table><thead><tr><th>Loan</th><th>Member</th><th>Total</th><th>Principal</th><th>Interest</th><th>Method</th><th>Date</th></tr></thead>
+          <tbody>{payments.map((payment) => <tr key={payment.id}><td>{payment.loan_code}</td><td>{payment.first_name} {payment.last_name}</td><td>{formatPesos(payment.amount_paid)}</td><td>{payment.breakdown_recorded ? formatPesos(payment.principal_paid) : 'Legacy — not split'}</td><td>{payment.breakdown_recorded ? formatPesos(payment.interest_paid) : 'Legacy — not split'}</td><td>{payment.payment_method}</td><td>{payment.payment_date}</td></tr>)}</tbody>
         </table></div> : <p className="muted">No payments recorded.</p>}
         {data?.[2]?.pagination && <div className="pagination-controls" aria-label="Loan payment pages">
           <button className="button button-outline" type="button" disabled={paymentsPage <= 1 || loading} onClick={() => setPaymentsPage((page) => page - 1)}>Previous</button>
@@ -1790,7 +1808,10 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
 function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const [transactionsPage, setTransactionsPage] = useState(1)
-  const endpoints = useMemo(() => [`${SHARE_CAPITAL_ENDPOINTS[0]}?page=${transactionsPage}&per_page=50`], [transactionsPage])
+  const endpoints = useMemo(() => [
+    `${SHARE_CAPITAL_ENDPOINTS[0]}?page=${transactionsPage}&per_page=50`,
+    SHARE_CAPITAL_ENDPOINTS[1],
+  ], [transactionsPage])
   const { data, error, loading } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
@@ -1798,6 +1819,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   const subscriptions = capital?.subscriptions || []
   const transactions = capital?.transactions || []
   const members = capital?.members || []
+  const memberReturns = data?.[1]?.member_returns || []
   const reversedPaymentIds = new Set(transactions
     .filter((transaction) => transaction.transaction_type === 'reversal')
     .map((transaction) => Number(transaction.reverses_transaction_id)))
@@ -1850,6 +1872,22 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
         <article className="portal-card"><span>Paid-up share capital</span><strong>{formatPesos(summary.paid_up_amount)}</strong></article>
         <article className="portal-card"><span>Unpaid subscriptions</span><strong>{formatPesos(summary.unpaid_amount)}</strong></article>
       </div>}
+      {!staff && <section>
+        <h3>Approved member returns</h3>
+        <p className="muted">These are approved interest-on-share-capital and patronage-refund allocations. They are separate from your share-capital balance and savings balance.</p>
+        {!loading && memberReturns.length === 0 && <p className="muted">No approved member returns have been recorded for your account.</p>}
+        {memberReturns.length > 0 && <div className="table-wrap"><table>
+          <thead><tr><th>Fiscal year</th><th>Share capital basis</th><th>Interest on share capital</th><th>Patronage basis</th><th>Patronage refund</th><th>Total return</th></tr></thead>
+          <tbody>{memberReturns.map((item) => <tr key={item.id}>
+            <td>{item.fiscal_year}<small>Approved {item.approved_at}</small></td>
+            <td>{formatPesos(item.paid_up_share_capital)}</td>
+            <td>{formatPesos(item.interest_on_share_capital)}</td>
+            <td>{formatPesos(item.patronage_basis)}</td>
+            <td>{formatPesos(item.patronage_refund)}</td>
+            <td>{formatPesos(item.total_return)}</td>
+          </tr>)}</tbody>
+        </table></div>}
+      </section>}
       {staff && capital && <>
         <details className="portal-card">
           <summary>Create share subscription</summary>
@@ -1942,10 +1980,11 @@ function LearningCenter({ token, user, refreshKey, standalone = false }) {
     <div className="learning-grid">
       <article className="portal-card"><span className="eyebrow">01 · Membership</span><h3>Members are owners</h3><p>Members join under the cooperative’s membership rules, use services, and share responsibility for the organization. Membership is more than having a login.</p></article>
       <article className="portal-card"><span className="eyebrow">02 · Share capital</span><h3>Ownership, not wallet money</h3><p>Share capital represents a member’s ownership contribution. CoopWise tracks subscriptions and paid-up amounts separately from the available demo balance.</p></article>
-      <article className="portal-card"><span className="eyebrow">03 · Loans</span><h3>Borrow with a repayment plan</h3><p>Loan applications require review. Compare the configured sample offers and check the estimated installments, interest, total repayment, and due dates before applying.</p></article>
+      <article className="portal-card"><span className="eyebrow">03 · Loans</span><h3>Borrow from a pooled fund</h3><p>Approved loans draw from a separately tracked simulated lending pool, not by reducing a member’s share capital. Members repay principal and interest under a reviewed schedule.</p></article>
       <article className="portal-card"><span className="eyebrow">04 · Paluwagan</span><h3>Contribute to a rotating pool</h3><p>Enrolled members contribute to a scheduled cycle. The system tracks the order and contributions; staff confirm the simulated payout to the next recipient.</p></article>
       <article className="portal-card"><span className="eyebrow">05 · Payments</span><h3>Know what is real</h3><p>Where enabled, Xendit Test Mode checks an incoming checkout simulation. Never enter real payment details for a class demo. CoopWise simulated withdrawals do not send money.</p></article>
       <article className="portal-card"><span className="eyebrow">06 · Records</span><h3>Keep the history clear</h3><p>Each balance credit or debit should have a source and reference. Share capital stays separate, and corrections should be recorded with a reason rather than deleting history.</p></article>
+      <article className="portal-card"><span className="eyebrow">07 · Member returns</span><h3>Surplus is not guaranteed</h3><p>After the cooperative determines and allocates its net surplus under its rules, an approved distribution may include interest on share capital and patronage refunds. Loan interest is charged to borrowers; it is not itself a dividend.</p></article>
     </div>
     <section className="policy-section">
       <div className="section-heading"><div><h3>Cooperative policies for this demo</h3><p className="muted">These are this project’s sample rules, not universal cooperative rules or legal advice.</p></div></div>
@@ -1957,11 +1996,24 @@ function LearningCenter({ token, user, refreshKey, standalone = false }) {
         {policyFields.map(([key, label]) => <label className="full" key={key}>{label} policy
           <textarea rows="4" maxLength="5000" required value={policies[key] || ''} onChange={(event) => setPolicyDraft({ ...policies, [key]: event.target.value })} />
         </label>)}
+        <div className="full">
+          <h4>Configurable sample loan eligibility</h4>
+          <p className="muted">These are this demonstration cooperative’s rules, not universal legal requirements. Share capital remains ownership and is not spent when a member borrows.</p>
+        </div>
+        <label>Minimum membership period (days)<input type="number" min="0" max="3650" step="1" required value={policies.minimum_membership_days ?? 30} onChange={(event) => setPolicyDraft({ ...policies, minimum_membership_days: event.target.value })} /></label>
+        <label>Minimum paid-up share capital (PHP)<input type="number" min="0" step="0.01" required value={policies.minimum_paid_up_share_capital ?? '5000.00'} onChange={(event) => setPolicyDraft({ ...policies, minimum_paid_up_share_capital: event.target.value })} /></label>
+        <label>Minimum savings balance (PHP)<input type="number" min="0" step="0.01" required value={policies.minimum_savings_balance ?? '0.00'} onChange={(event) => setPolicyDraft({ ...policies, minimum_savings_balance: event.target.value })} /></label>
+        <label>Maximum loan ÷ paid-up share capital<input type="number" min="0" max="100" step="0.01" required value={policies.loan_to_paid_up_share_capital_multiplier ?? '1.00'} onChange={(event) => setPolicyDraft({ ...policies, loan_to_paid_up_share_capital_multiplier: event.target.value })} /></label>
+        <label className="full">Cooperative registration date (required for surplus distribution)<input type="date" max={TODAY} value={policies.cooperative_registration_date || ''} onChange={(event) => setPolicyDraft({ ...policies, cooperative_registration_date: event.target.value })} /><small>Used to apply the first-five-years reserve rule when staff prepare an annual surplus distribution.</small></label>
         <button className="button button-primary" type="submit" disabled={!policyDraft}>Save demo policies</button>
         {policies.updated_at && <small className="full">Last updated: {policies.updated_at}</small>}
       </form>}
       {policies && !staff && <div className="policy-grid">
         {policyFields.map(([key, label]) => <article className="portal-card" key={key}><h4>{label}</h4><p>{policies[key]}</p></article>)}
+        <article className="portal-card"><h4>Loan eligibility sample rules</h4>
+          <p>Minimum membership: {policies.minimum_membership_days} days. Minimum paid-up share capital: {formatPesos(policies.minimum_paid_up_share_capital)}. Minimum savings: {formatPesos(policies.minimum_savings_balance)}. Maximum loan limit: {policies.loan_to_paid_up_share_capital_multiplier} × paid-up share capital, less any current loan balance.</p>
+          <p>These are the current configured sample rules. Eligibility allows you to apply; staff review and available cooperative funds still determine whether a loan is approved.</p>
+        </article>
         {policies.updated_at && <small>Last updated: {policies.updated_at}</small>}
       </div>}
     </section>
@@ -1973,7 +2025,7 @@ function DemoGuide({ setSection, standalone = false }) {
     { title: 'Understand the cooperative', section: 'learning', description: 'Learn what membership, share capital, loans, and Paluwagan mean in this classroom demo.' },
     { title: 'Compare sample loan offers', section: 'loans', description: 'Review the example interest rate and repayment schedule before applying. Staff review the application.' },
     { title: 'Explore a Paluwagan cycle', section: 'cooperative', description: 'See the contribution amount, randomized order, daily records, and payout status.' },
-    { title: 'Review your balance sources', section: 'savings', description: 'Loan approval, a confirmed Paluwagan payout, or a confirmed Xendit Test Mode deposit can credit the available demo balance.' },
+    { title: 'Review your balance sources', section: 'savings', description: 'An approved loan draws from the simulated cooperative lending pool and credits your demo savings; it never reduces your share capital.' },
     { title: 'Try a simulated withdrawal', section: 'savings', description: 'Choose a demo e-wallet or bank destination. The ledger updates, but no real money is transferred.' },
   ]
   return <section className="portal-section demo-guide">
@@ -2080,20 +2132,101 @@ function GoogleReportChart({ title, rows, type = 'column' }) {
 function ReportsPortal({ token, refreshKey, standalone = false }) {
   const { data, error, loading } = usePortalData(token, refreshKey, REPORT_ENDPOINTS)
   const report = data?.[0]
+  const finance = data?.[1]
+  const surplusDistributions = data?.[2]?.distributions || []
+  const registrationYear = finance?.cooperative_registration_date
+    ? Number(finance.cooperative_registration_date.slice(0, 4))
+    : null
+  const completedFiscalYear = CURRENT_YEAR - 1
+  const hasCompletedFiscalYear = !registrationYear || registrationYear <= completedFiscalYear
+  const minimumReservePercent = registrationYear && completedFiscalYear - registrationYear < 5 ? 50 : 10
+  const [notice, setNotice] = useState('')
+  const [actionError, setActionError] = useState('')
   const financialChartRows = useMemo(() => report ? [
     ['Activity', 'PHP'],
     ['Savings deposits', Number(report.monthly.savings_deposits) || 0],
     ['Savings withdrawals', Number(report.monthly.savings_withdrawals) || 0],
     ['Share capital contributions', Number(report.monthly.share_capital_payments) || 0],
-    ['Loan payments', Number(report.monthly.loan_payments_received) || 0],
+    ['Loan principal repaid', Number(report.monthly.loan_principal_received) || 0],
+    ['Loan interest received', Number(report.monthly.loan_interest_received) || 0],
   ] : [], [report])
   const loanStatusChartRows = useMemo(() => report ? [
     ['Loan status', 'Applications'],
     ...(report.loan_statuses || []).map((entry) => [entry.status, Number(entry.total) || 0]),
   ] : [], [report])
+
+  async function addLoanFund(event) {
+    event.preventDefault()
+    const form = event.currentTarget
+    const values = Object.fromEntries(new FormData(form).entries())
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest('/cooperative/finance/fund', {
+        token, method: 'POST', body: JSON.stringify(values),
+      })
+      setNotice(result.message)
+      form.reset()
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
+
+  async function createSurplusDraft(event) {
+    event.preventDefault()
+    const form = event.currentTarget
+    const values = Object.fromEntries(new FormData(form).entries())
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest('/cooperative/surplus', {
+        token, method: 'POST', body: JSON.stringify(values),
+      })
+      setNotice(result.message)
+      form.reset()
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
+
+  async function approveSurplus(distribution) {
+    const amount = Number(distribution.share_capital_pool) + Number(distribution.patronage_pool)
+    if (!window.confirm(`Publish the ${distribution.fiscal_year} member-return distribution totaling ${formatPesos(amount)} for ${distribution.member_count} members? Confirm the net surplus and required approvals before proceeding.`)) return
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest(`/cooperative/surplus/${distribution.id}/approve`, {
+        token, method: 'POST', body: JSON.stringify({}),
+      })
+      setNotice(result.message)
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
+
+  async function cancelSurplus(distribution) {
+    if (!window.confirm(`Cancel the unpublished ${distribution.fiscal_year} draft? Its calculated member rows will be removed, and staff can prepare a corrected draft.`)) return
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest(`/cooperative/surplus/${distribution.id}/cancel`, {
+        token, method: 'POST', body: JSON.stringify({}),
+      })
+      setNotice(result.message)
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
+
   return (
     <section className="portal-section">
       <PortalMessage error>{error}</PortalMessage>
+      <PortalMessage error>{actionError}</PortalMessage>
+      <PortalMessage>{notice}</PortalMessage>
       {!report && !error && <StaffEmptyState
         type="report"
         title={loading ? 'Loading current figures…' : 'No report figures yet.'}
@@ -2108,8 +2241,22 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
           <article className="portal-card"><span>Available member balance</span><strong>PHP {report.summary.savings_balance}</strong></article>
           <article className="portal-card"><span>Paid-up share capital</span><strong>PHP {report.summary.share_capital_paid_up || '0.00'}</strong><small>Subscribed: PHP {report.summary.share_capital_subscribed || '0.00'}</small></article>
           <article className="portal-card"><span>Loan portfolio</span><strong>PHP {report.summary.loan_balance}</strong></article>
+          <article className="portal-card"><span>Outstanding loan principal</span><strong>{formatPesos(report.summary.loan_principal_receivable)}</strong></article>
+          <article className="portal-card"><span>Simulated lending pool available</span><strong>{formatPesos(report.summary.loan_fund_available)}</strong></article>
           <article className="portal-card"><span>Loan payments received</span><strong>PHP {report.summary.loan_payments_received}</strong></article>
+          <article className="portal-card"><span>Loan interest received</span><strong>{formatPesos(report.summary.loan_interest_received)}</strong></article>
+          <article className="portal-card"><span>Approved member returns</span><strong>{formatPesos(report.summary.approved_member_returns)}</strong></article>
         </div>
+        <p className="muted">The simulated lending pool is recorded separately from member savings and share capital. It must be funded by staff before loans can be approved; member share capital is not automatically deducted or treated as available cash.</p>
+        <details className="portal-card">
+          <summary>Record simulated lending-pool funding</summary>
+          <form className="form-grid" onSubmit={addLoanFund}>
+            <label>Amount (PHP)<input name="amount" type="number" min="0.01" step="0.01" required /></label>
+            <label>Description<input name="description" maxLength="255" placeholder="Example: initial classroom lending pool" /></label>
+            <button className="button button-primary" type="submit">Add demo funding</button>
+          </form>
+          <small>This records a simulated funding source only. It does not collect or transfer real money.</small>
+        </details>
         <h3>Operational overview</h3>
         <div className="report-grid">
           <article className="portal-card"><span>Loan applications awaiting review</span><strong>{report.operations?.loans_awaiting_review ?? '—'}</strong></article>
@@ -2130,8 +2277,53 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
           <tr><td>Member balance credits</td><td>PHP {report.monthly.savings_deposits}</td></tr>
           <tr><td>Member balance withdrawals</td><td>PHP {report.monthly.savings_withdrawals}</td></tr>
           <tr><td>Share capital contributions</td><td>PHP {report.monthly.share_capital_payments || '0.00'}</td></tr>
-          <tr><td>Loan payments received</td><td>PHP {report.monthly.loan_payments_received}</td></tr>
+          <tr><td>Loan principal repaid</td><td>{formatPesos(report.monthly.loan_principal_received)}</td></tr>
+          <tr><td>Loan interest received</td><td>{formatPesos(report.monthly.loan_interest_received)}</td></tr>
         </tbody></table></div>
+        <section className="surplus-management">
+          <h3>Annual surplus and member returns</h3>
+          <p className="muted">Create a draft from a reconciled, completed fiscal-year net surplus. CoopWise calculates member allocations from paid-up share capital at year end and interest actually paid on loans during that year (a classroom patronage proxy). Drafts do not publish returns. Approval publishes the return calculation only; this demo does not deposit or transfer money. Staff must verify the cooperative’s bylaws, applicable limits, accounts, and required approvals before publishing.</p>
+          <details className="portal-card">
+            <summary>Prepare annual distribution draft</summary>
+            {!hasCompletedFiscalYear && <p className="muted">A completed fiscal year after the cooperative’s registration year is required before a distribution can be prepared.</p>}
+            <form className="form-grid" onSubmit={createSurplusDraft}>
+              <label>Completed fiscal year<input name="fiscal_year" type="number" min={registrationYear || 2000} max={completedFiscalYear} defaultValue={completedFiscalYear} step="1" required disabled={!hasCompletedFiscalYear} /></label>
+              <label>Reconciled net surplus (PHP)<input name="net_surplus" type="number" min="0.01" step="0.01" required /></label>
+              <label>Reserve fund (%)<input name="reserve_percent" type="number" min={minimumReservePercent} max="100" step="0.01" defaultValue="50" required /></label>
+              <label>Education and training fund (%)<input name="education_percent" type="number" min="0" max="10" step="0.01" defaultValue="5" required /></label>
+              <label>Community development fund (%)<input name="community_percent" type="number" min="3" max="100" step="0.01" defaultValue="3" required /></label>
+              <label>Optional funds (%)<input name="optional_percent" type="number" min="0" max="7" step="0.01" defaultValue="0" required /></label>
+              <label>Remaining member pool for interest on share capital (%)<input name="share_capital_pool_percent" type="number" min="0" max="100" step="0.01" defaultValue="50" required /></label>
+              <button className="button button-primary" type="submit" disabled={!hasCompletedFiscalYear}>Calculate and save draft</button>
+            </form>
+            <small>The remaining member pool is split between interest on share capital and patronage refunds. Interest is not guaranteed; staff must verify the permitted return under the cooperative’s actual rules.</small>
+          </details>
+          {surplusDistributions.length > 0 && <div className="table-wrap"><table>
+            <thead><tr><th>Year / status</th><th>Net surplus</th><th>Required fund allocations</th><th>Member-return pools</th><th>Members</th><th>Prepared / approved by</th><th>Action</th></tr></thead>
+            <tbody>{surplusDistributions.map((distribution) => <tr key={distribution.id}>
+              <td>{distribution.fiscal_year}<small>{distribution.status}</small></td>
+              <td>{formatPesos(distribution.net_surplus)}</td>
+              <td>Reserve {formatPesos(distribution.reserve_allocation)}<small>Education {formatPesos(distribution.education_allocation)} · Community {formatPesos(distribution.community_allocation)} · Optional {formatPesos(distribution.optional_allocation)}</small></td>
+              <td>Share-capital interest {formatPesos(distribution.share_capital_pool)}<small>Patronage refunds {formatPesos(distribution.patronage_pool)} · Total {formatPesos(distribution.total_member_returns)}</small></td>
+              <td>{distribution.member_count}</td>
+              <td>{distribution.created_by_name || 'Staff'}<small>{distribution.approved_by_name ? `Approved by ${distribution.approved_by_name}` : 'Awaiting staff approval'}</small></td>
+              <td>{distribution.status === 'draft' && <><button className="button button-primary" type="button" onClick={() => approveSurplus(distribution)}>Approve and publish</button> <button className="button" type="button" onClick={() => cancelSurplus(distribution)}>Cancel draft</button></>}</td>
+            </tr>)}</tbody>
+          </table></div>}
+          {finance?.fund_transactions?.length > 0 && <details className="portal-card">
+            <summary>Recent simulated lending-pool activity</summary>
+            <div className="table-wrap"><table><thead><tr><th>Date / reference</th><th>Type</th><th>Amount</th><th>Balance after</th><th>Loan</th><th>Staff</th></tr></thead>
+              <tbody>{finance.fund_transactions.map((transaction) => <tr key={transaction.id}>
+                <td>{transaction.created_at}<small>{transaction.reference_no}</small></td>
+                <td>{transaction.transaction_type.replaceAll('_', ' ')}</td>
+                <td>{formatPesos(transaction.amount)}</td>
+                <td>{formatPesos(transaction.balance_after)}</td>
+                <td>{transaction.loan_code || '—'}</td>
+                <td>{transaction.actor_name || 'System'}</td>
+              </tr>)}</tbody>
+            </table></div>
+          </details>}
+        </section>
         <h3>Loan applications by status</h3>
         {Object.keys(report.monthly.loan_applications).length
           ? <ul className="member-order">{Object.entries(report.monthly.loan_applications).map(([status, count]) => <li key={status}>{status}: {count}</li>)}</ul>

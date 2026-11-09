@@ -57,6 +57,12 @@ simulate a withdrawal that debits their balance and appears in their ledger.
 No staff approval, financial-account details, receipt, Xendit payout, or real
 money transfer is involved. Loan proceeds, confirmed Paluwagan payouts, and
 provider-confirmed Xendit Test Mode deposits can fund the member balance.
+The approved loan principal is also deducted from a separate simulated
+cooperative lending pool; it does not reduce the member’s share capital. Staff
+must record demo funding in Reports before approving loans. Loan eligibility
+uses configurable sample rules, and the member sees the current limit and
+reasons before applying. Repayments are recorded as separate principal and
+interest amounts.
 The withdrawal screen lets the member choose a demo e-wallet (GCash/Maya) or
 bank (BDO/BPI/UnionBank). It stores the chosen destination in the transaction
 description for the receipt; it does not collect destination account details
@@ -68,6 +74,13 @@ Share capital is ownership investment, not withdrawable savings. Staff can
 record cooperative-approved subscriptions; members see their own subscribed,
 paid-up, and unpaid amounts. Staff can reverse an erroneous contribution with
 an auditable correction instead of deleting the original transaction.
+The Share Capital page also shows approved annual member returns. Staff draft
+distributions from a reconciled completed-year surplus, then approve them
+before publication. The demo weights share-capital returns by paid-up capital
+at year-end and uses loan interest paid as a classroom patronage proxy. Returns
+are not guaranteed; confirm the cooperative’s bylaws and accounting rules.
+Unpublished drafts can be cancelled and recalculated. Approval publishes the
+calculation only; this demo does not deposit or transfer the return amount.
 Xendit is configured for test mode by default. It requires a server-side
 secret key and a configured webhook before incoming checkout can be used. The
 provider does not disburse Paluwagan payouts; staff confirm the simulated payout
