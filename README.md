@@ -33,6 +33,10 @@ redirect. While a member has an unsettled
 checkout open, only the payment transaction list is refreshed in the background;
 the page does not repeatedly reload loan, Paluwagan, and share-capital data.
 Returning from checkout triggers an immediate server-side status check.
+Members can cancel a pending CoopWise checkout to release its reservation and
+prefill the same payment for savings. They must close the old Xendit checkout
+without completing it; any late Xendit confirmation is flagged for staff review
+and is not applied a second time.
 Loan documents are stored
 privately and served through authenticated API routes. Existing demo
 payment-submission records are retained, but the submission and staff approval
@@ -61,8 +65,10 @@ The approved loan principal is also deducted from a separate simulated
 cooperative lending pool; it does not reduce the member’s share capital. Staff
 must record demo funding in Reports before approving loans. Loan eligibility
 uses configurable sample rules, and the member sees the current limit and
-reasons before applying. Repayments are recorded as separate principal and
-interest amounts.
+reasons before applying. For the classroom simulation, each required
+membership day takes six seconds, so the default 30-day period takes three
+minutes; this accelerated clock is not for real cooperative decisions.
+Repayments are recorded as separate principal and interest amounts.
 The withdrawal screen lets the member choose a demo e-wallet (GCash/Maya) or
 bank (BDO/BPI/UnionBank). It stores the chosen destination in the transaction
 description for the receipt; it does not collect destination account details

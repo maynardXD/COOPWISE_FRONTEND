@@ -897,12 +897,13 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const [loansPage, setLoansPage] = useState(1)
   const [paymentsPage, setPaymentsPage] = useState(1)
+  const [clockNow, setClockNow] = useState(() => Date.now())
   const endpoints = useMemo(() => LOAN_ENDPOINTS.map((path) => {
     if (path === '/loans') return `${path}?page=${loansPage}&per_page=25`
     if (path === '/payments') return `${path}?page=${paymentsPage}&per_page=25`
     return path
   }), [loansPage, paymentsPage])
-  const { data, error, loading } = usePortalData(token, refreshKey, endpoints)
+  const { data, error, loading, refreshEndpoint } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [schedule, setSchedule] = useState(null)
@@ -921,6 +922,32 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
     readinessSubmissions.length ? 'documents' : pendingLoanCount ? 'applications' : 'offers'
   )
   const productLoadFailed = error.includes('/loan-products:')
+
+  useEffect(() => {
+    if (staff) return undefined
+    const timer = window.setInterval(() => setClockNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [staff])
+
+  useEffect(() => {
+    if (staff || !eligibility || eligibility.eligible
+      || eligibility.membership_elapsed_seconds >= eligibility.criteria.membership_required_seconds) {
+      return undefined
+    }
+    const timer = window.setInterval(() => {
+      refreshEndpoint('/loans/eligibility').catch((requestError) => setActionError(requestError.message))
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [eligibility, refreshEndpoint, staff])
+
+  const membershipElapsedSeconds = eligibility
+    ? Math.min(
+      eligibility.criteria.membership_required_seconds,
+      eligibility.membership_elapsed_seconds + Math.max(0, Math.floor(clockNow / 1000) - eligibility.membership_checked_at),
+    )
+    : 0
+  const membershipRequiredSeconds = eligibility?.criteria.membership_required_seconds || 0
+  const formatSimulationTime = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 
   function refreshLoanData() {
     window.dispatchEvent(new Event('coopwise:refresh'))
@@ -1132,12 +1159,12 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
               : 'You are not currently eligible to apply. Meeting these requirements allows an application; it does not guarantee loan approval.'}</p>
             <dl className="offer-facts">
               <div><dt>Paid-up share capital</dt><dd>{formatPesos(eligibility.paid_up_share_capital)} / {formatPesos(eligibility.criteria.minimum_paid_up_share_capital)} minimum</dd></div>
-              <div><dt>Membership</dt><dd>{eligibility.membership_days} / {eligibility.criteria.minimum_membership_days} days</dd></div>
+              <div><dt>Simulated membership</dt><dd>{formatSimulationTime(membershipElapsedSeconds)} / {formatSimulationTime(membershipRequiredSeconds)}</dd></div>
               <div><dt>Savings balance</dt><dd>{formatPesos(eligibility.savings_balance)} / {formatPesos(eligibility.criteria.minimum_savings_balance)} minimum</dd></div>
               <div><dt>Outstanding loan balance</dt><dd>{formatPesos(eligibility.active_loan_balance)}</dd></div>
             </dl>
             {eligibility.reasons?.length > 0 && <ul className="member-order">{eligibility.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
-            <small>These are the current sample rules set by cooperative staff. Share capital is not deducted when a loan is approved.</small>
+            <small>Classroom simulation: each required membership day passes in 6 seconds, so the default 30-day waiting period takes 3 minutes. Share capital is not deducted when a loan is approved.</small>
           </article>}
           {!readinessAvailable ? <p className="notice">Loan document review and loan applications are available to members aged 18 and over.</p> : (
             <section className="portal-card">
@@ -2364,6 +2391,8 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
   const [submitting, setSubmitting] = useState(false)
   const [slowCheckout, setSlowCheckout] = useState(false)
   const [checkingPayment, setCheckingPayment] = useState(null)
+  const [cancellingPayment, setCancellingPayment] = useState(null)
+  const [replacementPayment, setReplacementPayment] = useState(null)
   const loans = data?.[0]?.loans || []
   const cycles = data?.[1]?.cycles || []
   const subscriptions = data?.[2]?.subscriptions || []
@@ -2457,6 +2486,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
       if (result.payment_method === 'savings') {
         setNotice(result.message || 'Payment confirmed and deducted from your savings.')
         savingsPaymentRequest.current = null
+        setReplacementPayment(null)
         setSubmitting(false)
         window.dispatchEvent(new Event('coopwise:refresh'))
         return
@@ -2478,12 +2508,44 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
       const result = await apiRequest(`/checkout-transactions/${transaction.id}/sync`, { token, method: 'POST' })
       setNotice(result.status === 'paid'
         ? 'Payment confirmed. Your CoopWise account has been updated.'
+        : result.status === 'needs_review'
+          ? result.message
         : 'Payment is still processing. CoopWise will update after Xendit confirms it.')
       window.dispatchEvent(new Event('coopwise:refresh'))
     } catch (requestError) {
       setActionError(requestError.message)
     } finally {
       setCheckingPayment(null)
+    }
+  }
+
+  async function cancelAndSwitchToSavings(transaction) {
+    const confirmed = window.confirm(
+      'Cancel this pending CoopWise payment and switch to savings? Close the old Xendit checkout without paying. If you already completed payment on Xendit, choose Check status instead.'
+    )
+    if (!confirmed) return
+    setNotice('')
+    setActionError('')
+    setCancellingPayment(transaction.id)
+    try {
+      const result = await apiRequest(`/checkout-transactions/${transaction.id}/cancel`, {
+        token, method: 'POST', body: JSON.stringify({}),
+      })
+      setPurpose(transaction.purpose)
+      setPaymentMethod('savings')
+      setReplacementPayment({
+        transaction_id: transaction.id,
+        loan_id: transaction.loan_id,
+        cycle_id: transaction.cycle_id,
+        subscription_id: transaction.subscription_id,
+        amount: transaction.amount,
+      })
+      setNotice(result.message)
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    } finally {
+      setCancellingPayment(null)
     }
   }
 
@@ -2510,7 +2572,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
         </div>
       )}
       {!staff && (
-        <form className="portal-card form-grid" onSubmit={startCheckout}>
+        <form className="portal-card form-grid" key={replacementPayment?.transaction_id || 'new-payment'} onSubmit={startCheckout}>
           <label>Payment method
             <select name="payment_method" value={purpose === 'savings' ? 'xendit' : paymentMethod} disabled={purpose === 'savings'} onChange={(event) => setPaymentMethod(event.target.value)} required>
               <option value="xendit">Xendit checkout</option>
@@ -2527,7 +2589,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
           </label>
           {purpose === 'loan' && (
             <label>Loan
-              <select name="loan_id" required defaultValue="">
+              <select name="loan_id" required defaultValue={replacementPayment?.loan_id || ''}>
                 <option value="" disabled>Select a loan</option>
                 {loans.filter((loan) => ['approved', 'active'].includes(loan.status)).map((loan) => <option key={loan.id} value={loan.id}>{loan.loan_code} · Balance PHP {loan.current_balance}</option>)}
               </select>
@@ -2535,7 +2597,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
           )}
           {purpose === 'paluwagan' && (
             <label>Active Paluwagan cycle
-              <select name="cycle_id" required defaultValue="">
+              <select name="cycle_id" required defaultValue={replacementPayment?.cycle_id || ''}>
                 <option value="" disabled>Select a cycle</option>
                 {cycles.filter((cycle) => cycle.status === 'active' && !cycle.my_contributed_today).map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name} · PHP {cycle.daily_contribution} daily</option>)}
               </select>
@@ -2543,13 +2605,13 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
           )}
           {purpose === 'share_capital' && (
             <label>Share subscription
-              <select name="subscription_id" required defaultValue="">
+              <select name="subscription_id" required defaultValue={replacementPayment?.subscription_id || ''}>
                 <option value="" disabled>Select an unpaid subscription</option>
                 {subscriptions.filter((item) => item.status === 'active' && Number(item.unpaid_amount) > 0).map((item) => <option key={item.id} value={item.id}>{item.subscription_number} · Unpaid {formatPesos(item.unpaid_amount)}</option>)}
               </select>
             </label>
           )}
-          <label>Amount (PHP)<input name="amount" type="number" min="1.00" max="1000000.00" step="0.01" required /></label>
+          <label>Amount (PHP)<input name="amount" type="number" min="1.00" max="1000000.00" step="0.01" required defaultValue={replacementPayment?.amount || ''} /></label>
           {purpose === 'savings' && <p className="full muted">The balance is credited only after Xendit Test Mode confirms the checkout. This does not move real money.</p>}
           {purpose === 'paluwagan' && <p className="full muted">The amount must equal the selected cycle’s daily contribution. Only one payment is accepted per member per day.</p>}
           <button className="button button-primary full" type="submit" disabled={submitting}>{submitting
@@ -2580,6 +2642,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
           {!staff && <td>{['pending', 'needs_review'].includes(transaction.status) && <>
             {transaction.checkout_url && <a className="text-button" href={transaction.checkout_url} target="_blank" rel="noreferrer">Open checkout</a>}
             <button className="text-button" type="button" disabled={checkingPayment === transaction.id} onClick={() => refreshPayment(transaction)}>{checkingPayment === transaction.id ? 'Checking…' : 'Check status'}</button>
+            {transaction.status === 'pending' && transaction.payment_method === 'xendit' && <button className="text-button" type="button" disabled={cancellingPayment === transaction.id || checkingPayment === transaction.id} onClick={() => cancelAndSwitchToSavings(transaction)}>{cancellingPayment === transaction.id ? 'Cancelling…' : 'Cancel & switch to savings'}</button>}
           </>}</td>}
         </tr>)}</tbody>
       </table></div>}
@@ -2891,7 +2954,9 @@ function App() {
   useEffect(() => {
     if (!token || memberCardToken) return
     let active = true
-    apiRequest('/me', { token })
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), 15000)
+    apiRequest('/me', { token, signal: controller.signal })
       .then((result) => {
         if (!active) return
         setUser(result.user)
@@ -2904,10 +2969,19 @@ function App() {
         if (requestError.status === 401) {
           expireSession()
         } else {
-          setSessionError(requestError.message || 'Your session could not be checked. Check your connection and try again.')
+          setSessionError(
+            requestError.name === 'TimeoutError' || requestError.name === 'AbortError'
+              ? 'The server took too long to check your saved session. Check your connection or try again.'
+              : requestError.message || 'Your session could not be checked. Check your connection and try again.'
+          )
         }
       })
-    return () => { active = false }
+      .finally(() => window.clearTimeout(timeoutId))
+    return () => {
+      active = false
+      window.clearTimeout(timeoutId)
+      controller.abort()
+    }
   }, [token, memberCardToken, sessionAttempt])
 
   useEffect(() => {
@@ -2940,6 +3014,18 @@ function App() {
     setUser(result.user)
     setSessionError('')
     setSection('dashboard')
+  }
+
+  function clearSavedSession() {
+    invalidatePortalDataCache()
+    sessionStorage.removeItem('coopwise_access_token')
+    sessionStorage.removeItem('coopwise_refresh_token')
+    setToken(null)
+    setUser(null)
+    setAuthenticating(false)
+    setSessionError('')
+    setMode('login')
+    setMessage('Your saved session was cleared. Sign in again.')
   }
 
   function switchAuthMode(nextMode) {
@@ -3104,11 +3190,14 @@ function App() {
           <div className="card auth-card">
             {sessionError && token && <div className="message message-error" role="alert">
               <p>{sessionError}</p>
-              <button className="text-button" type="button" onClick={() => {
-                setSessionError('')
-                setAuthenticating(true)
-                setSessionAttempt((attempt) => attempt + 1)
-              }}>Retry session</button>
+              <div className="button-row">
+                <button className="text-button" type="button" onClick={() => {
+                  setSessionError('')
+                  setAuthenticating(true)
+                  setSessionAttempt((attempt) => attempt + 1)
+                }}>Retry session</button>
+                <button className="text-button" type="button" onClick={clearSavedSession}>Clear saved session and sign in</button>
+              </div>
             </div>}
             <div className="tabs" role="tablist" aria-label="Account options">
               <button className={mode === 'login' ? 'tab active' : 'tab'} type="button" onClick={() => switchAuthMode('login')}>Sign in</button>
