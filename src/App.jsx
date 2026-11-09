@@ -1329,7 +1329,7 @@ function MembersPortal({ token, standalone = false }) {
   )
 }
 
-function SavingsPortal({ token, user, refreshKey, standalone = false }) {
+function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const [transactionPage, setTransactionPage] = useState(1)
   const [appliedTransactionFilters, setAppliedTransactionFilters] = useState({ q: '', type: 'all', from: '', to: '' })
@@ -1538,9 +1538,10 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
       {!standalone && <h2>Savings</h2>}
       {!staff && <div className="savings-member-overview">
         <div className="portal-card savings-balance"><span>Your available member balance</span><strong>{loading && !data ? 'Loading…' : formatPesos((balance || 0) / 100)}</strong></div>
+        <button className="button button-primary" type="button" onClick={onDeposit}>Deposit to savings</button>
         <button className="button button-primary" type="button" onClick={() => { setSelectedSavingsMember(null); setLedgerOpen(true) }}>View / print my savings ledger</button>
       </div>}
-      {!staff && <p className="muted">Demo balance is credited when a loan is approved, a Paluwagan payout is marked paid, or a Xendit Test Mode savings deposit is confirmed.</p>}
+      {!staff && <p className="muted">Add funds through Xendit Test Mode, or view other credits from approved loans and Paluwagan payouts. Test Mode deposits do not transfer real money.</p>}
       {!staff && data?.[0]?.balance_breakdown && <div className="report-grid savings-balance-breakdown">
         <article className="portal-card"><span>Loan proceeds credited</span><strong>{formatPesos(data[0].balance_breakdown.loan_credits)}</strong></article>
         <article className="portal-card"><span>Paluwagan payouts credited</span><strong>{formatPesos(data[0].balance_breakdown.paluwagan_credits)}</strong></article>
@@ -1884,7 +1885,7 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
   )
 }
 
-function PaymentPortal({ token, user, refreshKey, standalone = false }) {
+function PaymentPortal({ token, user, refreshKey, standalone = false, initialPurpose = 'loan' }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const [transactionsPage, setTransactionsPage] = useState(1)
   const endpoints = useMemo(() => PAYMENT_ENDPOINTS.map((path) =>
@@ -1898,7 +1899,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
     return ''
   })
   const [actionError, setActionError] = useState('')
-  const [purpose, setPurpose] = useState('loan')
+  const [purpose, setPurpose] = useState(initialPurpose)
   const [paymentMethod, setPaymentMethod] = useState('xendit')
   const savingsPaymentRequest = useRef(null)
   const [submitting, setSubmitting] = useState(false)
@@ -2196,7 +2197,7 @@ function StaffIcon({ name }) {
   return <svg className="staff-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
 
-function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, refreshKey }) {
+function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, refreshKey, paymentInitialPurpose, onSavingsDeposit, resetPaymentPurpose }) {
   const [memberCardOpen, setMemberCardOpen] = useState(false)
   const tabs = [
     { id: 'savings', label: 'Savings' },
@@ -2237,7 +2238,10 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
             type="button"
             key={tab.id}
             aria-current={selectedTab === tab.id ? 'page' : undefined}
-            onClick={() => setSelectedTab(tab.id)}
+            onClick={() => {
+              if (tab.id === 'payments') resetPaymentPurpose()
+              setSelectedTab(tab.id)
+            }}
           >
             {tab.label}
           </button>
@@ -2250,11 +2254,11 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
           : selectedTab === 'share-capital'
             ? <ShareCapitalPortal key="dashboard-share-capital" token={token} user={user} refreshKey={refreshKey} />
           : selectedTab === 'savings'
-            ? <SavingsPortal key="dashboard-savings" token={token} user={user} refreshKey={refreshKey} />
+            ? <SavingsPortal key="dashboard-savings" token={token} user={user} refreshKey={refreshKey} onDeposit={onSavingsDeposit} />
             : selectedTab === 'cooperative'
               ? <CooperativePortal key="dashboard-cooperative" token={token} user={user} refreshKey={refreshKey} />
               : selectedTab === 'payments'
-                ? <PaymentPortal key="dashboard-payments" token={token} user={user} refreshKey={refreshKey} />
+                ? <PaymentPortal key={`dashboard-payments-${paymentInitialPurpose}`} token={token} user={user} refreshKey={refreshKey} initialPurpose={paymentInitialPurpose} />
                 : <ReportsPortal key="dashboard-reports" token={token} refreshKey={refreshKey} />}
       {memberCardOpen && <MemberIdCardDialog token={token} memberId={null} onClose={() => setMemberCardOpen(false)} />}
     </>
@@ -2264,6 +2268,7 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
 function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOut }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [dashboardTab, setDashboardTab] = useState('savings')
+  const [paymentInitialPurpose, setPaymentInitialPurpose] = useState('loan')
   const staff = ['admin', 'officer'].includes(user.role)
   const navItems = staff ? STAFF_NAV_ITEMS : MEMBER_NAV_ITEMS
   const pageDetails = staff ? STAFF_PAGE_DETAILS : MEMBER_PAGE_DETAILS
@@ -2271,8 +2276,19 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
   const initials = user.full_name.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 
   function navigate(nextSection) {
+    if (nextSection === 'payments') setPaymentInitialPurpose('loan')
     setSection(nextSection)
     setSidebarOpen(false)
+  }
+
+  function openSavingsDeposit() {
+    setPaymentInitialPurpose('savings')
+    if (section === 'dashboard') {
+      setDashboardTab('payments')
+    } else {
+      setSection('payments')
+      setSidebarOpen(false)
+    }
   }
 
   return (
@@ -2330,7 +2346,17 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
         </section>
         <div className="staff-content">
           {section === 'dashboard'
-            ? <ServiceDashboard token={token} user={user} staff={staff} selectedTab={dashboardTab} setSelectedTab={setDashboardTab} refreshKey={refreshKey} />
+            ? <ServiceDashboard
+              token={token}
+              user={user}
+              staff={staff}
+              selectedTab={dashboardTab}
+              setSelectedTab={setDashboardTab}
+              refreshKey={refreshKey}
+              paymentInitialPurpose={paymentInitialPurpose}
+              onSavingsDeposit={openSavingsDeposit}
+              resetPaymentPurpose={() => setPaymentInitialPurpose('loan')}
+            />
             : section === 'learning'
               ? <LearningCenter key="learning" token={token} user={user} refreshKey={refreshKey} standalone />
             : section === 'demo-guide'
@@ -2342,11 +2368,11 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
               : section === 'members'
                 ? <MembersPortal key="members" token={token} standalone />
                 : section === 'savings'
-                  ? <SavingsPortal key="savings" token={token} user={user} refreshKey={refreshKey} standalone />
+                  ? <SavingsPortal key="savings" token={token} user={user} refreshKey={refreshKey} standalone onDeposit={openSavingsDeposit} />
                   : section === 'cooperative'
                     ? <CooperativePortal key="cooperative" token={token} user={user} refreshKey={refreshKey} standalone />
                     : section === 'payments'
-                      ? <PaymentPortal key="payments" token={token} user={user} refreshKey={refreshKey} standalone />
+                      ? <PaymentPortal key={`payments-${paymentInitialPurpose}`} token={token} user={user} refreshKey={refreshKey} standalone initialPurpose={paymentInitialPurpose} />
                       : <ReportsPortal key="reports" token={token} refreshKey={refreshKey} standalone />}
         </div>
         <footer className="staff-footer">Xendit confirms incoming payments. Confirmed Paluwagan payouts are credited to the recipient’s demo balance.</footer>
