@@ -2731,7 +2731,10 @@ function App() {
       } else if (mode === 'forgot') {
         const result = await apiRequest('/auth/password-reset/request', {
           method: 'POST',
-          body: JSON.stringify({ email: values.email }),
+          body: JSON.stringify({
+            email: values.email,
+            turnstile_token: values.turnstile_token,
+          }),
         })
         setResetEmail(values.email.trim())
         switchAuthMode('reset')
