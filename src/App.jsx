@@ -10,6 +10,7 @@ const PAYMENT_ENDPOINTS = ['/loans', '/cooperative/cycles', '/share-capital', '/
 const SAVINGS_ENDPOINTS = ['/savings']
 const SHARE_CAPITAL_ENDPOINTS = ['/share-capital']
 const REPORT_ENDPOINTS = ['/reports']
+const POLICY_ENDPOINTS = ['/cooperative/policies']
 const PORTAL_CACHE_MAX_AGE_MS = 15_000
 const portalDataCache = new Map()
 let portalCacheRevision = 0
@@ -481,6 +482,32 @@ function MemberCardVerification({ verificationToken }) {
   )
 }
 
+function LoanComparison({ products }) {
+  const [comparison, setComparison] = useState({ amount: '', term: '' })
+  return <section className="loan-comparison">
+    <h3>Compare estimated loan costs</h3>
+    <p className="muted">Use one amount and term to compare available offers on the same basis. This estimate uses flat interest on the original principal; it is not an approval or a published universal rate.</p>
+    <div className="form-grid loan-comparison-inputs">
+      <label>Amount to compare (PHP)<input type="number" min="0.01" step="0.01" value={comparison.amount} onChange={(event) => setComparison({ ...comparison, amount: event.target.value })} /></label>
+      <label>Term to compare (months)<input type="number" min="1" step="1" value={comparison.term} onChange={(event) => setComparison({ ...comparison, term: event.target.value })} /></label>
+    </div>
+    <div className="table-wrap"><table>
+      <thead><tr><th>Offer</th><th>Monthly rate</th><th>Limits</th><th>Estimated interest</th><th>Total repayment</th><th>Installment estimate</th></tr></thead>
+      <tbody>{products.map((product) => {
+        const amountCents = Math.round(Number(comparison.amount) * 100)
+        const termMonths = Number(comparison.term)
+        const fits = amountCents > 0 && amountCents <= Math.round(Number(product.max_amount) * 100)
+          && Number.isInteger(termMonths) && termMonths > 0 && termMonths <= Number(product.max_term_months)
+        const rows = fits ? buildLoanSchedulePreview(comparison.amount, comparison.term, product.interest_rate) : null
+        if (!rows) return <tr key={product.id}><td>{product.name}</td><td>{product.interest_rate}%</td><td>Up to {formatPesos(product.max_amount)} · {product.max_term_months} months</td><td colSpan="3">Enter an amount and term within this offer’s limits.</td></tr>
+        const interest = rows.reduce((total, row) => total + Number(row.interest_due), 0)
+        const total = rows.reduce((sum, row) => sum + Number(row.total_due), 0)
+        return <tr key={product.id}><td>{product.name}</td><td>{product.interest_rate}%</td><td>Up to {formatPesos(product.max_amount)} · {product.max_term_months} months</td><td>{formatPesos(interest)}</td><td>{formatPesos(total)}</td><td>{formatPesos(rows[0].total_due)} × {rows.length}</td></tr>
+      })}</tbody>
+    </table></div>
+  </section>
+}
+
 function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const { data, error, loading } = usePortalData(token, refreshKey, LOAN_ENDPOINTS)
@@ -757,6 +784,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                     </details>
                   </article>
                 ))}</div>}
+              {products.length > 1 && <LoanComparison products={products} />}
             </section>
           )}
         </>
@@ -1041,13 +1069,62 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [ledgerOpen, setLedgerOpen] = useState(false)
+  const [selectedSavingsMember, setSelectedSavingsMember] = useState(null)
   const [withdrawalSubmitting, setWithdrawalSubmitting] = useState(false)
   const [withdrawalRequestKey, setWithdrawalRequestKey] = useState(null)
+  const [withdrawalMode, setWithdrawalMode] = useState(false)
+  const [withdrawalStep, setWithdrawalStep] = useState(1)
+  const [withdrawalAmount, setWithdrawalAmount] = useState('')
+  const [withdrawalChannel, setWithdrawalChannel] = useState('')
   const [autoPayDraft, setAutoPayDraft] = useState(null)
   const [autoPaySaving, setAutoPaySaving] = useState(false)
+  const [memberSearch, setMemberSearch] = useState('')
+  const [transactionFilters, setTransactionFilters] = useState({ q: '', type: 'all', from: '', to: '' })
   const transactions = data?.[0]?.transactions || []
   const balance = data?.[0]?.balance
+  const memberBalances = data?.[0]?.member_balances || []
+  const savingsSummary = data?.[0]?.summary
   const autoPaySettings = autoPayDraft || data?.[0]?.auto_pay_preferences || { loan: false, paluwagan: false }
+  const filteredMembers = memberBalances.filter((member) =>
+    `${member.member_number} ${member.first_name} ${member.last_name}`.toLowerCase().includes(memberSearch.trim().toLowerCase())
+  )
+  const filteredTransactions = transactions.filter((entry) => {
+    const matchesText = `${entry.member_number || ''} ${entry.first_name || ''} ${entry.last_name || ''} ${entry.reference_no} ${entry.description || ''}`.toLowerCase()
+      .includes(transactionFilters.q.trim().toLowerCase())
+    const date = String(entry.created_at || '').slice(0, 10)
+    return matchesText
+      && (transactionFilters.type === 'all' || entry.type === transactionFilters.type)
+      && (!transactionFilters.from || date >= transactionFilters.from)
+      && (!transactionFilters.to || date <= transactionFilters.to)
+  })
+
+  function exportSavingsTransactions() {
+    const escapeCsv = (value) => {
+      let text = String(value ?? '')
+      if (/^\s*[=+\-@]/.test(text)) text = `'${text}`
+      return `"${text.replace(/"/g, '""')}"`
+    }
+    const rows = [
+      ['Date', 'Member number', 'Member', 'Type', 'Amount PHP', 'Balance after PHP', 'Reference', 'Description'],
+      ...filteredTransactions.map((entry) => [
+        entry.created_at,
+        entry.member_number || '',
+        `${entry.first_name || ''} ${entry.last_name || ''}`.trim(),
+        entry.type,
+        entry.amount,
+        entry.balance_after,
+        entry.reference_no,
+        entry.description || '',
+      ]),
+    ]
+    const content = rows.map((row) => row.map(escapeCsv).join(',')).join('\r\n')
+    const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }))
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = 'coopwise-savings-transactions.csv'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
 
   async function saveAutoPay(event) {
     event.preventDefault()
@@ -1068,22 +1145,26 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
     }
   }
 
-  async function submitWithdrawal(event) {
-    event.preventDefault()
+  async function submitWithdrawal() {
     setActionError('')
     setNotice('')
     setWithdrawalSubmitting(true)
-    const form = event.currentTarget
-    const amount = new FormData(form).get('amount')
     const requestId = withdrawalRequestKey || crypto.randomUUID()
     setWithdrawalRequestKey(requestId)
     try {
       const result = await apiRequest('/savings/withdraw', {
-        token, method: 'POST', body: JSON.stringify({ amount, request_id: requestId }),
+        token, method: 'POST', body: JSON.stringify({
+          amount: withdrawalAmount,
+          channel: withdrawalChannel,
+          request_id: requestId,
+        }),
       })
       setNotice(result.message)
       setWithdrawalRequestKey(null)
-      form.reset()
+      setWithdrawalMode(false)
+      setWithdrawalStep(1)
+      setWithdrawalAmount('')
+      setWithdrawalChannel('')
       window.dispatchEvent(new Event('coopwise:refresh'))
     } catch (requestError) {
       setActionError(requestError.message)
@@ -1092,14 +1173,71 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
     }
   }
 
+  if (!staff && withdrawalMode) {
+    const destinations = [
+      { id: 'gcash', name: 'GCash', type: 'E-wallet', icon: 'G' },
+      { id: 'maya', name: 'Maya', type: 'E-wallet', icon: 'M' },
+      { id: 'bank_bdo', name: 'BDO Bank', type: 'Bank transfer', icon: 'B' },
+      { id: 'bank_bpi', name: 'BPI', type: 'Bank transfer', icon: 'B' },
+      { id: 'bank_unionbank', name: 'UnionBank', type: 'Bank transfer', icon: 'U' },
+    ]
+    const selectedDestination = destinations.find((destination) => destination.id === withdrawalChannel)
+    return <section className="portal-section withdrawal-page">
+      <button className="text-button withdrawal-back-link" type="button" onClick={() => { setWithdrawalMode(false); setActionError('') }}>← Back to Savings</button>
+      <div className="withdrawal-page-heading">
+        <span className="withdrawal-page-icon"><StaffIcon name="savings" /></span>
+        <div><span className="eyebrow">Demo transfer</span><h2>Withdraw</h2><p>Choose an amount and demo destination. No real money is sent.</p></div>
+      </div>
+      <ol className="withdrawal-stepper" aria-label="Withdrawal steps">
+        {['Amount', 'Destination', 'Confirm'].map((step, index) => <li className={withdrawalStep === index + 1 ? 'active' : withdrawalStep > index + 1 ? 'complete' : ''} key={step}><span>{index + 1}</span>{step}</li>)}
+      </ol>
+      <PortalMessage error>{actionError}</PortalMessage>
+      <div className="portal-card withdrawal-step-card">
+        {withdrawalStep === 1 && <>
+          <div className="item-heading"><div><span className="eyebrow">Step 1 of 3</span><h3>How much would you like to withdraw?</h3></div><span className="withdrawal-available">Available {formatPesos((balance || 0) / 100)}</span></div>
+          <label className="withdrawal-amount-field">Withdrawal amount (PHP)
+            <div className="withdrawal-currency-input"><span>PHP</span><input autoFocus type="number" min="0.01" max={((balance || 0) / 100).toFixed(2)} step="0.01" value={withdrawalAmount} onChange={(event) => { setWithdrawalAmount(event.target.value); setWithdrawalRequestKey(null) }} placeholder="0.00" /></div>
+          </label>
+          <div className="withdrawal-quick-amounts">{[100, 500, 1000].filter((amount) => amount <= (balance || 0) / 100).map((amount) => <button type="button" className="button button-outline" key={amount} onClick={() => { setWithdrawalAmount(String(amount)); setWithdrawalRequestKey(null) }}>PHP {amount}</button>)}</div>
+          <button className="button button-primary withdrawal-next" type="button" disabled={!Number(withdrawalAmount) || Number(withdrawalAmount) <= 0 || Math.round(Number(withdrawalAmount) * 100) > (balance || 0)} onClick={() => { setActionError(''); setWithdrawalStep(2) }}>Choose destination</button>
+        </>}
+        {withdrawalStep === 2 && <>
+          <span className="eyebrow">Step 2 of 3</span><h3>Where should this simulated withdrawal go?</h3>
+          <p className="muted">Pick a destination type for the demo receipt. Do not enter real account numbers or credentials.</p>
+          <div className="withdrawal-destination-grid">{destinations.map((destination) => <button type="button" className={`withdrawal-destination${withdrawalChannel === destination.id ? ' selected' : ''}`} key={destination.id} onClick={() => { setWithdrawalChannel(destination.id); setWithdrawalRequestKey(null) }} aria-pressed={withdrawalChannel === destination.id}>
+            <span className="withdrawal-destination-icon">{destination.icon}</span><strong>{destination.name}</strong><small>{destination.type}</small>
+          </button>)}</div>
+          <p className="withdrawal-demo-note">QR Ph is for receiving payments; this withdrawal demo uses bank and e-wallet destinations only.</p>
+          <div className="button-row"><button className="button button-outline" type="button" onClick={() => setWithdrawalStep(1)}>Back</button><button className="button button-primary" type="button" disabled={!withdrawalChannel} onClick={() => setWithdrawalStep(3)}>Review withdrawal</button></div>
+        </>}
+        {withdrawalStep === 3 && <>
+          <span className="eyebrow">Step 3 of 3</span><h3>Review your withdrawal</h3>
+          <dl className="withdrawal-review">
+            <div><dt>Amount</dt><dd>{formatPesos(withdrawalAmount)}</dd></div>
+            <div><dt>Destination</dt><dd>{selectedDestination?.name} · {selectedDestination?.type}</dd></div>
+            <div><dt>Balance after simulation</dt><dd>{formatPesos(Math.max(0, ((balance || 0) - Math.round(Number(withdrawalAmount) * 100)) / 100))}</dd></div>
+          </dl>
+          <p className="withdrawal-demo-note">This only records a simulated withdrawal in CoopWise. No Xendit payout or actual bank/e-wallet transfer is made.</p>
+          <div className="button-row"><button className="button button-outline" type="button" disabled={withdrawalSubmitting} onClick={() => { setWithdrawalStep(2); setWithdrawalRequestKey(null) }}>Change destination</button><button className="button button-primary" type="button" disabled={withdrawalSubmitting} onClick={submitWithdrawal}>{withdrawalSubmitting ? 'Processing simulation…' : `Confirm withdraw to ${selectedDestination?.name}`}</button></div>
+        </>}
+      </div>
+    </section>
+  }
+
   return (
     <section className="portal-section">
       {!standalone && <h2>Savings</h2>}
       {!staff && <div className="savings-member-overview">
         <div className="portal-card savings-balance"><span>Your available member balance</span><strong>{loading && !data ? 'Loading…' : formatPesos((balance || 0) / 100)}</strong></div>
-        <button className="button button-primary" type="button" onClick={() => setLedgerOpen(true)}>View / print my savings ledger</button>
+        <button className="button button-primary" type="button" onClick={() => { setSelectedSavingsMember(null); setLedgerOpen(true) }}>View / print my savings ledger</button>
       </div>}
       {!staff && <p className="muted">Demo balance is credited when a loan is approved or a Paluwagan payout is marked paid. Xendit is not used to deposit funds.</p>}
+      {!staff && data?.[0]?.balance_breakdown && <div className="report-grid savings-balance-breakdown">
+        <article className="portal-card"><span>Loan proceeds credited</span><strong>{formatPesos(data[0].balance_breakdown.loan_credits)}</strong></article>
+        <article className="portal-card"><span>Paluwagan payouts credited</span><strong>{formatPesos(data[0].balance_breakdown.paluwagan_credits)}</strong></article>
+        <article className="portal-card"><span>Other historical credits</span><strong>{formatPesos(data[0].balance_breakdown.other_credits)}</strong></article>
+        <article className="portal-card"><span>Total withdrawals recorded</span><strong>{formatPesos(data[0].balance_breakdown.withdrawals)}</strong></article>
+      </div>}
       {!staff && data && (
         <form className="portal-card autopay-card" onSubmit={saveAutoPay}>
           <div className="autopay-heading"><div><span className="eyebrow">Optional convenience</span><h3>Automatic payments from savings</h3></div><button className="button button-primary" type="submit" disabled={autoPaySaving}>{autoPaySaving ? 'Saving…' : 'Save choices'}</button></div>
@@ -1110,28 +1248,55 @@ function SavingsPortal({ token, user, refreshKey, standalone = false }) {
         </form>
       )}
       {staff && <p className="muted savings-staff-hint">To preview or print a member’s passbook-style savings ledger, open the Members directory and choose <strong>Savings ledger</strong> for that member.</p>}
+      {staff && savingsSummary && <section className="savings-admin-overview">
+        <h3>Member balance overview</h3>
+        <div className="report-grid">
+          <article className="portal-card"><span>Members with ledger</span><strong>{savingsSummary.member_count}</strong></article>
+          <article className="portal-card"><span>Total available demo balance</span><strong>{formatPesos(savingsSummary.balance)}</strong></article>
+          <article className="portal-card"><span>Recorded credits</span><strong>{formatPesos(savingsSummary.credits)}</strong></article>
+          <article className="portal-card"><span>Recorded withdrawals</span><strong>{formatPesos(savingsSummary.debits)}</strong></article>
+        </div>
+        <label className="savings-search">Find a member<input value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} placeholder="Member number or name" /></label>
+        <div className="table-wrap"><table><thead><tr><th>Member</th><th>Status</th><th>Credits</th><th>Withdrawals</th><th>Available balance</th><th>Ledger</th></tr></thead>
+          <tbody>{filteredMembers.map((member) => <tr key={member.id}>
+            <td>{member.member_number} · {member.first_name} {member.last_name}</td>
+            <td><span className={`status status-${member.status}`}>{member.status}</span></td>
+            <td>{formatPesos(member.credits)}</td><td>{formatPesos(member.debits)}</td><td>{formatPesos(member.balance)}</td>
+            <td><button className="text-button" type="button" onClick={() => { setSelectedSavingsMember(member); setLedgerOpen(true) }}>Open ledger</button></td>
+          </tr>)}</tbody>
+        </table></div>
+        {!filteredMembers.length && <p className="muted">No members match that search.</p>}
+      </section>}
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
       {!staff && (
         <section className="withdrawal-section">
-          <div className="staff-subsection-title"><StaffIcon name="savings" /><div><h3>Simulate a withdrawal</h3><p className="muted">The amount is deducted from your available member balance immediately. No money is transferred and staff approval is not needed.</p></div></div>
-          <form className="portal-card form-grid withdrawal-form" onSubmit={submitWithdrawal}>
-            <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={((balance || 0) / 100).toFixed(2)} step="0.01" required /></label>
-            <button className="button button-primary" type="submit" disabled={withdrawalSubmitting || loading || !(balance > 0)}>{withdrawalSubmitting ? 'Processing…' : 'Simulate withdrawal now'}</button>
-            <p className="withdrawal-disclaimer full">Demo only: this updates the member ledger; it does not send money or use Xendit. The withdrawal appears in the transaction history below.</p>
-          </form>
+          <div className="portal-card withdrawal-launch-card"><div><span className="eyebrow">Member balance</span><h3>Withdraw to a bank or e-wallet</h3><p className="muted">Choose a demo destination, review the amount, and confirm. The ledger updates instantly; no real transfer is made.</p></div>
+            <button className="button button-primary" type="button" disabled={loading || !(balance > 0)} onClick={() => { setWithdrawalMode(true); setWithdrawalStep(1); setActionError('') }}>Withdraw</button>
+          </div>
         </section>
       )}
+      {staff && <div className="savings-transaction-tools">
+        <h3>Transaction review</h3>
+        <div className="savings-filter-row">
+          <label>Search<input value={transactionFilters.q} onChange={(event) => setTransactionFilters({ ...transactionFilters, q: event.target.value })} placeholder="Member, reference, description" /></label>
+          <label>Type<select value={transactionFilters.type} onChange={(event) => setTransactionFilters({ ...transactionFilters, type: event.target.value })}><option value="all">All activity</option><option value="deposit">Credits</option><option value="withdrawal">Withdrawals</option></select></label>
+          <label>From<input type="date" value={transactionFilters.from} onChange={(event) => setTransactionFilters({ ...transactionFilters, from: event.target.value })} /></label>
+          <label>To<input type="date" value={transactionFilters.to} onChange={(event) => setTransactionFilters({ ...transactionFilters, to: event.target.value })} /></label>
+          <button className="button button-outline" type="button" onClick={exportSavingsTransactions} disabled={!filteredTransactions.length}>Export filtered CSV</button>
+        </div>
+      </div>}
       <div className="staff-subsection-title"><StaffIcon name="savings" /><h3>Transaction history</h3></div>
       {loading && !data && <StaffEmptyState type="savings" title="Loading savings history…" description="Please wait while we fetch the latest transactions." loading />}
       {data && transactions.length === 0 && <p className="muted">No savings transactions recorded.</p>}
-      {!!transactions.length && <div className="table-wrap"><table><thead><tr>
+      {staff && transactions.length > 0 && filteredTransactions.length === 0 && <p className="muted">No transactions match these filters.</p>}
+      {!!filteredTransactions.length && <div className="table-wrap"><table><thead><tr>
         <th>Date</th>{staff && <th>Member</th>}<th>Type</th><th>Amount</th><th>Balance after</th><th>Reference</th><th>Description</th>
-      </tr></thead><tbody>{transactions.map((entry) => <tr key={entry.id}>
+      </tr></thead><tbody>{filteredTransactions.map((entry) => <tr key={entry.id}>
         <td>{entry.created_at}</td>{staff && <td>{entry.member_number} · {entry.first_name} {entry.last_name}</td>}
         <td>{entry.type}</td><td>PHP {entry.amount}</td><td>PHP {entry.balance_after}</td><td>{entry.reference_no}</td><td>{entry.description || '—'}</td>
       </tr>)}</tbody></table></div>}
-      {ledgerOpen && <SavingsLedgerDialog token={token} member={null} onClose={() => setLedgerOpen(false)} />}
+      {ledgerOpen && <SavingsLedgerDialog token={token} member={selectedSavingsMember} onClose={() => { setLedgerOpen(false); setSelectedSavingsMember(null) }} />}
     </section>
   )
 }
@@ -1247,6 +1412,99 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   )
 }
 
+function LearningCenter({ token, user, refreshKey, standalone = false }) {
+  const staff = ['admin', 'officer'].includes(user.role)
+  const { data, error, loading } = usePortalData(token, refreshKey, POLICY_ENDPOINTS)
+  const [policyDraft, setPolicyDraft] = useState(null)
+  const [notice, setNotice] = useState('')
+  const [actionError, setActionError] = useState('')
+  const policies = policyDraft || data?.[0]?.policies
+  const policyFields = [
+    ['membership_policy', 'Membership'],
+    ['share_capital_policy', 'Share capital'],
+    ['loan_policy', 'Loans'],
+    ['paluwagan_policy', 'Paluwagan'],
+    ['demo_balance_policy', 'Demo balance and withdrawals'],
+  ]
+
+  async function savePolicies(event) {
+    event.preventDefault()
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest('/cooperative/policies', {
+        token, method: 'POST', body: JSON.stringify(policyDraft),
+      })
+      setNotice(result.message)
+      setPolicyDraft(null)
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
+
+  return <section className="portal-section learning-center">
+    {!standalone && <h2>Cooperative Learning Center</h2>}
+    <p className="muted">A cooperative is owned and used by its members. Members participate in services and help shape the cooperative according to its bylaws and policies. This site is a classroom simulation—not a bank or a substitute for your cooperative’s official rules.</p>
+    <div className="learning-grid">
+      <article className="portal-card"><span className="eyebrow">01 · Membership</span><h3>Members are owners</h3><p>Members join under the cooperative’s membership rules, use services, and share responsibility for the organization. Membership is more than having a login.</p></article>
+      <article className="portal-card"><span className="eyebrow">02 · Share capital</span><h3>Ownership, not wallet money</h3><p>Share capital represents a member’s ownership contribution. CoopWise tracks subscriptions and paid-up amounts separately from the available demo balance.</p></article>
+      <article className="portal-card"><span className="eyebrow">03 · Loans</span><h3>Borrow with a repayment plan</h3><p>Loan applications require review. Compare the configured sample offers and check the estimated installments, interest, total repayment, and due dates before applying.</p></article>
+      <article className="portal-card"><span className="eyebrow">04 · Paluwagan</span><h3>Contribute to a rotating pool</h3><p>Enrolled members contribute to a scheduled cycle. The system tracks the order and contributions; staff confirm the simulated payout to the next recipient.</p></article>
+      <article className="portal-card"><span className="eyebrow">05 · Payments</span><h3>Know what is real</h3><p>Where enabled, Xendit Test Mode checks an incoming checkout simulation. Never enter real payment details for a class demo. CoopWise simulated withdrawals do not send money.</p></article>
+      <article className="portal-card"><span className="eyebrow">06 · Records</span><h3>Keep the history clear</h3><p>Each balance credit or debit should have a source and reference. Share capital stays separate, and corrections should be recorded with a reason rather than deleting history.</p></article>
+    </div>
+    <section className="policy-section">
+      <div className="section-heading"><div><h3>Cooperative policies for this demo</h3><p className="muted">These are this project’s sample rules, not universal cooperative rules or legal advice.</p></div></div>
+      <PortalMessage error>{error || actionError}</PortalMessage>
+      <PortalMessage>{notice}</PortalMessage>
+      {loading && !policies && <p className="muted">Loading current demo policies…</p>}
+      {!loading && !policies && !error && <p className="muted">No demo policies have been published.</p>}
+      {policies && staff && <form className="portal-card form-grid policy-form" onSubmit={savePolicies}>
+        {policyFields.map(([key, label]) => <label className="full" key={key}>{label} policy
+          <textarea rows="4" maxLength="5000" required value={policies[key] || ''} onChange={(event) => setPolicyDraft({ ...policies, [key]: event.target.value })} />
+        </label>)}
+        <button className="button button-primary" type="submit" disabled={!policyDraft}>Save demo policies</button>
+        {policies.updated_at && <small className="full">Last updated: {policies.updated_at}</small>}
+      </form>}
+      {policies && !staff && <div className="policy-grid">
+        {policyFields.map(([key, label]) => <article className="portal-card" key={key}><h4>{label}</h4><p>{policies[key]}</p></article>)}
+        {policies.updated_at && <small>Last updated: {policies.updated_at}</small>}
+      </div>}
+    </section>
+  </section>
+}
+
+function DemoGuide({ setSection, standalone = false }) {
+  const steps = [
+    { title: 'Understand the cooperative', section: 'learning', description: 'Learn what membership, share capital, loans, and Paluwagan mean in this classroom demo.' },
+    { title: 'Compare sample loan offers', section: 'loans', description: 'Review the example interest rate and repayment schedule before applying. Staff review the application.' },
+    { title: 'Explore a Paluwagan cycle', section: 'cooperative', description: 'See the contribution amount, randomized order, daily records, and payout status.' },
+    { title: 'Review your balance sources', section: 'savings', description: 'Loan approval and a confirmed Paluwagan payout can credit the available demo balance.' },
+    { title: 'Try a simulated withdrawal', section: 'savings', description: 'Choose a demo e-wallet or bank destination. The ledger updates, but no real money is transferred.' },
+  ]
+  return <section className="portal-section demo-guide">
+    {!standalone && <h2>Guided demo walkthrough</h2>}
+    <p className="muted">Follow this non-destructive tour to explain the main cooperative flow. It does not create, change, or reset account records.</p>
+    <div className="demo-scenario portal-card">
+      <span className="eyebrow">Illustrative sample only · Not a real member record</span>
+      <h3>Example balance story</h3>
+      <div className="demo-scenario-flow">
+        <span>Approved loan credit <strong>+ PHP 8,000</strong></span><b>→</b>
+        <span>Paluwagan payout <strong>+ PHP 2,000</strong></span><b>→</b>
+        <span>Simulated withdrawal to GCash <strong>− PHP 500</strong></span><b>→</b>
+        <span>Example available balance <strong>PHP 9,500</strong></span>
+      </div>
+      <p className="muted">Amounts are fictional examples displayed for explanation only; they are not added to your database.</p>
+    </div>
+    <ol className="demo-step-list">{steps.map((step, index) => <li className="portal-card demo-step" key={step.title}>
+      <span className="demo-step-number">{index + 1}</span>
+      <div><h3>{step.title}</h3><p>{step.description}</p></div>
+      <button className="button button-outline" type="button" onClick={() => setSection(step.section)}>Open section</button>
+    </li>)}</ol>
+  </section>
+}
+
 function ReportsPortal({ token, refreshKey, standalone = false }) {
   const { data, error, loading } = usePortalData(token, refreshKey, REPORT_ENDPOINTS)
   const report = data?.[0]
@@ -1268,6 +1526,14 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
           <article className="portal-card"><span>Paid-up share capital</span><strong>PHP {report.summary.share_capital_paid_up || '0.00'}</strong><small>Subscribed: PHP {report.summary.share_capital_subscribed || '0.00'}</small></article>
           <article className="portal-card"><span>Loan portfolio</span><strong>PHP {report.summary.loan_balance}</strong></article>
           <article className="portal-card"><span>Loan payments received</span><strong>PHP {report.summary.loan_payments_received}</strong></article>
+        </div>
+        <h3>Operational overview</h3>
+        <div className="report-grid">
+          <article className="portal-card"><span>Loan applications awaiting review</span><strong>{report.operations?.loans_awaiting_review ?? '—'}</strong></article>
+          <article className="portal-card"><span>Document sets awaiting review</span><strong>{report.operations?.documents_awaiting_review ?? '—'}</strong></article>
+          <article className="portal-card"><span>Active Paluwagan cycles</span><strong>{report.operations?.active_paluwagan_cycles ?? '—'}</strong></article>
+          <article className="portal-card"><span>Payouts awaiting confirmation</span><strong>{report.operations?.payouts_awaiting_confirmation ?? '—'}</strong></article>
+          <article className="portal-card"><span>Overdue installments</span><strong>{report.operations?.overdue_installment_count ?? '—'}</strong><small>Outstanding: PHP {report.operations?.overdue_installment_balance ?? '—'}</small></article>
         </div>
         <h3>Monthly activity</h3>
         <div className="table-wrap"><table><thead><tr><th>Activity</th><th>Value</th></tr></thead><tbody>
@@ -1500,6 +1766,8 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
 
 const STAFF_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { id: 'learning', label: 'Co-op Guide', icon: 'learning' },
+  { id: 'demo-guide', label: 'Demo Walkthrough', icon: 'guide' },
   { id: 'loans', label: 'Loans', icon: 'loans' },
   { id: 'share-capital', label: 'Share Capital', icon: 'share-capital' },
   { id: 'reports', label: 'Reports', icon: 'reports' },
@@ -1511,6 +1779,8 @@ const STAFF_NAV_ITEMS = [
 
 const MEMBER_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { id: 'learning', label: 'Co-op Guide', icon: 'learning' },
+  { id: 'demo-guide', label: 'Demo Walkthrough', icon: 'guide' },
   { id: 'loans', label: 'Loans', icon: 'loans' },
   { id: 'share-capital', label: 'Share Capital', icon: 'share-capital' },
   { id: 'payments', label: 'Online Payments', icon: 'payments' },
@@ -1520,6 +1790,8 @@ const MEMBER_NAV_ITEMS = [
 
 const STAFF_PAGE_DETAILS = {
   dashboard: ['Dashboard', 'Manage cooperative services and member activity.'],
+  learning: ['Cooperative Learning Center', 'Explain membership, share capital, loans, Paluwagan, and demo balance rules.'],
+  'demo-guide': ['Guided Demo Walkthrough', 'Show the main cooperative flow using examples without changing database records.'],
   loans: ['Loans', 'Review loan status and explore available loan offers.'],
   'share-capital': ['Share Capital', 'Track member ownership subscriptions and paid-up contributions.'],
   reports: ['Reports', 'View recorded cooperative totals and monthly activity.'],
@@ -1531,6 +1803,8 @@ const STAFF_PAGE_DETAILS = {
 
 const MEMBER_PAGE_DETAILS = {
   dashboard: ['Dashboard', 'Your cooperative services, all in one place.'],
+  learning: ['Cooperative Learning Center', 'Learn how the cooperative and its services work.'],
+  'demo-guide': ['Guided Demo Walkthrough', 'Explore the example flow without changing your account records.'],
   loans: ['Loans', 'Review your loan documents, offers, and applications.'],
   'share-capital': ['Share Capital', 'View your ownership subscriptions and paid-up contributions.'],
   payments: ['Payments', 'Pay cooperative dues through Xendit and view transaction history.'],
@@ -1544,6 +1818,8 @@ function StaffIcon({ name }) {
     loans: <><path d="M4 5.5h16M4 10h16M4 14.5h10" /><path d="M17 14v6m-3-3h6" /></>,
     reports: <><path d="M4 20V11m5 9V5m5 15v-7m5 7V3" /><path d="M2.5 20.5h19" /></>,
     payments: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 9h18m-14 5h4" /></>,
+    learning: <><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H20v17H7.5A3.5 3.5 0 0 0 4 22z" /><path d="M4 5.5v13A3.5 3.5 0 0 1 7.5 15H20M8 6h8m-8 4h6" /></>,
+    guide: <><circle cx="12" cy="12" r="9" /><path d="m8 12 2.5 2.5L16 9" /></>,
     cooperative: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>,
     savings: <><path d="M19.5 9.5c-1.6-2.4-4.1-3.5-7.5-3.5-4.7 0-8 2.5-8 6s3.3 6 8 6c3.4 0 5.9-1.1 7.5-3.5" /><path d="M18 10h3v4h-3m-7-2h.01" /></>,
     members: <><circle cx="9" cy="8" r="3" /><path d="M3.5 20v-1.5A5.5 5.5 0 0 1 9 13h1a5.5 5.5 0 0 1 5.5 5.5V20z" /><path d="M16 5.5a3 3 0 0 1 0 5.8m2 2a5 5 0 0 1 2.5 4.3V20" /></>,
@@ -1687,6 +1963,10 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
         <div className="staff-content">
           {section === 'dashboard'
             ? <ServiceDashboard token={token} user={user} staff={staff} selectedTab={dashboardTab} setSelectedTab={setDashboardTab} refreshKey={refreshKey} />
+            : section === 'learning'
+              ? <LearningCenter key="learning" token={token} user={user} refreshKey={refreshKey} standalone />
+            : section === 'demo-guide'
+              ? <DemoGuide key="demo-guide" setSection={navigate} standalone />
             : section === 'loans'
               ? <LoanPortal key="loans" token={token} user={user} refreshKey={refreshKey} standalone />
               : section === 'share-capital'

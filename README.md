@@ -49,6 +49,10 @@ simulate a withdrawal that debits their balance and appears in their ledger.
 No staff approval, financial-account details, receipt, Xendit payout, or real
 money transfer is involved. Loan proceeds and confirmed Paluwagan payouts are
 the member balance’s sources; new Xendit savings deposits are disabled.
+The withdrawal screen lets the member choose a demo e-wallet (GCash/Maya) or
+bank (BDO/BPI/UnionBank). It stores the chosen destination in the transaction
+description for the receipt; it does not collect destination account details
+or call Xendit Payouts. QR payment is not offered as a cash-out destination.
 Members may independently opt in to loan or daily Paluwagan auto-pay from
 savings. The preferences default off, and automatic payments will not run
 until the backend daily CLI job is configured.
@@ -69,6 +73,13 @@ session storage. Other legacy pages are still available in the LavaLust
 application and have not yet been moved into this separate frontend.
 The Reports page also retains the recent activity audit log; meetings and
 voting are no longer part of the application.
+The Cooperative Learning Center explains the system and shows staff-editable
+sample policies; the Guided Demo Walkthrough uses fictional, read-only sample
+amounts and never inserts or resets database records. Loan applicants can
+compare eligible products using a shared sample amount and term before
+submitting an application. Staff reports include operational review counts,
+while Savings provides balance summaries, member search, ledger shortcuts,
+date/type filters, and filtered CSV export. Staff cannot silently edit balances.
 
 The staff workspace uses a responsive sidebar, live cooperative overview, and
 consistent page header across loans, share capital, reports, online payments,
