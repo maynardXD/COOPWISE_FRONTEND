@@ -2027,7 +2027,9 @@ function GoogleReportChart({ title, rows, type = 'column' }) {
         const options = {
           backgroundColor: 'transparent',
           chartArea: { left: 58, top: 20, width: '82%', height: '72%' },
-          colors: ['#17815b', '#68b997', '#e3a343', '#6b85c2', '#b56c8d', '#69aab7'],
+          colors: theme === 'dark'
+            ? ['#5b9c84', '#7e9fb3', '#b49a67', '#8695b3', '#ae8197', '#6f9fa6']
+            : ['#17815b', '#68b997', '#e3a343', '#6b85c2', '#b56c8d', '#69aab7'],
           fontName: 'Arial',
           height: 300,
           legend: type === 'pie' ? { position: 'bottom', textStyle: { color: chartTextColor } } : { position: 'none' },

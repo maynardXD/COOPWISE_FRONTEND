@@ -8,6 +8,14 @@
   flex-direction: column;
 }
 
+.page-shell:not(.page-shell-staff) > .topbar {
+  position: relative;
+  left: 50%;
+  width: 100vw;
+  padding-inline: max(24px, calc((100vw - 1120px) / 2));
+  transform: translateX(-50%);
+}
+
 .topbar {
   min-height: 78px;
   display: flex;
@@ -1123,19 +1131,19 @@ html[data-theme="dark"] .member-card-modal .modal-content {
 html[data-theme="dark"] .staff-page-banner {
   border-color:var(--border);
   background:
-    radial-gradient(ellipse at 93% -35%, rgb(72 145 111 / 20%) 0 17%, transparent 17.3%),
-    radial-gradient(ellipse at 100% 10%, rgb(57 115 88 / 24%) 0 19%, transparent 19.3%),
-    linear-gradient(110deg,#19251f 5%,#1b2b23 62%,#1c3328);
+    radial-gradient(ellipse at 93% -35%, rgb(78 148 123 / 15%) 0 17%, transparent 17.3%),
+    radial-gradient(ellipse at 100% 10%, rgb(76 129 111 / 17%) 0 19%, transparent 19.3%),
+    linear-gradient(110deg,#202833 5%,#202c35 62%,#21352f);
 }
 
 html[data-theme="dark"] .staff-sidebar { border-right-color:var(--border); }
 html[data-theme="dark"] .staff-nav-item { color:#b5c8be; }
-html[data-theme="dark"] .staff-nav-item:hover { background:#20372c; color:#8ee0b9; }
-html[data-theme="dark"] .staff-nav-item.active { background:#244737; color:#9ae5c1; }
-html[data-theme="dark"] .staff-sign-out { background:#203a2e; color:#9ae5c1; }
-html[data-theme="dark"] .staff-sign-out:hover { background:#2a4b3b; }
-html[data-theme="dark"] .staff-avatar { background:#315944; color:#c6f4dc; }
-html[data-theme="dark"] .staff-page-icon { border-color:var(--border); background:#24372d; color:#83d9ae; }
+html[data-theme="dark"] .staff-nav-item:hover { background:#293742; color:#9cdbc4; }
+html[data-theme="dark"] .staff-nav-item.active { background:#2a3d3a; color:#a5e3c9; }
+html[data-theme="dark"] .staff-sign-out { background:#293a38; color:#a5e3c9; }
+html[data-theme="dark"] .staff-sign-out:hover { background:#344943; }
+html[data-theme="dark"] .staff-avatar { background:#344b49; color:#d0f0e2; }
+html[data-theme="dark"] .staff-page-icon { border-color:var(--border); background:#29353d; color:#8fd7b8; }
 html[data-theme="dark"] .staff-banner-copy > p:last-child,
 html[data-theme="dark"] .staff-footer { color:var(--muted); }
 
@@ -1177,9 +1185,9 @@ html[data-theme="dark"] .modal-close {
 html[data-theme="dark"] .button-outline:hover,
 html[data-theme="dark"] .modal-close:hover { background:#2a3d32; }
 html[data-theme="dark"] .button-primary,
-html[data-theme="dark"] .staff-content .button-primary { background:#16845c; color:#fff; }
+html[data-theme="dark"] .staff-content .button-primary { background:#3f7565; color:#fff; }
 html[data-theme="dark"] .button-primary:hover,
-html[data-theme="dark"] .staff-content .button-primary:hover { background:#1b9a6b; }
+html[data-theme="dark"] .staff-content .button-primary:hover { background:#4d8976; }
 
 html[data-theme="dark"] .staff-content :is(h1,h2,h3,h4,p,label,summary,dt,dd,strong,span,li,td,th),
 html[data-theme="dark"] .portal-section :is(h1,h2,h3,h4,p,label,summary,dt,dd,strong,span,li,td,th),
@@ -1194,6 +1202,9 @@ html[data-theme="dark"] .record-modal :is(.muted,small) { color:var(--muted); }
 html[data-theme="dark"] .staff-content .portal-card,
 html[data-theme="dark"] .staff-content .offer-card,
 html[data-theme="dark"] .report-chart-card,
+html[data-theme="dark"] .demo-scenario,
+html[data-theme="dark"] .demo-scenario-flow span,
+html[data-theme="dark"] .staff-account-card,
 html[data-theme="dark"] .profile-card div,
 html[data-theme="dark"] .member-detail,
 html[data-theme="dark"] .savings-filter-row,
@@ -1204,6 +1215,32 @@ html[data-theme="dark"] .ledger-controls {
   border-color:var(--border);
   background:#1b2922;
   color:var(--ink);
+}
+html[data-theme="dark"] .demo-scenario {
+  border-color:var(--border);
+  background:linear-gradient(135deg,#202833,#26352f);
+}
+
+html[data-theme="dark"] .staff-account-card small,
+html[data-theme="dark"] .staff-account-card strong {
+  color:var(--ink);
+}
+html[data-theme="dark"] .staff-account-card small { color:#c1ccd4; }
+html[data-theme="dark"] .staff-account-icon {
+  background:#35434c;
+  color:#a6e2ca;
+}
+
+html[data-theme="dark"] .staff-service-tabs {
+  border-color:#3a4654;
+  background:#202833;
+}
+html[data-theme="dark"] .staff-service-tab { color:#c3cdd5; }
+html[data-theme="dark"] .staff-service-tab:hover { background:#303b45; color:#dce7e1; }
+html[data-theme="dark"] .staff-service-tab.active {
+  background:#426c60;
+  color:#fff;
+  box-shadow:0 2px 6px rgb(0 0 0 / 22%);
 }
 
 html[data-theme="dark"] .notice,
@@ -1295,6 +1332,65 @@ html[data-theme="dark"] .loan-schedule-print-area {
 html[data-theme="dark"] .ledger-table .ledger-opening-row { background:#202f26; color:#c4d7cb; }
 html[data-theme="dark"] .report-chart-card h4 { color:var(--ink); }
 html[data-theme="dark"] .google-report-chart { color-scheme:dark; }
+
+html[data-theme="dark"] .auth-card .tab.active { color:#c4e8d8; background:#35463f; }
+html[data-theme="dark"] .auth-card .tab:last-child:not(.active) { color:#a6d9c3; }
+html[data-theme="dark"] .auth-card .tab:last-child:not(.active):hover { background:#303d39; }
+html[data-theme="dark"] .intro::after {
+  border-color:rgb(145 184 167 / 20%);
+  background:radial-gradient(circle,transparent 47%,rgb(113 157 137 / 18%) 48% 66%,transparent 67%);
+}
+html[data-theme="dark"] .auth-loading { color:#c0cdc6; }
+html[data-theme="dark"] .staff-empty-state,
+html[data-theme="dark"] .staff-empty-state strong,
+html[data-theme="dark"] .staff-empty-state p { color:var(--ink); }
+html[data-theme="dark"] .staff-empty-state p { color:var(--muted); }
+html[data-theme="dark"] .staff-empty-spinner { border-color:#394650; border-top-color:#71c5a3; }
+html[data-theme="dark"] .staff-subsection-title {
+  border-color:var(--border);
+  background:#202833;
+}
+html[data-theme="dark"] .staff-subsection-title .staff-nav-icon { color:#8ecfb3; }
+html[data-theme="dark"] .staff-content .portal-card summary::after { background:#35434c; color:#b5ddca; }
+html[data-theme="dark"] .withdrawal-destination-icon { background:#35434c; color:#a5debf; }
+html[data-theme="dark"] .withdrawal-demo-note,
+html[data-theme="dark"] .autopay-card .autopay-caveat {
+  border-left-color:#a98c53;
+  background:#362f22;
+  color:#ecd8a8;
+}
+html[data-theme="dark"] .loan-preview,
+html[data-theme="dark"] .loan-schedule-summary { background:#24332f; }
+html[data-theme="dark"] .member-card-print-area { background:#202833; }
+html[data-theme="dark"] .member-card-design {
+  border-color:#41534c;
+  background:radial-gradient(ellipse at 98% 0%,#34463e 0 16%,transparent 16.5%),linear-gradient(135deg,#202833 8%,#26352f 70%,#2a3c35);
+}
+html[data-theme="dark"] .member-card-header,
+html[data-theme="dark"] .member-card-name,
+html[data-theme="dark"] .member-card-number { color:#e4eee8; }
+html[data-theme="dark"] .member-card-header,
+html[data-theme="dark"] .member-card-footer { border-color:#41534c; }
+html[data-theme="dark"] .member-card-header small,
+html[data-theme="dark"] .member-card-number-label,
+html[data-theme="dark"] .member-card-footer,
+html[data-theme="dark"] .member-card-actions p { color:#b5c2ba; }
+html[data-theme="dark"] .member-card-pill { background:#35463f; color:#c4e8d8; }
+html[data-theme="dark"] .member-card-avatar { border-color:#456358; background:#2c4138; color:#c0ead6; }
+html[data-theme="dark"] .member-card-qr { border-color:var(--border); background:#f7f8f7; }
+html[data-theme="dark"] .staff-menu-toggle { border-color:var(--border); background:#202833; color:#c5d3cb; }
+html[data-theme="dark"] .staff-menu-toggle:hover { background:#2b3842; }
+
+@media print {
+  html[data-theme="dark"] body.printing-record,
+  html[data-theme="dark"] body.printing-record #root,
+  html[data-theme="dark"] body.printing-record .print-target,
+  html[data-theme="dark"] body.printing-record .ledger-print-area,
+  html[data-theme="dark"] body.printing-record .loan-schedule-print-area {
+    background:#fff !important;
+    color:#1e352c !important;
+  }
+}
 
 @media(max-width:520px) {
   .topbar-actions { gap:8px; }
