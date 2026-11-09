@@ -468,7 +468,7 @@ function SavingsLedgerDialog({ token, member, onClose }) {
   }
 
   async function emailLedgerPdf() {
-    if (!ledger || member || emailSending) return
+    if (!ledger || emailSending) return
     setEmailNotice('')
     setEmailError('')
     setEmailSending(true)
@@ -477,7 +477,10 @@ function SavingsLedgerDialog({ token, member, onClose }) {
       const result = await apiRequest('/savings/ledger/email', {
         token,
         method: 'POST',
-        body: JSON.stringify({ pdf_base64: pdfBase64 }),
+        body: JSON.stringify({
+          pdf_base64: pdfBase64,
+          ...(member ? { member_id: member.id } : {}),
+        }),
       })
       setEmailNotice(result.message)
     } catch (requestError) {
@@ -508,9 +511,9 @@ function SavingsLedgerDialog({ token, member, onClose }) {
             <label>Through<input type="date" value={range.to} min={range.from || undefined} max={TODAY} onChange={(event) => changeRange({ ...range, to: event.target.value })} /></label>
           </>}
           <button className="button button-primary" type="button" onClick={printRecord} disabled={!ledger || loading}>Print / Save PDF</button>
-          {!member && <button className="button button-outline" type="button" onClick={emailLedgerPdf} disabled={!ledger || loading || emailSending}>
-            {emailSending ? 'Emailing PDF…' : 'Email PDF to my account'}
-          </button>}
+          <button className="button button-outline" type="button" onClick={emailLedgerPdf} disabled={!ledger || loading || emailSending}>
+            {emailSending ? 'Emailing PDF…' : member ? "Email PDF to member's registered email" : 'Email PDF to my account'}
+          </button>
         </div>
         <div className="no-print"><PortalMessage error>{emailError}</PortalMessage><PortalMessage>{emailNotice}</PortalMessage></div>
         {error && <PortalMessage error>{error}</PortalMessage>}
