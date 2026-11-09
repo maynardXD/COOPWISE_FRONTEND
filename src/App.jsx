@@ -44,8 +44,14 @@ async function apiRequest(path, { token, ...options } = {}) {
   })
   const body = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const error = new Error(body.message || body.error || `Request failed (${response.status}).`)
+    const retryAfter = Number(body.retry_after || 0)
+    const message = response.status === 429 && retryAfter > 0
+      ? `Too many requests. Please wait ${retryAfter} seconds before trying again.`
+      : body.message || body.error || `Request failed (${response.status}).`
+    const error = new Error(message)
     error.fields = body.errors || {}
+    error.status = response.status
+    error.retryAfter = retryAfter
     throw error
   }
   return body

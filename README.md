@@ -67,6 +67,11 @@ and the backend credits the recipient’s available demo balance.
 Forgot-password uses a six-digit OTP delivered through Brevo. It requires a
 Brevo API key and a verified sender address. Neither provider credential is
 stored in the frontend.
+The reset API allows up to three requests per IP per minute, and an active
+code prevents duplicate sends within one minute. Rate-limit responses tell the
+user how long to wait. If Brevo rejects delivery, the backend response includes
+a support reference that can be matched to the Render log without exposing the
+reset code or provider credentials.
 Staff reports use recorded database totals and monthly activity rather than
 the old screen's static sample figures. Access tokens are kept in per-tab
 session storage. Other legacy pages are still available in the LavaLust
