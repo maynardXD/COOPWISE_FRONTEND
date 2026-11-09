@@ -15,12 +15,14 @@ share-capital, savings, loan, online-payment, and daily Paluwagan screens backed
 by the LavaLust API. Members submit loan documents for staff approval before
 loan offers become available, then can apply and view their loan schedules.
 They can make loan, Paluwagan, or share-capital payments using Xendit Hosted
-Checkout, see their cycle participation, and view their own
+Checkout or deduct the amount from their savings balance, which is shown on the
+payment page. Savings-funded payments debit and apply the payment immediately
+and appear in the savings ledger and payment history. Members can see their own
 payment/contribution/payout history. Staff can browse the cooperative-wide
-Xendit transaction history, manage loan products and applications, create
-daily cycles, select multiple members for enrollment, and confirm completed
-Paluwagan payouts, which are credited to the recipient’s demo balance. The
-backend randomizes payout order for the selected members.
+online and savings-funded payment history, manage loan products and
+applications, create daily cycles, select multiple members for enrollment, and
+confirm completed Paluwagan payouts, which are credited to the recipient’s demo
+balance. The backend randomizes payout order for the selected members.
 After loan documents are approved, members see active offers configured by
 staff. If none are available, the portal explains that staff need to configure
 an active product. The loan page can refresh approval status after staff review.
@@ -91,9 +93,11 @@ while Savings provides balance summaries, member search, ledger shortcuts,
 date/type filters, and filtered CSV export. Staff cannot silently edit balances.
 
 After login, the dashboard opens on Savings by default. The Loans page
-has separate Loan offers and Document reviews tabs; pending document reviews
-show a red count badge and the page opens that tab automatically when reviews
-are waiting. The staff workspace uses a responsive sidebar, live cooperative overview, and
+has separate Loan offers, Document reviews, and Applications tabs. Pending
+document reviews and loan applications each show a red count badge; the page
+opens the first pending-review tab automatically when staff have items waiting.
+Application cards and recent loan payments stay inside the Applications tab to
+keep the other loan views focused. The staff workspace uses a responsive sidebar, live cooperative overview, and
 consistent page header across loans, share capital, reports, online payments,
 daily Paluwagan, savings, and member management. Members use the same
 responsive workspace shell with member-only navigation and service tabs.

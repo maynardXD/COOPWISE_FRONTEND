@@ -6,7 +6,7 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost/COOPWIS
 const TODAY = new Date().toISOString().slice(0, 10)
 const LOAN_ENDPOINTS = ['/loan-products', '/loans', '/payments', '/loan-readiness']
 const COOPERATIVE_ENDPOINTS = ['/cooperative/cycles']
-const PAYMENT_ENDPOINTS = ['/loans', '/cooperative/cycles', '/share-capital', '/checkout-transactions']
+const PAYMENT_ENDPOINTS = ['/loans', '/cooperative/cycles', '/share-capital', '/checkout-transactions', '/savings']
 const SAVINGS_ENDPOINTS = ['/savings']
 const SHARE_CAPITAL_ENDPOINTS = ['/share-capital']
 const REPORT_ENDPOINTS = ['/reports']
@@ -656,7 +656,10 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const readiness = data?.[3]?.readiness
   const readinessAvailable = data?.[3]?.available !== false
   const readinessSubmissions = data?.[3]?.submissions || []
-  const activeStaffLoanTab = staffLoanTab || (readinessSubmissions.length ? 'documents' : 'offers')
+  const pendingLoanApplications = loans.filter((loan) => loan.status === 'pending')
+  const activeStaffLoanTab = staffLoanTab || (
+    readinessSubmissions.length ? 'documents' : pendingLoanApplications.length ? 'applications' : 'offers'
+  )
   const productLoadFailed = error.includes('/loan-products:')
 
   function refreshLoanData() {
@@ -791,6 +794,10 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
         <button className={`loan-subtab${activeStaffLoanTab === 'documents' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'documents' ? 'page' : undefined} onClick={() => setStaffLoanTab('documents')}>
           Document reviews
           {readinessSubmissions.length > 0 && <span className="loan-review-badge" aria-label={`${readinessSubmissions.length} pending document reviews`}>{readinessSubmissions.length}</span>}
+        </button>
+        <button className={`loan-subtab${activeStaffLoanTab === 'applications' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'applications' ? 'page' : undefined} onClick={() => setStaffLoanTab('applications')}>
+          Applications
+          {pendingLoanApplications.length > 0 && <span className="loan-review-badge" aria-label={`${pendingLoanApplications.length} loan applications awaiting review`}>{pendingLoanApplications.length}</span>}
         </button>
       </nav>}
 
@@ -935,7 +942,8 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
         </>
       )}
 
-      {!loading && <h3>{staff ? 'Applications and active loans' : 'Your loans'}</h3>}
+      {!loading && (!staff || activeStaffLoanTab === 'applications') && <>
+      <h3>{staff ? 'Applications and active loans' : 'Your loans'}</h3>
       {data && loans.length === 0 && <p className="muted">No loan applications yet.</p>}
       {loans.map((loan) => (
         <article className="portal-card" key={loan.id}>
@@ -958,6 +966,12 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           </div>
         </article>
       ))}
+      {staff && <details className="portal-card"><summary>Recent payments</summary>
+        {payments.length ? <div className="table-wrap"><table><thead><tr><th>Loan</th><th>Member</th><th>Amount</th><th>Method</th><th>Date</th></tr></thead>
+          <tbody>{payments.map((payment) => <tr key={payment.id}><td>{payment.loan_code}</td><td>{payment.first_name} {payment.last_name}</td><td>PHP {payment.amount_paid}</td><td>{payment.payment_method}</td><td>{payment.payment_date}</td></tr>)}</tbody>
+        </table></div> : <p className="muted">No payments recorded.</p>}
+      </details>}
+      </>}
       {schedule && (
         <div className="record-modal-backdrop">
           <section className="record-modal loan-schedule-modal" role="dialog" aria-modal="true" aria-labelledby="loan-schedule-title">
@@ -983,11 +997,6 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           </section>
         </div>
       )}
-      {staff && <details className="portal-card"><summary>Recent payments</summary>
-        {payments.length ? <div className="table-wrap"><table><thead><tr><th>Loan</th><th>Member</th><th>Amount</th><th>Method</th><th>Date</th></tr></thead>
-          <tbody>{payments.map((payment) => <tr key={payment.id}><td>{payment.loan_code}</td><td>{payment.first_name} {payment.last_name}</td><td>PHP {payment.amount_paid}</td><td>{payment.payment_method}</td><td>{payment.payment_date}</td></tr>)}</tbody>
-        </table></div> : <p className="muted">No payments recorded.</p>}
-      </details>}
     </section>
   )
 }
@@ -1719,6 +1728,8 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
   })
   const [actionError, setActionError] = useState('')
   const [purpose, setPurpose] = useState('loan')
+  const [paymentMethod, setPaymentMethod] = useState('xendit')
+  const savingsPaymentRequest = useRef(null)
   const [submitting, setSubmitting] = useState(false)
   const [slowCheckout, setSlowCheckout] = useState(false)
   const [checkingPayment, setCheckingPayment] = useState(null)
@@ -1726,6 +1737,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
   const cycles = data?.[1]?.cycles || []
   const subscriptions = data?.[2]?.subscriptions || []
   const transactions = data?.[3]?.transactions || []
+  const savingsBalance = data?.[4]?.balance
   const hasUnsettledCheckout = transactions.some((transaction) =>
     transaction.status === 'pending' || (transaction.status === 'needs_review' && transaction.checkout_url)
   )
@@ -1785,21 +1797,40 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
     setActionError('')
     setSubmitting(true)
     setSlowCheckout(false)
-    const slowCheckoutTimer = window.setTimeout(() => setSlowCheckout(true), 4000)
     const form = event.currentTarget
     const formData = new FormData(form)
-    const values = { purpose, amount: formData.get('amount') }
+    const selectedPaymentMethod = String(formData.get('payment_method') || 'xendit')
+    const slowCheckoutTimer = selectedPaymentMethod === 'xendit'
+      ? window.setTimeout(() => setSlowCheckout(true), 4000)
+      : null
+    const values = { purpose, payment_method: selectedPaymentMethod, amount: formData.get('amount') }
     if (purpose === 'loan') values.loan_id = formData.get('loan_id')
     if (purpose === 'paluwagan') values.cycle_id = formData.get('cycle_id')
     if (purpose === 'share_capital') values.subscription_id = formData.get('subscription_id')
+    if (selectedPaymentMethod === 'savings') {
+      const currentDate = new Date()
+      const localDate = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`
+      const signature = JSON.stringify({ ...values, business_date: purpose === 'paluwagan' ? localDate : null })
+      if (!savingsPaymentRequest.current || savingsPaymentRequest.current.signature !== signature) {
+        savingsPaymentRequest.current = { signature, requestId: crypto.randomUUID() }
+      }
+      values.request_id = savingsPaymentRequest.current.requestId
+    }
     try {
       const result = await apiRequest('/checkout-transactions', {
         token, method: 'POST', body: JSON.stringify(values),
       })
-      window.clearTimeout(slowCheckoutTimer)
+      if (slowCheckoutTimer) window.clearTimeout(slowCheckoutTimer)
+      if (result.payment_method === 'savings') {
+        setNotice(result.message || 'Payment confirmed and deducted from your savings.')
+        savingsPaymentRequest.current = null
+        setSubmitting(false)
+        window.dispatchEvent(new Event('coopwise:refresh'))
+        return
+      }
       window.location.assign(result.checkout_url)
     } catch (requestError) {
-      window.clearTimeout(slowCheckoutTimer)
+      if (slowCheckoutTimer) window.clearTimeout(slowCheckoutTimer)
       setActionError(requestError.message)
       setSubmitting(false)
       setSlowCheckout(false)
@@ -1830,20 +1861,29 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
           <div className="eyebrow">{staff ? 'Confirmed transactions' : 'Secure checkout'}</div>
           <h2>{staff ? 'Payment transactions' : 'Make a payment'}</h2>
           <p className="muted">{staff
-            ? 'Provider-confirmed payments appear here automatically. Members can see only their own transactions.'
-            : 'Choose what to pay. CoopWise records the transaction after Xendit confirms payment.'}</p>
+            ? 'Online and savings-funded member payments appear here. Members can see only their own transactions.'
+            : 'Choose what to pay and whether to use Xendit or your available savings balance.'}</p>
         </div>}
       </div>
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
       {!staff && (
         <div className="portal-card payment-instructions">
-          <h3>Pay securely with Xendit</h3>
-          <p>You will complete payment on Xendit’s secure checkout page. Your CoopWise balance changes only after the backend receives and verifies Xendit’s payment confirmation. Do not close checkout before it finishes.</p>
+          <h3>{paymentMethod === 'xendit' ? 'Pay securely with Xendit' : 'Pay from your savings balance'}</h3>
+          <p>{paymentMethod === 'xendit'
+            ? 'Complete payment on Xendit’s secure checkout page. CoopWise updates your account only after the backend verifies Xendit’s payment confirmation.'
+            : 'The amount is deducted from your available savings and applied to the selected payment immediately. No external transfer is made.'}</p>
+          <strong>Available savings: {savingsBalance === undefined || savingsBalance === null ? 'Loading…' : formatPesos(savingsBalance / 100)}</strong>
         </div>
       )}
       {!staff && (
         <form className="portal-card form-grid" onSubmit={startCheckout}>
+          <label>Payment method
+            <select name="payment_method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} required>
+              <option value="xendit">Xendit checkout</option>
+              <option value="savings">Deduct from savings</option>
+            </select>
+          </label>
           <label>Payment for
             <select value={purpose} onChange={(event) => setPurpose(event.target.value)} required>
               <option value="loan">Loan repayment</option>
@@ -1877,8 +1917,10 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
           )}
           <label>Amount (PHP)<input name="amount" type="number" min="1.00" max="1000000.00" step="0.01" required /></label>
           {purpose === 'paluwagan' && <p className="full muted">The amount must equal the selected cycle’s daily contribution. Only one payment is accepted per member per day.</p>}
-          <button className="button button-primary full" type="submit" disabled={submitting}>{submitting ? 'Opening secure checkout…' : 'Continue to Xendit'}</button>
-          {submitting && <p className="full muted" role="status">{slowCheckout
+          <button className="button button-primary full" type="submit" disabled={submitting}>{submitting
+            ? (paymentMethod === 'xendit' ? 'Opening secure checkout…' : 'Processing savings payment…')
+            : (paymentMethod === 'xendit' ? 'Continue to Xendit' : 'Pay from savings')}</button>
+          {submitting && paymentMethod === 'xendit' && <p className="full muted" role="status">{slowCheckout
             ? 'The payment service is taking longer than usual to respond. Please wait; do not click again. No payment is taken until you complete Xendit checkout.'
             : 'Connecting securely to Xendit. Please wait before leaving this page.'}</p>}
         </form>
@@ -1886,15 +1928,16 @@ function PaymentPortal({ token, user, refreshKey, standalone = false }) {
       <div className="item-heading"><h3>{staff ? 'All member transactions' : 'Your transactions'}</h3>
         <button className="button button-outline" type="button" onClick={() => window.dispatchEvent(new Event('coopwise:refresh'))}>Refresh</button>
       </div>
-      {loading && <StaffEmptyState type="payment" title="Loading transactions…" description="Please wait while we check provider-confirmed payments." loading />}
-      {!loading && !error && transactions.length === 0 && <StaffEmptyState type="payment" title="No payment transactions yet." description="Confirmed Xendit payments will appear here automatically." />}
+      {loading && <StaffEmptyState type="payment" title="Loading transactions…" description="Please wait while we check recent payment records." loading />}
+      {!loading && !error && transactions.length === 0 && <StaffEmptyState type="payment" title="No payment transactions yet." description="Completed Xendit and savings-funded payments will appear here." />}
       {transactions.length > 0 && <div className="table-wrap"><table>
-        <thead><tr>{staff && <th>Member</th>}<th>Date</th><th>Purpose</th><th>Amount</th>{staff && <th>Provider fee / net</th>}<th>Reference</th><th>Status</th>{!staff && <th>Action</th>}</tr></thead>
+        <thead><tr>{staff && <th>Member</th>}<th>Date</th><th>Purpose</th><th>Amount</th><th>Payment method</th>{staff && <th>Provider fee / net</th>}<th>Reference</th><th>Status</th>{!staff && <th>Action</th>}</tr></thead>
         <tbody>{transactions.map((transaction) => <tr key={transaction.id}>
           {staff && <td>{transaction.member_number} · {transaction.first_name} {transaction.last_name}</td>}
           <td>{transaction.paid_at || transaction.created_at}</td>
           <td>{transaction.purpose.replace('_', ' ')}</td>
           <td>{formatPesos(transaction.amount)}</td>
+          <td>{transaction.payment_method === 'savings' ? 'Savings balance' : 'Xendit'}</td>
           {staff && <td>{transaction.provider_fee === null ? '—' : `${formatPesos(transaction.provider_fee)} fee · ${formatPesos(transaction.net_amount)} net`}</td>}
           <td>{transaction.reference_no}</td>
           <td><span className={`status status-${transaction.status}`}>{transaction.status.replace('_', ' ')}</span>
