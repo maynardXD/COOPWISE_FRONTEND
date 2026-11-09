@@ -25,7 +25,10 @@ confirm completed Paluwagan payouts, which are credited to the recipient’s dem
 balance. The backend randomizes payout order for the selected members.
 After loan documents are approved, members see active offers configured by
 staff. If none are available, the portal explains that staff need to configure
-an active product. The loan page can refresh approval status after staff review.
+an active product. The loan page can refresh approval status after staff review;
+that button refreshes only loan data and shows its own in-progress state instead
+of reloading unrelated portal sections. Member-card QR generation is loaded
+only when a card is opened, keeping its library out of the initial page bundle.
 Xendit payments and savings deposits are recorded only after the backend
 verifies the Xendit webhook token and confirms the status with Xendit. Deposits
 are accepted only in Xendit Test Mode and never from a browser-only success

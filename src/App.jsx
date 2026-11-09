@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import QRCode from 'qrcode'
 import './App.css'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost/COOPWISE/LavaLust-COOPWISE/api').replace(/\/+$/, '')
@@ -359,11 +358,11 @@ function usePortalData(token, refreshKey, endpoints) {
     return () => { active = false }
   }, [token, refreshKey, endpoints])
 
-  const refreshEndpoint = useCallback(async (endpoint) => {
+  const refreshEndpoint = useCallback(async (endpoint, requestOptions = {}) => {
     const index = endpoints.indexOf(endpoint)
     if (index < 0) return
     const requestRevision = portalCacheRevision
-    const result = await apiRequest(endpoint, { token })
+    const result = await apiRequest(endpoint, { ...requestOptions, token })
     if (requestRevision !== portalCacheRevision) return
     portalDataCache.set(portalCacheKey(token, endpoint), { data: result, savedAt: Date.now() })
     setData((current) => {
@@ -748,6 +747,7 @@ function MemberIdCardDialog({ token, memberId, onClose }) {
         verificationUrl.search = ''
         verificationUrl.hash = ''
         verificationUrl.searchParams.set('member_card', result.verification_token)
+        const { default: QRCode } = await import('qrcode')
         const image = await QRCode.toDataURL(verificationUrl.toString(), {
           errorCorrectionLevel: 'M',
           margin: 2,
@@ -898,6 +898,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const [loansPage, setLoansPage] = useState(1)
   const [paymentsPage, setPaymentsPage] = useState(1)
   const [clockNow, setClockNow] = useState(() => Date.now())
+  const [refreshing, setRefreshing] = useState(false)
   const endpoints = useMemo(() => LOAN_ENDPOINTS.map((path) => {
     if (path === '/loans') return `${path}?page=${loansPage}&per_page=25`
     if (path === '/payments') return `${path}?page=${paymentsPage}&per_page=25`
@@ -949,8 +950,16 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const membershipRequiredSeconds = eligibility?.criteria.membership_required_seconds || 0
   const formatSimulationTime = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 
-  function refreshLoanData() {
-    window.dispatchEvent(new Event('coopwise:refresh'))
+  async function refreshLoanData() {
+    setActionError('')
+    setRefreshing(true)
+    try {
+      await Promise.all(endpoints.map((endpoint) => refreshEndpoint(endpoint, { cache: 'no-store' })))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   async function submitReadiness(event) {
@@ -1067,11 +1076,11 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           <h2>Loans</h2>
           <p className="muted">Review your document status and explore available loan offers.</p>
         </div>
-        <button className="button button-outline" type="button" onClick={refreshLoanData} disabled={loading}>
-          {loading ? 'Checking…' : 'Refresh status'}
+        <button className="button button-outline" type="button" onClick={refreshLoanData} disabled={loading || refreshing} aria-busy={refreshing}>
+          {loading || refreshing ? 'Checking…' : 'Refresh status'}
         </button>
       </div>}
-      {standalone && <div className="standalone-actions"><button className="button button-outline" type="button" onClick={refreshLoanData} disabled={loading}>{loading ? 'Checking…' : 'Refresh status'}</button></div>}
+      {standalone && <div className="standalone-actions"><button className="button button-outline" type="button" onClick={refreshLoanData} disabled={loading || refreshing} aria-busy={refreshing}>{loading || refreshing ? 'Checking…' : 'Refresh status'}</button></div>}
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
       {loading && <p className="loading-note" role="status">Loading your loan information…</p>}
