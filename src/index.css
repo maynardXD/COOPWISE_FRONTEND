@@ -17,6 +17,22 @@
   --danger: #a63d37;
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  color: #e5eee9;
+  background: #101914;
+  --ink: #e5eee9;
+  --muted: #a4b8ad;
+  --border: #34483e;
+  --surface: #19251f;
+  --canvas: #101914;
+  --green: #63d4a3;
+  --green-dark: #36b27f;
+  --green-soft: #203a2e;
+  --gold: #e2b96d;
+  --danger: #f08e86;
+}
+
 * { box-sizing: border-box; }
 
 body {

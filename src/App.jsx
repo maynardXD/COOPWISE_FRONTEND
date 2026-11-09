@@ -16,6 +16,27 @@ let googleChartsPromise = null
 let googleIdentityPromise = null
 let turnstilePromise = null
 
+function ThemeToggle({ theme, onToggle }) {
+  const dark = theme === 'dark'
+  return (
+    <button
+      className="theme-toggle"
+      type="button"
+      onClick={onToggle}
+      aria-label={`Switch to ${dark ? 'day' : 'night'} mode`}
+      title={`Switch to ${dark ? 'day' : 'night'} mode`}
+      aria-pressed={dark}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        {dark
+          ? <><circle cx="12" cy="12" r="3.5" /><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" /></>
+          : <><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z" /></>}
+      </svg>
+      <span>{dark ? 'Day' : 'Night'} mode</span>
+    </button>
+  )
+}
+
 function loadExternalScript(src, ready) {
   if (ready()) return Promise.resolve()
   const existing = document.querySelector(`script[src="${src}"]`)
@@ -795,7 +816,7 @@ function MemberIdCardDialog({ token, memberId, onClose }) {
   )
 }
 
-function MemberCardVerification({ verificationToken }) {
+function MemberCardVerification({ verificationToken, theme, onToggleTheme }) {
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -817,10 +838,13 @@ function MemberCardVerification({ verificationToken }) {
 
   return (
     <main className="page-shell member-verification-shell">
-      <a className="brand" href="/" aria-label="CoopWise home">
-        <svg className="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 27C4 15 11 7 27 5c-1 14-8 22-21 22Z" fill="currentColor" /><path d="M8 27c4-7 9-12 16-17" fill="none" stroke="#fff" strokeLinecap="round" strokeWidth="1.5" /></svg>
-        <span>Coop<span>Wise</span></span>
-      </a>
+      <header className="topbar">
+        <a className="brand" href="/" aria-label="CoopWise home">
+          <svg className="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 27C4 15 11 7 27 5c-1 14-8 22-21 22Z" fill="currentColor" /><path d="M8 27c4-7 9-12 16-17" fill="none" stroke="#fff" strokeLinecap="round" strokeWidth="1.5" /></svg>
+          <span>Coop<span>Wise</span></span>
+        </a>
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+      </header>
       <section className="member-verification-card" aria-live="polite">
         <span className={`verification-mark${error ? ' verification-invalid' : ''}`} aria-hidden="true">{loading ? '…' : error ? '!' : '✓'}</span>
         <div className="eyebrow">CoopWise member verification</div>
@@ -1977,7 +2001,14 @@ function DemoGuide({ setSection, standalone = false }) {
 function GoogleReportChart({ title, rows, type = 'column' }) {
   const containerRef = useRef(null)
   const [chartError, setChartError] = useState('')
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme || 'light')
   const hasValues = rows.length > 1 && rows.slice(1).some((row) => Number(row[1]) > 0)
+
+  useEffect(() => {
+    const updateTheme = () => setTheme(document.documentElement.dataset.theme || 'light')
+    window.addEventListener('coopwise:theme-change', updateTheme)
+    return () => window.removeEventListener('coopwise:theme-change', updateTheme)
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -1990,6 +2021,8 @@ function GoogleReportChart({ title, rows, type = 'column' }) {
     loadGoogleCharts()
       .then(() => {
         if (!active || !containerRef.current) return
+        const chartTextColor = theme === 'dark' ? '#c2d5cb' : '#52665c'
+        const chartGridColor = theme === 'dark' ? '#344a40' : '#d9e2dd'
         const chartData = window.google.visualization.arrayToDataTable(rows)
         const options = {
           backgroundColor: 'transparent',
@@ -1997,10 +2030,10 @@ function GoogleReportChart({ title, rows, type = 'column' }) {
           colors: ['#17815b', '#68b997', '#e3a343', '#6b85c2', '#b56c8d', '#69aab7'],
           fontName: 'Arial',
           height: 300,
-          legend: type === 'pie' ? { position: 'bottom', textStyle: { color: '#52665c' } } : { position: 'none' },
+          legend: type === 'pie' ? { position: 'bottom', textStyle: { color: chartTextColor } } : { position: 'none' },
           pieHole: type === 'pie' ? 0.48 : undefined,
-          vAxis: type === 'column' ? { minValue: 0, textStyle: { color: '#52665c' } } : undefined,
-          hAxis: type === 'column' ? { textStyle: { color: '#52665c' } } : undefined,
+          vAxis: type === 'column' ? { minValue: 0, textStyle: { color: chartTextColor }, gridlines: { color: chartGridColor } } : undefined,
+          hAxis: type === 'column' ? { textStyle: { color: chartTextColor }, gridlines: { color: 'transparent' } } : undefined,
         }
         chart = type === 'pie'
           ? new window.google.visualization.PieChart(containerRef.current)
@@ -2030,7 +2063,7 @@ function GoogleReportChart({ title, rows, type = 'column' }) {
       if (resizeListener) window.removeEventListener('resize', resizeListener)
       chart?.clearChart()
     }
-  }, [hasValues, rows, type])
+  }, [hasValues, rows, theme, type])
 
   return <article className="portal-card report-chart-card">
     <h4>{title}</h4>
@@ -2497,7 +2530,7 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
   )
 }
 
-function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOut }) {
+function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOut, theme, onToggleTheme }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [dashboardTab, setDashboardTab] = useState('savings')
   const [paymentInitialPurpose, setPaymentInitialPurpose] = useState('loan')
@@ -2560,6 +2593,7 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
           </button>
           <span className="staff-topbar-label">{staff ? 'Cooperative management' : 'Member services'}</span>
           <div className="staff-topbar-actions">
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
             <span className="staff-notification-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></svg>
             </span>
@@ -2614,6 +2648,10 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
 }
 
 function App() {
+  const [theme, setTheme] = useState(() => {
+    const savedTheme = window.localStorage.getItem('coopwise_theme')
+    return savedTheme === 'dark' ? 'dark' : 'light'
+  })
   const [token, setToken] = useState(() => sessionStorage.getItem('coopwise_access_token'))
   const [user, setUser] = useState(null)
   const [authenticating, setAuthenticating] = useState(() => Boolean(sessionStorage.getItem('coopwise_access_token')))
@@ -2632,6 +2670,17 @@ function App() {
   const [turnstileToken, setTurnstileToken] = useState('')
   const [turnstileError, setTurnstileError] = useState('')
   const [turnstileResetKey, setTurnstileResetKey] = useState(0)
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    document.documentElement.style.colorScheme = theme === 'dark' ? 'dark' : 'light'
+    window.localStorage.setItem('coopwise_theme', theme)
+    window.dispatchEvent(new Event('coopwise:theme-change'))
+  }, [theme])
+
+  function toggleTheme() {
+    setTheme((currentTheme) => currentTheme === 'dark' ? 'light' : 'dark')
+  }
 
   useEffect(() => {
     let active = true
@@ -2824,12 +2873,12 @@ function App() {
       : 'You have signed out.')
   }
 
-  if (memberCardToken) return <MemberCardVerification verificationToken={memberCardToken} />
+  if (memberCardToken) return <MemberCardVerification verificationToken={memberCardToken} theme={theme} onToggleTheme={toggleTheme} />
 
   return (
     <main className={`page-shell${user ? ' page-shell-staff' : ''}`}>
       {user ? (
-        <StaffWorkspace token={token} user={user} section={section} setSection={setSection} refreshKey={refreshKey} onSignOut={signOut} />
+        <StaffWorkspace token={token} user={user} section={section} setSection={setSection} refreshKey={refreshKey} onSignOut={signOut} theme={theme} onToggleTheme={toggleTheme} />
       ) : (
         <>
       <header className="topbar">
@@ -2837,7 +2886,10 @@ function App() {
           <svg className="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 27C4 15 11 7 27 5c-1 14-8 22-21 22Z" fill="currentColor" /><path d="M8 27c4-7 9-12 16-17" fill="none" stroke="#fff" strokeLinecap="round" strokeWidth="1.5" /></svg>
           <span>Coop<span>Wise</span></span>
         </a>
-        <span className="tagline">Cooperative services, made clear</span>
+        <div className="topbar-actions">
+          <span className="tagline">Cooperative services, made clear</span>
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
+        </div>
       </header>
 
       {authenticating ? (
