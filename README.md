@@ -29,6 +29,10 @@ an active product. The loan page can refresh approval status after staff review;
 that button refreshes only loan data and shows its own in-progress state instead
 of reloading unrelated portal sections. Member-card QR generation is loaded
 only when a card is opened, keeping its library out of the initial page bundle.
+Members can opt in to non-promotional SMS reminders from Savings settings.
+Reminders are sent only for overdue loan installments and missing previous-day
+Paluwagan contributions; SMS delivery requires the backend's Brevo configuration
+and daily scheduled job.
 Xendit payments and savings deposits are recorded only after the backend
 verifies the Xendit webhook token and confirms the status with Xendit. Deposits
 are accepted only in Xendit Test Mode and never from a browser-only success

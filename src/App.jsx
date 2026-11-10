@@ -383,6 +383,71 @@ function PortalMessage({ children, error = false }) {
   return children ? <div className={error ? 'message message-error' : 'message'} role="status">{children}</div> : null
 }
 
+function SmsReminderSettings({ token }) {
+  const [settings, setSettings] = useState(null)
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    apiRequest('/notifications/sms-preferences', { token })
+      .then((result) => {
+        if (active) setSettings(result)
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.message)
+      })
+    return () => { active = false }
+  }, [token])
+
+  async function setEnabled(enabled) {
+    setSaving(true)
+    setError('')
+    try {
+      const result = await apiRequest('/notifications/sms-preferences', {
+        token,
+        method: 'POST',
+        body: JSON.stringify({ payment_reminders_enabled: enabled }),
+      })
+      setSettings(result)
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const preferences = settings?.preferences
+  return (
+    <section className="portal-card autopay-card sms-reminder-card" aria-labelledby="sms-reminder-title">
+      <div className="autopay-heading">
+        <div><span className="eyebrow">Optional notification</span><h3 id="sms-reminder-title">SMS payment reminders</h3></div>
+      </div>
+      <p>Opt in to a text when a loan installment becomes overdue or a previous day’s Paluwagan contribution is not recorded. Messages contain no balance or loan amount, and are not promotional.</p>
+      {preferences && (
+        <>
+          <p className="muted">{preferences.phone_available
+            ? `Sent to your registered mobile ending ${preferences.phone_masked.slice(-4)}.`
+            : 'A valid Philippine mobile number is required to enable reminders.'}</p>
+          <label className="autopay-option">
+            <input
+              type="checkbox"
+              checked={preferences.payment_reminders_enabled}
+              disabled={saving || !preferences.phone_available}
+              onChange={(event) => setEnabled(event.target.checked)}
+            />
+            <span><strong>Send me late-payment reminders by SMS</strong><small>You can turn this off at any time. We send one reminder per overdue installment or missed Paluwagan date.</small></span>
+          </label>
+          {!settings.sms_configured && <p className="form-help">SMS delivery is not configured yet. Your choice is saved, but reminders will not be sent until the cooperative configures Brevo SMS and its scheduled job.</p>}
+        </>
+      )}
+      {!settings && !error && <p className="muted" role="status">Loading SMS reminder settings…</p>}
+      <PortalMessage error>{error}</PortalMessage>
+      {saving && <p className="muted" role="status">Saving your preference…</p>}
+    </section>
+  )
+}
+
 function StaffEmptyState({ type, title, description, loading = false }) {
   return (
     <div className={`staff-empty-state${loading ? ' is-loading' : ''}`} role={loading ? 'status' : 'group'} aria-live={loading ? 'polite' : undefined}>
@@ -1767,6 +1832,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
         <button className="button button-primary" type="button" onClick={() => { setSelectedSavingsMember(null); setLedgerOpen(true) }}>View / print my savings ledger</button>
       </div>}
       {!staff && <p className="muted">Add funds through Xendit Test Mode, or view other credits from approved loans and Paluwagan payouts. Test Mode deposits do not transfer real money.</p>}
+      {!staff && <SmsReminderSettings token={token} />}
       {!staff && data?.[0]?.balance_breakdown && <div className="report-grid savings-balance-breakdown">
         <article className="portal-card"><span>Loan proceeds credited</span><strong>{formatPesos(data[0].balance_breakdown.loan_credits)}</strong></article>
         <article className="portal-card"><span>Paluwagan payouts credited</span><strong>{formatPesos(data[0].balance_breakdown.paluwagan_credits)}</strong></article>
@@ -2165,6 +2231,38 @@ function GoogleReportChart({ title, rows, type = 'column' }) {
   </article>
 }
 
+function ActivityDetails({ details }) {
+  if (!details) return '—'
+
+  let value = details
+  if (typeof details === 'string') {
+    try {
+      value = JSON.parse(details)
+    } catch {
+      value = details
+    }
+  }
+
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const entries = Object.entries(value)
+    if (entries.length === 0) return '—'
+    return <dl className="activity-details-list">
+      {entries.map(([key, entryValue]) => <div key={key}>
+        <dt>{key.replaceAll('_', ' ')}</dt>
+        <dd>{entryValue == null
+          ? '—'
+          : typeof entryValue === 'object'
+            ? JSON.stringify(entryValue)
+            : String(entryValue)}</dd>
+      </div>)}
+    </dl>
+  }
+
+  return <span className="activity-details-text">
+    {typeof value === 'string' ? value : JSON.stringify(value)}
+  </span>
+}
+
 function ReportsPortal({ token, refreshKey, standalone = false }) {
   const { data, error, loading } = usePortalData(token, refreshKey, REPORT_ENDPOINTS)
   const report = data?.[0]
@@ -2365,14 +2463,14 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
           ? <ul className="member-order">{Object.entries(report.monthly.loan_applications).map(([status, count]) => <li key={status}>{status}: {count}</li>)}</ul>
           : <p className="muted">No loan applications this month.</p>}
         <h3>Recent activity</h3>
-        {report.activity_logs?.length ? <div className="table-wrap"><table>
+        {report.activity_logs?.length ? <div className="table-wrap"><table className="recent-activity-table">
           <thead><tr><th>Date</th><th>Actor</th><th>Area</th><th>Action</th><th>Details</th></tr></thead>
           <tbody>{report.activity_logs.map((entry) => <tr key={entry.id}>
             <td>{entry.created_at}</td>
             <td>{entry.actor_name || 'System'}<small>{entry.actor_role || 'automated'}</small></td>
             <td>{entry.module}</td>
             <td>{entry.action}</td>
-            <td>{entry.details || '—'}</td>
+            <td><ActivityDetails details={entry.details} /></td>
           </tr>)}</tbody>
         </table></div> : <p className="muted">No staff activity has been recorded.</p>}
       </>}
