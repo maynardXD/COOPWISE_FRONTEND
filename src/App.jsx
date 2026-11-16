@@ -4,10 +4,10 @@ import './App.css'
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost/COOPWISE/LavaLust-COOPWISE/api').replace(/\/+$/, '')
 const TODAY = new Date().toISOString().slice(0, 10)
 const CURRENT_YEAR = Number(TODAY.slice(0, 4))
-const LOAN_ENDPOINTS = ['/loan-products', '/loans', '/payments', '/loan-readiness', '/loans/eligibility']
+const LOAN_ENDPOINTS = ['/loan-products', '/loans', '/payments', '/loan-readiness', '/loans/eligibility', '/cooperative/finance?fund_history=1&fund_page=1&per_page=5']
 const PAYMENT_ENDPOINTS = ['/loans', '/cooperative/cycles', '/share-capital', '/checkout-transactions', '/savings']
-const SHARE_CAPITAL_ENDPOINTS = ['/share-capital', '/cooperative/finance']
-const REPORT_ENDPOINTS = ['/reports', '/cooperative/finance', '/cooperative/surplus']
+const SHARE_CAPITAL_ENDPOINTS = ['/share-capital', '/cooperative/finance?fund_history=0']
+const REPORT_ENDPOINTS = ['/reports', '/cooperative/finance?fund_history=0', '/cooperative/surplus']
 const POLICY_ENDPOINTS = ['/cooperative/policies']
 const PORTAL_CACHE_MAX_AGE_MS = 15_000
 const portalDataCache = new Map()
@@ -964,22 +964,34 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const [paymentsPage, setPaymentsPage] = useState(1)
   const [clockNow, setClockNow] = useState(() => Date.now())
   const [refreshing, setRefreshing] = useState(false)
-  const endpoints = useMemo(() => LOAN_ENDPOINTS.map((path) => {
-    if (path === '/loans') return `${path}?page=${loansPage}&per_page=25`
-    if (path === '/payments') return `${path}?page=${paymentsPage}&per_page=25`
-    return path
-  }), [loansPage, paymentsPage])
+  const endpoints = useMemo(() => LOAN_ENDPOINTS
+    .filter((path) => staff || !path.startsWith('/cooperative/finance'))
+    .map((path) => {
+      if (path === '/loans') return `${path}?page=${loansPage}&per_page=25`
+      if (path === '/payments') return `${path}?page=${paymentsPage}&per_page=25`
+      return path
+    }), [loansPage, paymentsPage, staff])
   const { data, error, loading, refreshEndpoint } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [schedule, setSchedule] = useState(null)
   const [applicationInputs, setApplicationInputs] = useState({})
   const [staffLoanTab, setStaffLoanTab] = useState(null)
+  const [loadedFundHistory, setLoadedFundHistory] = useState(null)
+  const [loadingMoreFund, setLoadingMoreFund] = useState(false)
   const products = data?.[0]?.products || []
   const loans = data?.[1]?.loans || []
   const payments = data?.[2]?.payments || []
   const readiness = data?.[3]?.readiness
   const eligibility = data?.[4]?.eligibility
+  const finance = staff ? data?.[5] : null
+  const fundHistory = loadedFundHistory?.refreshKey === refreshKey ? loadedFundHistory : null
+  const fundTransactions = [
+    ...(finance?.fund_transactions || []),
+    ...(fundHistory?.transactions || []),
+  ]
+  const fundPage = fundHistory?.page || 1
+  const hasMoreFund = fundHistory?.hasMore ?? Boolean(finance?.fund_transactions_pagination?.has_more)
   const readinessAvailable = data?.[3]?.available !== false
   const readinessSubmissions = data?.[3]?.submissions || []
   const pendingLoanApplications = loans.filter((loan) => loan.status === 'pending')
@@ -1024,6 +1036,32 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       setActionError(requestError.message)
     } finally {
       setRefreshing(false)
+    }
+  }
+
+  async function loadMoreFundTransactions() {
+    if (loadingMoreFund || !hasMoreFund) return
+    const nextPage = fundPage + 1
+    setLoadingMoreFund(true)
+    setActionError('')
+    try {
+      const result = await apiRequest(`/cooperative/finance?fund_page=${nextPage}&per_page=5`, { token })
+      const baseIds = new Set(fundTransactions.map((transaction) => Number(transaction.id)))
+      const newTransactions = (result.fund_transactions || [])
+        .filter((transaction) => !baseIds.has(Number(transaction.id)))
+      setLoadedFundHistory((current) => ({
+        refreshKey,
+        page: nextPage,
+        hasMore: Boolean(result.fund_transactions_pagination?.has_more),
+        transactions: [
+          ...(current?.refreshKey === refreshKey ? current.transactions : []),
+          ...newTransactions,
+        ],
+      }))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    } finally {
+      setLoadingMoreFund(false)
     }
   }
 
@@ -1160,7 +1198,36 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           Applications
           {pendingLoanCount > 0 && <span className="loan-review-badge" aria-label={`${pendingLoanCount} loan applications awaiting review`}>{pendingLoanCount}</span>}
         </button>
+        <button className={`loan-subtab${activeStaffLoanTab === 'lending_pool' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'lending_pool' ? 'page' : undefined} onClick={() => setStaffLoanTab('lending_pool')}>Lending pool</button>
       </nav>}
+
+      {!loading && staff && activeStaffLoanTab === 'lending_pool' && (
+        <section>
+          <h3>Simulated lending pool</h3>
+          <p className="muted">This is the cooperative’s separate demo fund for loan disbursements. Staff-recorded funding increases the available pool; approving a loan deducts its principal, and repayments return to the pool. It is not member savings or share capital, and no real money moves.</p>
+          <article className="portal-card loan-fund-summary">
+            <span>Available for approved loan disbursements</span>
+            <strong>{formatPesos(finance?.loan_fund?.available_balance || '0.00')}</strong>
+          </article>
+          <h4>Recent pool activity</h4>
+          {fundTransactions.length === 0
+            ? <p className="muted">No lending-pool transactions have been recorded.</p>
+            : <div className="table-wrap"><table>
+              <thead><tr><th>Date / reference</th><th>Activity</th><th>Amount</th><th>Balance after</th><th>Loan</th><th>Staff</th></tr></thead>
+              <tbody>{fundTransactions.map((transaction) => <tr key={transaction.id}>
+                <td>{transaction.created_at}<small>{transaction.reference_no}</small></td>
+                <td>{transaction.transaction_type.replaceAll('_', ' ')}</td>
+                <td>{formatPesos(transaction.amount)}</td>
+                <td>{formatPesos(transaction.balance_after)}</td>
+                <td>{transaction.loan_code || '—'}</td>
+                <td>{transaction.actor_name || 'System'}</td>
+              </tr>)}</tbody>
+            </table></div>}
+          {hasMoreFund && <button className="button button-outline" type="button" onClick={loadMoreFundTransactions} disabled={loadingMoreFund}>
+            {loadingMoreFund ? 'Loading…' : 'Load more pool activity'}
+          </button>}
+        </section>
+      )}
 
       {!loading && staff && activeStaffLoanTab === 'documents' && (
         <section>
@@ -1321,6 +1388,12 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
 
       {!loading && (!staff || activeStaffLoanTab === 'applications') && <>
       <h3>{staff ? 'Applications and active loans' : 'Your loans'}</h3>
+      {staff && <div className="loan-status-summary">
+        <strong>Application counts</strong>
+        {(data?.[1]?.status_counts || []).length
+          ? <ul>{data[1].status_counts.map((item) => <li key={item.status}><span>{item.status.replaceAll('_', ' ')}</span><b>{item.total}</b></li>)}</ul>
+          : <p className="muted">No loan applications have been recorded.</p>}
+      </div>}
       {data && loans.length === 0 && <p className="muted">No loan applications yet.</p>}
       {loans.map((loan) => (
         <article className="portal-card" key={loan.id}>
@@ -1399,23 +1472,58 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [draftCycleId, setDraftCycleId] = useState('')
+  const [cyclePreview, setCyclePreview] = useState(null)
+  const [creatingCycle, setCreatingCycle] = useState(false)
+  const createCycleForm = useRef(null)
   const cyclesData = data?.[0]
   const cycles = cyclesData?.cycles || []
   const members = cyclesData?.members || []
 
-  async function submit(event, path, successMessage) {
+  function reviewNewCycle(event) {
     event.preventDefault()
     const form = event.currentTarget
     const values = Object.fromEntries(new FormData(form).entries())
+    const member_ids = Array.from(form.elements.member_ids.selectedOptions, (option) => option.value)
+    if (member_ids.length < 2) {
+      setActionError('Select at least two active members before reviewing the cycle.')
+      return
+    }
+    const selectedMembers = members.filter((member) => member_ids.includes(String(member.id)))
     setNotice('')
     setActionError('')
+    setCyclePreview({
+      name: values.name.trim(),
+      daily_contribution: values.daily_contribution,
+      start_date: values.start_date,
+      member_ids,
+      members: selectedMembers,
+    })
+  }
+
+  async function confirmNewCycle() {
+    if (!cyclePreview || creatingCycle) return
+    setNotice('')
+    setActionError('')
+    setCreatingCycle(true)
     try {
-      const result = await apiRequest(path, { token, method: 'POST', body: JSON.stringify(values) })
-      setNotice(result.message || successMessage)
-      form.reset()
+      const result = await apiRequest('/cooperative/cycles', {
+        token,
+        method: 'POST',
+        body: JSON.stringify({
+          name: cyclePreview.name,
+          daily_contribution: cyclePreview.daily_contribution,
+          start_date: cyclePreview.start_date,
+          member_ids: cyclePreview.member_ids,
+        }),
+      })
+      setNotice(result.message)
+      setCyclePreview(null)
+      createCycleForm.current?.reset()
       window.dispatchEvent(new Event('coopwise:refresh'))
     } catch (requestError) {
       setActionError(requestError.message)
+    } finally {
+      setCreatingCycle(false)
     }
   }
 
@@ -1429,6 +1537,11 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
     } catch (requestError) {
       setActionError(requestError.message)
     }
+  }
+
+  async function removeCycle(cycle) {
+    if (!window.confirm(`Remove the draft cycle "${cycle.name}"? Only drafts without contribution, payout, or payment history can be removed.`)) return
+    await changeCycle('/cooperative/cycles', { cycle_id: cycle.id }, 'Draft cycle removed.', 'DELETE')
   }
 
   async function enrollMembers(event) {
@@ -1463,18 +1576,25 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
       <PortalMessage>{notice}</PortalMessage>
 
       {staff && <>
-        <details className="portal-card">
-          <summary>Create daily cycle</summary>
-          <form className="form-grid" onSubmit={(event) => submit(event, '/cooperative/cycles', 'Draft cycle created.')}>
+        <section className="cycle-create-card">
+          <div>
+            <span className="eyebrow">Staff action</span>
+            <h3>Create a daily cycle</h3>
+            <p>Set the contribution and start date, select the members, review their member numbers and names, then confirm. CoopWise randomizes the payout order after creation.</p>
+          </div>
+          <form ref={createCycleForm} className="form-grid" onSubmit={reviewNewCycle}>
             <label>Cycle name<input name="name" required maxLength="120" /></label>
             <label>Daily contribution (PHP)<input name="daily_contribution" type="number" min="0.01" step="0.01" required /></label>
             <label>Start date<input name="start_date" type="date" min={TODAY} defaultValue={TODAY} required /></label>
-            <button className="button button-primary" type="submit">Create draft</button>
+            <label className="full">Members<select name="member_ids" multiple required size={Math.min(Math.max(members.length, 3), 8)}>
+              {members.map((member) => <option key={member.id} value={member.id}>{member.member_number} · {member.first_name} {member.last_name}</option>)}
+            </select><small>Select at least two active members. Hold Ctrl (Windows) or Command (Mac) to choose more than one.</small></label>
+            <button className="button button-primary cycle-create-button" type="submit">Review cycle details</button>
           </form>
-        </details>
+        </section>
         {cycles.some((cycle) => cycle.status === 'draft') && (
           <details className="portal-card">
-            <summary>Enroll multiple members and randomize payout order</summary>
+            <summary>Add members to an existing draft</summary>
             <form className="form-grid" onSubmit={enrollMembers}>
               <label>Draft cycle<select name="cycle_id" required value={draftCycleId} onChange={(event) => setDraftCycleId(event.target.value)}>
                 <option value="">Select a cycle</option>
@@ -1482,8 +1602,8 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
               </select></label>
               <label className="full">Members<select name="member_ids" multiple required size={Math.min(Math.max(members.length, 3), 8)}>
                 {members.filter((member) => !cycles.find((cycle) => String(cycle.id) === draftCycleId)?.members.some((enrolled) => Number(enrolled.member_id) === Number(member.id))).map((member) => <option key={member.id} value={member.id}>{member.member_number} · {member.first_name} {member.last_name}</option>)}
-              </select><small>Hold Ctrl (Windows) or Command (Mac) while clicking to select multiple members. Their payout order is randomized by the server.</small></label>
-              <button className="button button-primary" type="submit">Add selected members and randomize</button>
+              </select><small>The server assigns a randomized payout order.</small></label>
+              <button className="button button-outline" type="submit">Add selected members</button>
             </form>
           </details>
         )}
@@ -1498,9 +1618,10 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
             <span className={`status status-${cycle.status}`}>{cycle.status}</span>
           </div>
           <p>{cycle.today_contributions} of {cycle.member_count} contributions recorded today.</p>
-          {staff && cycle.status === 'draft' && (
+          {staff && cycle.status === 'draft' && <div className="button-row">
             <button className="button button-primary" type="button" onClick={() => changeCycle('/cooperative/cycles/activate', { cycle_id: cycle.id }, 'Cycle activated.')}>Activate cycle</button>
-          )}
+            {cycle.can_remove && <button className="button button-outline" type="button" onClick={() => removeCycle(cycle)}>Remove draft</button>}
+          </div>}
           {cycle.ready_payout && (
             <div className="payout-callout">
               <strong>Pooled payout ready: PHP {cycle.ready_payout.amount}</strong>
@@ -1537,6 +1658,38 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
           <button className="button button-outline" type="button" disabled={!cyclesData.payouts_pagination.has_more || loading} onClick={() => setPayoutPage((page) => page + 1)}>Next</button>
         </div>}
       </>}
+      {cyclePreview && <div className="record-modal-backdrop" onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !creatingCycle) setCyclePreview(null)
+      }}>
+        <section className="record-modal cycle-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="cycle-confirm-title">
+          <div className="record-modal-heading">
+            <div><span className="eyebrow">Review before creating</span><h2 id="cycle-confirm-title">Confirm daily cycle</h2></div>
+            <button className="modal-close" type="button" onClick={() => setCyclePreview(null)} disabled={creatingCycle} aria-label="Close cycle confirmation">×</button>
+          </div>
+          <PortalMessage error>{actionError}</PortalMessage>
+          <dl className="offer-facts">
+            <div><dt>Cycle name</dt><dd>{cyclePreview.name}</dd></div>
+            <div><dt>Daily contribution</dt><dd>{formatPesos(cyclePreview.daily_contribution)}</dd></div>
+            <div><dt>Start date</dt><dd>{cyclePreview.start_date}</dd></div>
+            <div><dt>Members selected</dt><dd>{cyclePreview.members.length}</dd></div>
+          </dl>
+          <h3>Selected members</h3>
+          <div className="table-wrap cycle-review-members"><table>
+            <thead><tr><th>Member number</th><th>Name</th></tr></thead>
+            <tbody>{cyclePreview.members.map((member) => <tr key={member.id}>
+              <td>{member.member_number}</td>
+              <td>{member.first_name} {member.last_name}</td>
+            </tr>)}</tbody>
+          </table></div>
+          <p className="muted">Confirm that the cycle details and member list are correct. CoopWise will create a draft and randomize payout order; you can review it before activating.</p>
+          <div className="button-row">
+            <button className="button button-outline" type="button" onClick={() => setCyclePreview(null)} disabled={creatingCycle}>Go back</button>
+            <button className="button button-primary" type="button" onClick={confirmNewCycle} disabled={creatingCycle}>
+              {creatingCycle ? 'Creating…' : 'Confirm and create cycle'}
+            </button>
+          </div>
+        </section>
+      </div>}
     </section>
   )
 }
@@ -2276,6 +2429,15 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
   const minimumReservePercent = registrationYear && completedFiscalYear - registrationYear < 5 ? 50 : 10
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
+  const [loadedActivityHistory, setLoadedActivityHistory] = useState(null)
+  const [loadingMoreActivity, setLoadingMoreActivity] = useState(false)
+  const activityHistory = loadedActivityHistory?.refreshKey === refreshKey ? loadedActivityHistory : null
+  const activityLogs = [
+    ...(report?.activity_logs || []),
+    ...(activityHistory?.entries || []),
+  ]
+  const activityPage = activityHistory?.page || 1
+  const activityHasMore = activityHistory?.hasMore ?? Boolean(report?.activity_pagination?.has_more)
   const financialChartRows = useMemo(() => report ? [
     ['Activity', 'PHP'],
     ['Savings deposits', Number(report.monthly.savings_deposits) || 0],
@@ -2284,10 +2446,31 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
     ['Loan principal repaid', Number(report.monthly.loan_principal_received) || 0],
     ['Loan interest received', Number(report.monthly.loan_interest_received) || 0],
   ] : [], [report])
-  const loanStatusChartRows = useMemo(() => report ? [
-    ['Loan status', 'Applications'],
-    ...(report.loan_statuses || []).map((entry) => [entry.status, Number(entry.total) || 0]),
-  ] : [], [report])
+  async function loadMoreActivity() {
+    if (loadingMoreActivity || !activityHasMore) return
+    const nextPage = activityPage + 1
+    setLoadingMoreActivity(true)
+    setActionError('')
+    try {
+      const result = await apiRequest(`/reports/activity?activity_page=${nextPage}&activity_per_page=5`, { token })
+      const existingIds = new Set(activityLogs.map((entry) => Number(entry.id)))
+      const newEntries = (result.activity_logs || [])
+        .filter((entry) => !existingIds.has(Number(entry.id)))
+      setLoadedActivityHistory((current) => ({
+        refreshKey,
+        page: nextPage,
+        hasMore: Boolean(result.pagination?.has_more),
+        entries: [
+          ...(current?.refreshKey === refreshKey ? current.entries : []),
+          ...newEntries,
+        ],
+      }))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    } finally {
+      setLoadingMoreActivity(false)
+    }
+  }
 
   async function addLoanFund(event) {
     event.preventDefault()
@@ -2381,29 +2564,28 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
           <article className="portal-card"><span>Loan interest received</span><strong>{formatPesos(report.summary.loan_interest_received)}</strong></article>
           <article className="portal-card"><span>Approved member returns</span><strong>{formatPesos(report.summary.approved_member_returns)}</strong></article>
         </div>
-        <p className="muted">The simulated lending pool is recorded separately from member savings and share capital. It must be funded by staff before loans can be approved; member share capital is not automatically deducted or treated as available cash.</p>
         <details className="portal-card">
           <summary>Record simulated lending-pool funding</summary>
+          <p className="muted">Use this to record demo funds provided to the cooperative’s separate lending pool. The pool is checked when staff approve a loan: the approved principal is deducted from the pool, and repayments are returned to it. This entry does not collect money, debit a member, or use share capital or savings.</p>
           <form className="form-grid" onSubmit={addLoanFund}>
             <label>Amount (PHP)<input name="amount" type="number" min="0.01" step="0.01" required /></label>
-            <label>Description<input name="description" maxLength="255" placeholder="Example: initial classroom lending pool" /></label>
+            <label>Description<input name="description" maxLength="255" placeholder="Example: classroom demo seed funding" /></label>
             <button className="button button-primary" type="submit">Add demo funding</button>
           </form>
-          <small>This records a simulated funding source only. It does not collect or transfer real money.</small>
+          <small>Enter only a classroom simulation amount; this records no real transfer.</small>
         </details>
         <h3>Operational overview</h3>
-        <div className="report-grid">
-          <article className="portal-card"><span>Loan applications awaiting review</span><strong>{report.operations?.loans_awaiting_review ?? '—'}</strong></article>
-          <article className="portal-card"><span>Document sets awaiting review</span><strong>{report.operations?.documents_awaiting_review ?? '—'}</strong></article>
-          <article className="portal-card"><span>Active Paluwagan cycles</span><strong>{report.operations?.active_paluwagan_cycles ?? '—'}</strong></article>
-          <article className="portal-card"><span>Payouts awaiting confirmation</span><strong>{report.operations?.payouts_awaiting_confirmation ?? '—'}</strong></article>
-          <article className="portal-card"><span>Overdue installments</span><strong>{report.operations?.overdue_installment_count ?? '—'}</strong><small>Outstanding: PHP {report.operations?.overdue_installment_balance ?? '—'}</small></article>
-        </div>
+        <ul className="operational-overview-list">
+          <li><span>Loan applications awaiting review</span><strong>{report.operations?.loans_awaiting_review ?? '—'}</strong></li>
+          <li><span>Document sets awaiting review</span><strong>{report.operations?.documents_awaiting_review ?? '—'}</strong></li>
+          <li><span>Active Paluwagan cycles</span><strong>{report.operations?.active_paluwagan_cycles ?? '—'}</strong></li>
+          <li><span>Payouts awaiting confirmation</span><strong>{report.operations?.payouts_awaiting_confirmation ?? '—'}</strong></li>
+          <li><span>Overdue installments <small>Outstanding: PHP {report.operations?.overdue_installment_balance ?? '—'}</small></span><strong>{report.operations?.overdue_installment_count ?? '—'}</strong></li>
+        </ul>
         <h3>Visual summaries</h3>
-        <p className="muted">Charts use cooperative-wide totals from recorded CoopWise activity. They do not display member names or account-level details.</p>
+        <p className="muted">This chart summarizes cooperative-wide monthly financial activity; it does not display member names or account-level details. Loan application counts are available in Loans.</p>
         <div className="report-chart-grid">
           <GoogleReportChart title={`Monthly financial activity · ${report.period}`} rows={financialChartRows} />
-          <GoogleReportChart title="Loan applications by status · all time" rows={loanStatusChartRows} type="pie" />
         </div>
         <h3>Monthly activity</h3>
         <div className="table-wrap"><table><thead><tr><th>Activity</th><th>Value</th></tr></thead><tbody>
@@ -2416,7 +2598,7 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
         </tbody></table></div>
         <section className="surplus-management">
           <h3>Annual surplus and member returns</h3>
-          <p className="muted">Create a draft from a reconciled, completed fiscal-year net surplus. CoopWise calculates member allocations from paid-up share capital at year end and interest actually paid on loans during that year (a classroom patronage proxy). Drafts do not publish returns. Approval publishes the return calculation only; this demo does not deposit or transfer money. Staff must verify the cooperative’s bylaws, applicable limits, accounts, and required approvals before publishing.</p>
+          <p className="muted">Annual surplus is what remains after income and expenses are reconciled. The draft allocates amounts to cooperative funds, then calculates possible interest on paid-up share capital and a patronage refund. This classroom version uses loan interest paid as a patronage proxy; neither return is the same as interest charged on a loan or guaranteed. Staff must verify the bylaws, accounts, limits, and approvals. Publishing records calculations only and does not pay money.</p>
           <details className="portal-card">
             <summary>Prepare annual distribution draft</summary>
             {!hasCompletedFiscalYear && <p className="muted">A completed fiscal year after the cooperative’s registration year is required before a distribution can be prepared.</p>}
@@ -2444,28 +2626,11 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
               <td>{distribution.status === 'draft' && <><button className="button button-primary" type="button" onClick={() => approveSurplus(distribution)}>Approve and publish</button> <button className="button" type="button" onClick={() => cancelSurplus(distribution)}>Cancel draft</button></>}</td>
             </tr>)}</tbody>
           </table></div>}
-          {finance?.fund_transactions?.length > 0 && <details className="portal-card">
-            <summary>Recent simulated lending-pool activity</summary>
-            <div className="table-wrap"><table><thead><tr><th>Date / reference</th><th>Type</th><th>Amount</th><th>Balance after</th><th>Loan</th><th>Staff</th></tr></thead>
-              <tbody>{finance.fund_transactions.map((transaction) => <tr key={transaction.id}>
-                <td>{transaction.created_at}<small>{transaction.reference_no}</small></td>
-                <td>{transaction.transaction_type.replaceAll('_', ' ')}</td>
-                <td>{formatPesos(transaction.amount)}</td>
-                <td>{formatPesos(transaction.balance_after)}</td>
-                <td>{transaction.loan_code || '—'}</td>
-                <td>{transaction.actor_name || 'System'}</td>
-              </tr>)}</tbody>
-            </table></div>
-          </details>}
         </section>
-        <h3>Loan applications by status</h3>
-        {Object.keys(report.monthly.loan_applications).length
-          ? <ul className="member-order">{Object.entries(report.monthly.loan_applications).map(([status, count]) => <li key={status}>{status}: {count}</li>)}</ul>
-          : <p className="muted">No loan applications this month.</p>}
         <h3>Recent activity</h3>
-        {report.activity_logs?.length ? <div className="table-wrap"><table className="recent-activity-table">
+        {activityLogs.length ? <div className="table-wrap"><table className="recent-activity-table">
           <thead><tr><th>Date</th><th>Actor</th><th>Area</th><th>Action</th><th>Details</th></tr></thead>
-          <tbody>{report.activity_logs.map((entry) => <tr key={entry.id}>
+          <tbody>{activityLogs.map((entry) => <tr key={entry.id}>
             <td>{entry.created_at}</td>
             <td>{entry.actor_name || 'System'}<small>{entry.actor_role || 'automated'}</small></td>
             <td>{entry.module}</td>
@@ -2473,6 +2638,9 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
             <td><ActivityDetails details={entry.details} /></td>
           </tr>)}</tbody>
         </table></div> : <p className="muted">No staff activity has been recorded.</p>}
+        {activityHasMore && <button className="button button-outline" type="button" onClick={loadMoreActivity} disabled={loadingMoreActivity}>
+          {loadingMoreActivity ? 'Loading…' : 'Load more activity'}
+        </button>}
       </>}
     </section>
   )

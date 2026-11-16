@@ -791,18 +791,46 @@ footer {
   place-items: center;
   width: 25px;
   height: 25px;
+  box-sizing: border-box;
   flex: 0 0 25px;
+  align-self: center;
+  padding: 0;
   border-radius: 50%;
   background: #e8f5ee;
   color: #137653;
   content: "+";
+  font-family: Arial, sans-serif;
   font-size: 19px;
   font-weight: 500;
+  line-height: 1;
+  text-align: center;
 }
 .staff-content .portal-card[open] summary::after { content: "−"; }
 .staff-content .portal-section > .muted:first-of-type { margin-top: 12px; }
 .member-dashboard-actions { display:flex; justify-content:flex-end; margin:-5px 0 18px; }
 .member-dashboard-actions .button { border-radius:10px; }
+.operational-overview-list { display:grid; gap:0; max-width:760px; margin:10px 0 24px; padding:0; list-style:none; }
+.operational-overview-list li { display:flex; align-items:center; justify-content:space-between; gap:18px; min-height:42px; padding:8px 12px; border-bottom:1px solid var(--border); }
+.operational-overview-list li span { color:#bf7028; font-weight:650; }
+.operational-overview-list li span small { display:block; margin-top:3px; color:var(--muted); font-weight:400; }
+.operational-overview-list li strong { min-width:30px; color:var(--ink); font-size:17px; text-align:right; }
+.loan-status-summary { max-width:520px; margin:12px 0 20px; padding:14px 16px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+.loan-status-summary > strong { color:var(--ink); }
+.loan-status-summary ul { display:grid; gap:4px; margin:8px 0 0; padding:0; list-style:none; }
+.loan-status-summary li { display:flex; justify-content:space-between; gap:12px; padding:6px 0; border-bottom:1px solid var(--border); text-transform:capitalize; }
+.loan-status-summary li b { color:var(--ink); }
+.loan-fund-summary { display:grid; gap:6px; max-width:420px; margin:12px 0 20px; }
+.loan-fund-summary span { color:var(--muted); font-size:12px; }
+.loan-fund-summary strong { color:var(--ink); font-size:23px; }
+.cycle-create-card { display:grid; gap:16px; margin:16px 0 22px; padding:20px; border:1px solid #aacdb9; border-left:5px solid #25825c; border-radius:14px; background:#f1f8f4; }
+.cycle-create-card h3 { margin:5px 0; color:#194c38; font-size:19px; }
+.cycle-create-card p { margin:0; color:#52685d; font-size:13px; line-height:1.55; }
+.cycle-create-card .form-grid { margin:0; }
+.cycle-create-button { min-height:48px; min-width:min(100%,280px); font-weight:750; }
+.cycle-confirm-modal { width:min(680px,100%); }
+.cycle-confirm-modal .record-modal-heading h2 { color:#17392f; }
+.cycle-review-members { max-height:240px; }
+.cycle-review-members table { min-width:360px; }
 
 .record-modal-backdrop {
   position:fixed;
@@ -1361,6 +1389,10 @@ html[data-theme="dark"] .staff-subsection-title {
 }
 html[data-theme="dark"] .staff-subsection-title .staff-nav-icon { color:#8ecfb3; }
 html[data-theme="dark"] .staff-content .portal-card summary::after { background:#35434c; color:#b5ddca; }
+html[data-theme="dark"] .operational-overview-list li span { color:#edaa61; }
+html[data-theme="dark"] .cycle-create-card { border-color:#456d59; border-left-color:#58a981; background:#1b3027; }
+html[data-theme="dark"] .cycle-create-card h3 { color:#b8e4cc; }
+html[data-theme="dark"] .cycle-create-card p { color:#bdcec4; }
 html[data-theme="dark"] .withdrawal-destination-icon { background:#35434c; color:#a5debf; }
 html[data-theme="dark"] .withdrawal-demo-note,
 html[data-theme="dark"] .autopay-card .autopay-caveat {

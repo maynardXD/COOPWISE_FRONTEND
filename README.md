@@ -20,9 +20,10 @@ payment page. Savings-funded payments debit and apply the payment immediately
 and appear in the savings ledger and payment history. Members can see their own
 payment/contribution/payout history. Staff can browse the cooperative-wide
 online and savings-funded payment history, manage loan products and
-applications, create daily cycles, select multiple members for enrollment, and
-confirm completed Paluwagan payouts, which are credited to the recipient’s demo
-balance. The backend randomizes payout order for the selected members.
+applications, create Paluwagan cycles by selecting members and reviewing a
+confirmation list before the server creates the draft and randomizes payout
+order, and confirm completed payouts, which are credited to the recipient’s demo
+balance.
 After loan documents are approved, members see active offers configured by
 staff. If none are available, the portal explains that staff need to configure
 an active product. The loan page can refresh approval status after staff review;
@@ -123,11 +124,12 @@ Staff reports use recorded database totals and monthly activity rather than
 the old screen's static sample figures. Access tokens are kept in per-tab
 session storage. Other legacy pages are still available in the LavaLust
 application and have not yet been moved into this separate frontend.
-The staff Reports page also visualizes monthly financial activity and all-time
-loan application statuses with Google Charts. The existing text and table
-summaries remain available if Google's chart loader cannot be reached.
-The Reports page also retains the recent activity audit log; meetings and
-voting are no longer part of the application.
+The staff Reports page visualizes monthly financial activity with Google
+Charts. Application status counts and simulated lending-pool history are shown
+in Loans. The Reports activity audit log initially loads five rows and loads
+older rows on request. Draft Paluwagan cycles can be removed only when they
+have no contribution, payout, or payment history. Meetings and voting are no
+longer part of the application.
 The Cooperative Learning Center explains the system and shows staff-editable
 sample policies; the Guided Demo Walkthrough uses fictional, read-only sample
 amounts and never inserts or resets database records. Loan applicants can
