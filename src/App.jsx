@@ -627,6 +627,14 @@ function buildLoanSchedulePreview(amount, term, monthlyRate) {
   })
 }
 
+function loanApplicationIsWithinLimits(product, eligibility, inputs) {
+  const amount = Number(inputs?.amount)
+  const term = Number(inputs?.term)
+  const maximumAmount = Math.min(Number(product.max_amount), Number(eligibility?.max_eligible_amount || 0))
+  return Number.isFinite(amount) && amount >= 0.01 && amount <= maximumAmount
+    && Number.isInteger(term) && term >= 1 && term <= Number(product.max_term_months)
+}
+
 function printRecord() {
   const cleanUp = () => document.body.classList.remove('printing-record')
   window.addEventListener('afterprint', cleanUp, { once: true })
@@ -964,6 +972,8 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const [paymentsPage, setPaymentsPage] = useState(1)
   const [clockNow, setClockNow] = useState(() => Date.now())
   const [refreshing, setRefreshing] = useState(false)
+  const [recordingLoanId, setRecordingLoanId] = useState(null)
+  const [deletingOfferId, setDeletingOfferId] = useState(null)
   const endpoints = useMemo(() => LOAN_ENDPOINTS
     .map((path) => {
       if (path === '/loans') return `${path}?page=${loansPage}&per_page=25`
@@ -1057,12 +1067,30 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
     event.preventDefault()
     const form = event.currentTarget
     const values = Object.fromEntries(new FormData(form).entries())
+    if (path === '/loans') {
+      if (values.purpose === 'Other') {
+        const detail = String(values.purpose_detail || '').trim()
+        if (!detail) {
+          setActionError('Describe the other loan purpose before submitting.')
+          return
+        }
+        values.purpose = `Other: ${detail}`
+      }
+      delete values.purpose_detail
+    }
     setNotice('')
     setActionError('')
     try {
       await apiRequest(path, { token, method, body: JSON.stringify(values) })
       setNotice(successMessage)
       form.reset()
+      if (path === '/loans') {
+        setApplicationInputs((current) => {
+          const next = { ...current }
+          delete next[values.loan_type_id]
+          return next
+        })
+      }
       window.dispatchEvent(new Event('coopwise:refresh'))
     } catch (requestError) {
       setActionError(requestError.message)
@@ -1090,6 +1118,27 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
     setActionError('')
     try {
       setSchedule(await apiRequest(`/loans/${loanId}/schedule`, { token }))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
+
+  async function recordLoanPayment(event, loan) {
+    event.preventDefault()
+    const form = event.currentTarget
+    const values = Object.fromEntries(new FormData(form).entries())
+    if (!window.confirm(`Confirm that PHP ${values.amount} was received for ${loan.loan_code} and record this payment?`)) return
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest(`/loans/${loan.id}/payments`, {
+        token,
+        method: 'POST',
+        body: JSON.stringify(values),
+      })
+      setNotice(`${result.message} Remaining balance: PHP ${result.remaining_balance}. Reference: ${result.reference_no}`)
+      setRecordingLoanId(null)
+      await refreshLoanData()
     } catch (requestError) {
       setActionError(requestError.message)
     }
@@ -1132,6 +1181,22 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       refreshLoanData()
     } catch (requestError) {
       setActionError(requestError.message)
+    }
+  }
+
+  async function deleteProduct(product) {
+    if (!window.confirm(`Delete the "${product.name}" loan offer? This cannot be undone. Offers with loan history cannot be deleted.`)) return
+    setNotice('')
+    setActionError('')
+    setDeletingOfferId(product.id)
+    try {
+      const result = await apiRequest(`/loan-products/${product.id}`, { token, method: 'DELETE' })
+      setNotice(result.message)
+      await refreshLoanData()
+    } catch (requestError) {
+      setActionError(requestError.message)
+    } finally {
+      setDeletingOfferId(null)
     }
   }
 
@@ -1213,9 +1278,14 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                     <div><dt>Maximum amount</dt><dd>PHP {product.max_amount}</dd></div>
                     <div><dt>Maximum term</dt><dd>{product.max_term_months} months</dd></div>
                   </dl>
-                  <button className="button button-outline" type="button" onClick={() => toggleProduct(product)}>
-                    {product.status === 'active' ? 'Pause offer' : 'Make available'}
-                  </button>
+                  <div className="button-row">
+                    <button className="button button-outline" type="button" onClick={() => toggleProduct(product)}>
+                      {product.status === 'active' ? 'Pause offer' : 'Make available'}
+                    </button>
+                    <button className="button button-outline loan-offer-delete" type="button" onClick={() => deleteProduct(product)} disabled={deletingOfferId === product.id}>
+                      {deletingOfferId === product.id ? 'Deleting…' : 'Delete offer'}
+                    </button>
+                  </div>
                 </article>
               ))}</div>}
           </section>
@@ -1308,10 +1378,24 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                       {!eligibility?.eligible && <p className="notice">You cannot submit an application yet. Review the eligibility reasons above.</p>}
                       <form className="form-grid" onSubmit={(event) => submit(event, '/loans', 'POST', 'Loan application submitted.')}>
                         <input type="hidden" name="loan_type_id" value={product.id} />
-                        <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={Math.min(Number(product.max_amount), Number(eligibility?.max_eligible_amount || 0))} step="0.01" required disabled={!eligibility?.eligible} onChange={(event) => setApplicationInputs({ ...applicationInputs, [product.id]: { ...applicationInputs[product.id], amount: event.target.value } })} /></label>
-                        <label>Term (months)<input name="term_months" type="number" min="1" max={product.max_term_months} required onChange={(event) => setApplicationInputs({ ...applicationInputs, [product.id]: { ...applicationInputs[product.id], term: event.target.value } })} /></label>
-                        <label className="full">Purpose<input name="purpose" maxLength="255" required /></label>
-                        {buildLoanSchedulePreview(applicationInputs[product.id]?.amount, applicationInputs[product.id]?.term, product.interest_rate) && (
+                        <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={Math.min(Number(product.max_amount), Number(eligibility?.max_eligible_amount || 0))} step="0.01" required disabled={!eligibility?.eligible} onChange={(event) => setApplicationInputs((current) => ({ ...current, [product.id]: { ...current[product.id], amount: event.target.value } }))} /></label>
+                        <label>Term (months)<input name="term_months" type="number" min="1" max={product.max_term_months} required onChange={(event) => setApplicationInputs((current) => ({ ...current, [product.id]: { ...current[product.id], term: event.target.value } }))} /></label>
+                        <label className="full">Purpose
+                          <select name="purpose" value={applicationInputs[product.id]?.purpose || ''} required onChange={(event) => setApplicationInputs((current) => ({ ...current, [product.id]: { ...current[product.id], purpose: event.target.value } }))}>
+                            <option value="" disabled>Select a loan purpose</option>
+                            <option value="Medical">Medical</option>
+                            <option value="Emergency">Emergency</option>
+                            <option value="Allowance">Allowance</option>
+                            <option value="Education">Education</option>
+                            <option value="Livelihood / business">Livelihood / business</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </label>
+                        {applicationInputs[product.id]?.purpose === 'Other' && <label className="full">Specify other purpose<input name="purpose_detail" maxLength="248" required /></label>}
+                        {applicationInputs[product.id]?.amount && !loanApplicationIsWithinLimits(product, eligibility, applicationInputs[product.id]) && (
+                          <p className="full notice">Enter an amount up to {formatPesos(Math.min(Number(product.max_amount), Number(eligibility?.max_eligible_amount || 0)))} and a term from 1 to {product.max_term_months} months. The estimate and submission stay disabled until both are within the offer limits.</p>
+                        )}
+                        {loanApplicationIsWithinLimits(product, eligibility, applicationInputs[product.id]) && buildLoanSchedulePreview(applicationInputs[product.id]?.amount, applicationInputs[product.id]?.term, product.interest_rate) && (
                           <div className="loan-preview full">
                             <strong>Estimated repayment schedule</strong>
                             <p>Flat interest is calculated on the original principal: principal × monthly rate × term. Due dates are estimates based on approval this month.</p>
@@ -1323,7 +1407,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                             <small>This is an estimate, not approval. The final schedule is generated after staff approval.</small>
                           </div>
                         )}
-                        <button className="button button-primary" type="submit" disabled={!eligibility?.eligible}>Submit application for staff review</button>
+                        <button className="button button-primary" type="submit" disabled={!eligibility?.eligible || !loanApplicationIsWithinLimits(product, eligibility, applicationInputs[product.id])}>Submit application for staff review</button>
                       </form>
                     </details>
                   </article>
@@ -1357,11 +1441,34 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
             {loan.status === 'approved' || loan.status === 'active'
               ? <button className="button button-outline" type="button" onClick={() => showSchedule(loan.id)}>View schedule</button>
               : null}
+            {staff && ['approved', 'active'].includes(loan.status) && Number(loan.available_repayment_amount ?? loan.current_balance) > 0 && (
+              <button className="button button-outline" type="button" onClick={() => setRecordingLoanId(recordingLoanId === loan.id ? null : loan.id)}>
+                {recordingLoanId === loan.id ? 'Close payment form' : 'Record payment'}
+              </button>
+            )}
             {staff && loan.status === 'pending' && <>
               <button className="button button-primary" type="button" onClick={() => reviewLoan(loan.id, 'approve')}>Approve</button>
               <button className="button button-outline" type="button" onClick={() => reviewLoan(loan.id, 'reject')}>Reject</button>
             </>}
           </div>
+          {staff && recordingLoanId === loan.id && (
+            <form className="form-grid staff-loan-payment-form" onSubmit={(event) => recordLoanPayment(event, loan)}>
+              <p className="full notice">Record only a payment already received by the cooperative. Amounts reserved by a pending online checkout are unavailable. Recordable now: {formatPesos(loan.available_repayment_amount ?? loan.current_balance)}.</p>
+              <label>Amount received (PHP)<input name="amount" type="number" min="0.01" max={loan.available_repayment_amount ?? loan.current_balance} step="0.01" required /></label>
+              <button className="button button-outline" type="button" onClick={(event) => {
+                const amountInput = event.currentTarget.form?.elements.namedItem('amount')
+                if (amountInput) amountInput.value = Number(loan.available_repayment_amount ?? loan.current_balance).toFixed(2)
+              }}>Full balance</button>
+              <label>Received via<select name="payment_method" defaultValue="cash" required>
+                <option value="cash">Cash</option>
+                <option value="bank">Bank transfer</option>
+                <option value="gcash">GCash</option>
+                <option value="check">Check</option>
+                <option value="simulation">Simulation</option>
+              </select></label>
+              <button className="button button-primary" type="submit">Confirm received payment</button>
+            </form>
+          )}
         </article>
       ))}
       {data?.[1]?.pagination && <div className="pagination-controls" aria-label="Loan history pages">
@@ -2673,6 +2780,8 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
   const [actionError, setActionError] = useState('')
   const [purpose, setPurpose] = useState(initialPurpose)
   const [paymentMethod, setPaymentMethod] = useState('xendit')
+  const [selectedLoanId, setSelectedLoanId] = useState('')
+  const [paymentAmount, setPaymentAmount] = useState('')
   const savingsPaymentRequest = useRef(null)
   const [submitting, setSubmitting] = useState(false)
   const [slowCheckout, setSlowCheckout] = useState(false)
@@ -2685,6 +2794,10 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
   const transactions = data?.[3]?.transactions || []
   const transactionsPagination = data?.[3]?.pagination
   const savingsBalance = data?.[4]?.balance
+  const selectedLoan = loans.find((loan) => String(loan.id) === selectedLoanId)
+  const maximumLoanPayment = selectedLoan
+    ? Number(selectedLoan.available_repayment_amount ?? selectedLoan.current_balance)
+    : 0
   const effectivePaymentMethod = purpose === 'savings' ? 'xendit' : paymentMethod
   const hasUnsettledCheckout = transactions.some((transaction) =>
     transaction.status === 'pending' || (transaction.status === 'needs_review' && transaction.checkout_url)
@@ -2773,6 +2886,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
         setNotice(result.message || 'Payment confirmed and deducted from your savings.')
         savingsPaymentRequest.current = null
         setReplacementPayment(null)
+        setPaymentAmount('')
         setSubmitting(false)
         window.dispatchEvent(new Event('coopwise:refresh'))
         return
@@ -2819,6 +2933,8 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
       })
       setPurpose(transaction.purpose)
       setPaymentMethod('savings')
+      setSelectedLoanId(String(transaction.loan_id || ''))
+      setPaymentAmount(String(transaction.amount || ''))
       setReplacementPayment({
         transaction_id: transaction.id,
         loan_id: transaction.loan_id,
@@ -2864,7 +2980,11 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
             </select>
           </label>
           <label>Payment for
-            <select value={purpose} onChange={(event) => setPurpose(event.target.value)} required>
+            <select value={purpose} onChange={(event) => {
+              setPurpose(event.target.value)
+              setPaymentAmount('')
+              if (event.target.value !== 'loan') setSelectedLoanId('')
+            }} required>
               <option value="loan">Loan repayment</option>
               <option value="paluwagan">Paluwagan contribution</option>
               <option value="share_capital">Share-capital contribution</option>
@@ -2873,9 +2993,12 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
           </label>
           {purpose === 'loan' && (
             <label>Loan
-              <select name="loan_id" required defaultValue={replacementPayment?.loan_id || ''}>
+              <select name="loan_id" required value={selectedLoanId} onChange={(event) => {
+                setSelectedLoanId(event.target.value)
+                setPaymentAmount('')
+              }}>
                 <option value="" disabled>Select a loan</option>
-                {loans.filter((loan) => ['approved', 'active'].includes(loan.status)).map((loan) => <option key={loan.id} value={loan.id}>{loan.loan_code} · Balance PHP {loan.current_balance}</option>)}
+                {loans.filter((loan) => ['approved', 'active'].includes(loan.status)).map((loan) => <option key={loan.id} value={loan.id}>{loan.loan_code} · Balance PHP {loan.current_balance}{Number(loan.available_repayment_amount ?? loan.current_balance) < Number(loan.current_balance) ? ` · Available PHP ${loan.available_repayment_amount}` : ''}</option>)}
               </select>
             </label>
           )}
@@ -2895,7 +3018,10 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
               </select>
             </label>
           )}
-          <label>Amount (PHP)<input name="amount" type="number" min="1.00" max="1000000.00" step="0.01" required defaultValue={replacementPayment?.amount || ''} /></label>
+          <div className="payment-amount-field">
+            <label>Amount (PHP)<input name="amount" type="number" min="1.00" max={purpose === 'loan' ? maximumLoanPayment : '1000000.00'} step="0.01" required value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} /></label>
+            {purpose === 'loan' && <button className="button button-outline" type="button" disabled={!selectedLoan || maximumLoanPayment < 1} onClick={() => setPaymentAmount(maximumLoanPayment.toFixed(2))}>Full</button>}
+          </div>
           {purpose === 'savings' && <p className="full muted">The balance is credited only after Xendit Test Mode confirms the checkout. This does not move real money.</p>}
           {purpose === 'paluwagan' && <p className="full muted">The amount must equal the selected cycle’s daily contribution. Only one payment is accepted per member per day.</p>}
           <button className="button button-primary full" type="submit" disabled={submitting}>{submitting
@@ -2910,7 +3036,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
         <button className="button button-outline" type="button" onClick={() => window.dispatchEvent(new Event('coopwise:refresh'))}>Refresh</button>
       </div>
       {loading && <StaffEmptyState type="payment" title="Loading transactions…" description="Please wait while we check recent payment records." loading />}
-      {!loading && !error && transactions.length === 0 && <StaffEmptyState type="payment" title="No payment transactions yet." description="Completed Xendit payments, savings deposits, and savings-funded payments will appear here." />}
+      {!loading && !error && transactions.length === 0 && <StaffEmptyState type="payment" title="No payment transactions yet." description="Completed Xendit payments, staff-recorded repayments, savings deposits, and savings-funded payments will appear here." />}
       {transactions.length > 0 && <div className="table-wrap"><table>
         <thead><tr>{staff && <th>Member</th>}<th>Date</th><th>Purpose</th><th>Amount</th><th>Payment method</th>{staff && <th>Provider fee / net</th>}<th>Reference</th><th>Status</th>{!staff && <th>Action</th>}</tr></thead>
         <tbody>{transactions.map((transaction) => <tr key={transaction.id}>
@@ -2918,7 +3044,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
           <td>{transaction.paid_at || transaction.created_at}</td>
           <td>{transaction.purpose === 'savings' ? 'Savings deposit' : transaction.purpose.replace('_', ' ')}</td>
           <td>{formatPesos(transaction.amount)}</td>
-          <td>{transaction.payment_method === 'savings' ? 'Savings balance' : 'Xendit'}</td>
+          <td>{transaction.payment_method === 'staff' ? 'Recorded by staff' : transaction.payment_method === 'savings' ? 'Savings balance' : 'Xendit'}</td>
           {staff && <td>{transaction.provider_fee === null ? '—' : `${formatPesos(transaction.provider_fee)} fee · ${formatPesos(transaction.net_amount)} net`}</td>}
           <td>{transaction.reference_no}</td>
           <td><span className={`status status-${transaction.status}`}>{transaction.status.replace('_', ' ')}</span>
