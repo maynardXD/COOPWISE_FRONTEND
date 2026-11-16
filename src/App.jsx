@@ -7,7 +7,7 @@ const CURRENT_YEAR = Number(TODAY.slice(0, 4))
 const LOAN_ENDPOINTS = ['/loan-products', '/loans', '/payments', '/loan-readiness', '/loans/eligibility']
 const PAYMENT_ENDPOINTS = ['/loans', '/cooperative/cycles', '/share-capital', '/checkout-transactions', '/savings']
 const SHARE_CAPITAL_ENDPOINTS = ['/share-capital', '/cooperative/finance']
-const REPORT_ENDPOINTS = ['/reports', '/cooperative/finance', '/cooperative/surplus']
+const REPORT_ENDPOINTS = ['/reports']
 const POLICY_ENDPOINTS = ['/cooperative/policies']
 const PORTAL_CACHE_MAX_AGE_MS = 15_000
 const portalDataCache = new Map()
@@ -489,6 +489,13 @@ function formatPesos(value) {
   return `PHP ${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+function formatLedgerDescription(description) {
+  const formalDescriptions = {
+    'Xendit Test Mode deposit confirmed by provider': 'Online savings deposit confirmed by payment provider.',
+  }
+  return formalDescriptions[description] || description
+}
+
 async function createSavingsLedgerPdf(ledger) {
   const { jsPDF } = await import('jspdf')
   const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
@@ -506,17 +513,17 @@ async function createSavingsLedgerPdf(ledger) {
     pdf.setTextColor(25, 68, 51)
     pdf.setFont('helvetica', 'bold')
     pdf.setFontSize(16)
-    pdf.text('CoopWise Savings Transaction Statement', margin, 16)
+    pdf.text('CoopWise Member Savings Statement', margin, 16)
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(9)
     pdf.text(`Member: ${safeText(ledger.member.full_name)}  |  Member number: ${safeText(ledger.member.member_number)}`, margin, 23)
     pdf.text(`Status: ${safeText(ledger.member.status)}  |  Period: ${ledger.period.from} to ${ledger.period.to}  |  Generated: ${ledger.generated_at}`, margin, 29)
 
     const summary = [
-      ['Opening balance', ledger.opening_balance],
-      ['Total credits', ledger.deposits_total],
-      ['Total withdrawals', ledger.withdrawals_total],
-      ['Closing balance', ledger.closing_balance],
+      ['Balance at period start', ledger.opening_balance],
+      ['Deposits and credits', ledger.deposits_total],
+      ['Withdrawals and debits', ledger.withdrawals_total],
+      ['Balance at period end', ledger.closing_balance],
     ]
     const summaryWidth = (pageWidth - margin * 2) / summary.length
     summary.forEach(([label, amount], index) => {
@@ -544,11 +551,11 @@ async function createSavingsLedgerPdf(ledger) {
 
   let y = drawPageHeader()
   const rows = [
-    ['Opening balance', '-', 'Balance at start of period', '-', '-', formatPesos(ledger.opening_balance)],
+    ['Balance at period start', '-', 'Balance before the selected period', '-', '-', formatPesos(ledger.opening_balance)],
     ...ledger.transactions.map((transaction) => [
       transaction.created_at,
       transaction.reference_no,
-      transaction.description || (transaction.type === 'deposit' ? 'Member balance credit' : 'Member balance withdrawal'),
+      formatLedgerDescription(transaction.description || (transaction.type === 'deposit' ? 'Savings deposit' : 'Savings withdrawal')),
       transaction.type === 'deposit' ? formatPesos(transaction.amount) : '-',
       transaction.type === 'withdrawal' ? formatPesos(transaction.amount) : '-',
       formatPesos(transaction.balance_after),
@@ -736,7 +743,9 @@ function SavingsLedgerDialog({ token, member, onClose }) {
       <section className="record-modal ledger-modal" role="dialog" aria-modal="true" aria-labelledby="ledger-title">
         <div className="record-modal-heading no-print">
           <div><span className="eyebrow">Savings record</span><h2 id="ledger-title">Savings ledger</h2></div>
-          <button className="modal-close" type="button" onClick={onClose} aria-label="Close savings ledger">×</button>
+          <button className="modal-close" type="button" onClick={onClose} aria-label="Close savings ledger">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>
+          </button>
         </div>
         <div className="ledger-controls no-print">
           <label>Ledger period
@@ -761,8 +770,8 @@ function SavingsLedgerDialog({ token, member, onClose }) {
         {loading && <StaffEmptyState type="savings" title="Preparing savings ledger…" description="Loading the selected member’s transactions and balances." loading />}
         {ledger && !loading && <article className="ledger-print-area print-target">
           <header className="ledger-document-header">
-            <div className="ledger-brand"><span className="ledger-brand-mark">C</span><span>CoopWise<small>Member savings record</small></span></div>
-            <div className="ledger-document-title"><span>PASSBOOK LEDGER</span><strong> SAVINGS TRANSACTION STATEMENT</strong></div>
+            <div className="ledger-brand"><span className="ledger-brand-mark">C</span><span>CoopWise<small>Member financial record</small></span></div>
+            <div className="ledger-document-title"><span>ACCOUNT RECORD</span><strong>MEMBER SAVINGS STATEMENT</strong></div>
           </header>
           <div className="ledger-member-details">
             <div><span>Member name</span><strong>{ledger.member.full_name}</strong></div>
@@ -771,20 +780,20 @@ function SavingsLedgerDialog({ token, member, onClose }) {
             <div><span>Statement period</span><strong>{ledger.period.from} to {ledger.period.to}</strong></div>
           </div>
           <div className="ledger-summary">
-            <div><span>Opening balance</span><strong>{formatPesos(ledger.opening_balance)}</strong></div>
-            <div><span>Total credits</span><strong>{formatPesos(ledger.deposits_total)}</strong></div>
-            <div><span>Total withdrawals</span><strong>{formatPesos(ledger.withdrawals_total)}</strong></div>
-            <div><span>Closing balance</span><strong>{formatPesos(ledger.closing_balance)}</strong></div>
+            <div><span>Balance at period start</span><strong>{formatPesos(ledger.opening_balance)}</strong></div>
+            <div><span>Deposits and credits</span><strong>{formatPesos(ledger.deposits_total)}</strong></div>
+            <div><span>Withdrawals and debits</span><strong>{formatPesos(ledger.withdrawals_total)}</strong></div>
+            <div><span>Balance at period end</span><strong>{formatPesos(ledger.closing_balance)}</strong></div>
           </div>
           <div className="ledger-table-wrap">
             <table className="ledger-table">
               <thead><tr><th>Date / Reference</th><th>Description</th><th>Deposit (Credit)</th><th>Withdrawal (Debit)</th><th>Balance</th></tr></thead>
               <tbody>
-                <tr className="ledger-opening-row"><td colSpan="4">Opening balance</td><td>{formatPesos(ledger.opening_balance)}</td></tr>
+                <tr className="ledger-opening-row"><td colSpan="4">Balance at period start</td><td>{formatPesos(ledger.opening_balance)}</td></tr>
                 {ledger.transactions.map((transaction) => (
                   <tr key={transaction.id}>
                     <td>{transaction.created_at}<small>{transaction.reference_no}</small></td>
-                    <td>{transaction.description || (transaction.type === 'deposit' ? 'Member balance credit' : 'Member balance withdrawal')}</td>
+                    <td>{formatLedgerDescription(transaction.description || (transaction.type === 'deposit' ? 'Savings deposit' : 'Savings withdrawal'))}</td>
                     <td>{transaction.type === 'deposit' ? formatPesos(transaction.amount) : '—'}</td>
                     <td>{transaction.type === 'withdrawal' ? formatPesos(transaction.amount) : '—'}</td>
                     <td>{formatPesos(transaction.balance_after)}</td>
@@ -797,7 +806,7 @@ function SavingsLedgerDialog({ token, member, onClose }) {
           </div>
           <footer className="ledger-document-footer">
             <span>Generated {ledger.generated_at}</span>
-            <span>This statement reflects CoopWise records for the selected period. Please contact the cooperative to confirm any discrepancy.</span>
+            <span>Balance at period start is calculated from transactions recorded before the selected period. This statement reflects CoopWise records; contact the cooperative to report a discrepancy.</span>
           </footer>
         </article>}
       </section>
@@ -2216,6 +2225,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
     `${SHARE_CAPITAL_ENDPOINTS[0]}?page=${staff ? transactionsPage : 1}&per_page=${staff ? 50 : 5}`,
     SHARE_CAPITAL_ENDPOINTS[1],
     ...(!staff ? ['/savings?page=1&per_page=1'] : []),
+    ...(staff ? ['/cooperative/surplus'] : []),
   ], [staff, transactionsPage])
   const { data, error, loading } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState('')
@@ -2224,9 +2234,13 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   const [adminInvestmentSubmitting, setAdminInvestmentSubmitting] = useState(false)
   const [memberContributionSubmitting, setMemberContributionSubmitting] = useState(false)
   const [cancellingSubscriptionId, setCancellingSubscriptionId] = useState(null)
+  const [transferringSubscriptionId, setTransferringSubscriptionId] = useState(null)
   const capital = data?.[0]
   const savingsBalance = data?.[2]?.balance
   const subscriptions = capital?.subscriptions || []
+  const ownSubscriptions = staff
+    ? subscriptions.filter((item) => Number(item.owner_user_id) === Number(user.id))
+    : subscriptions
   const fetchedTransactions = capital?.transactions || []
   const memberTransactionHistoryKey = `${refreshKey}:${token}`
   const extraMemberTransactions = !staff && memberTransactionHistory?.key === memberTransactionHistoryKey
@@ -2245,9 +2259,14 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   const availableReturnSummary = staff
     ? Number(data?.[1]?.available_member_returns || 0)
     : availableReturnTotal
-  const reversedPaymentIds = new Set(transactions
-    .filter((transaction) => transaction.transaction_type === 'reversal')
-    .map((transaction) => Number(transaction.reverses_transaction_id)))
+  const distributions = staff ? data?.[2]?.distributions || [] : []
+  const registrationYear = data?.[1]?.cooperative_registration_date
+    ? Number(data[1].cooperative_registration_date.slice(0, 4))
+    : null
+  const completedFiscalYear = CURRENT_YEAR - 1
+  const hasCompletedFiscalYear = !registrationYear || registrationYear <= completedFiscalYear
+  const minimumReservePercent = registrationYear && completedFiscalYear - registrationYear < 5 ? 50 : 10
+  const hasOwnInvestorProfile = user.role === 'admin' && Boolean(data?.[1]?.member_profile)
   const summary = capital?.summary || { subscribed_amount: 0, paid_up_amount: 0, unpaid_amount: 0 }
 
   async function submitMemberContribution(event) {
@@ -2337,6 +2356,39 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
     }
   }
 
+  async function transferSubscriptionToSavings(subscription) {
+    const amount = Number(subscription.paid_up_amount)
+    if (!window.confirm(
+      `Transfer the fully paid subscription ${subscription.subscription_number} (${formatPesos(amount)}) to this account’s savings? ` +
+      'The transfer will be recorded in both ledgers. It can proceed only if cooperative lending does not currently require this capital.'
+    )) return
+    setNotice('')
+    setActionError('')
+    setTransferringSubscriptionId(subscription.id)
+    try {
+      const result = await apiRequest(`/share-capital/subscriptions/${subscription.id}/transfer-to-savings`, {
+        token,
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+      setNotice(`${result.message} Amount: ${formatPesos(result.amount)}.`)
+      if (user.role === 'member') {
+        window.dispatchEvent(new CustomEvent('coopwise:member-profile-updated', {
+          detail: {
+            is_investor: ownSubscriptions.some((item) =>
+              Number(item.id) !== Number(subscription.id) && Number(item.paid_up_amount) > 0
+            ),
+          },
+        }))
+      }
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    } finally {
+      setTransferringSubscriptionId(null)
+    }
+  }
+
   async function loadMoreShareCapitalTransactions() {
     if (staff || loadingMoreTransactions || !memberTransactionsHaveMore) return
     const nextPage = (memberTransactionHistory?.key === memberTransactionHistoryKey
@@ -2417,18 +2469,47 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
     }
   }
 
-  async function reversePayment(transaction) {
-    const reason = window.prompt('Enter the reason for reversing this payment. The original record will be kept.')
-    if (reason === null) return
-    if (!reason.trim()) {
-      setActionError('Enter a reason before reversing a payment.')
-      return
-    }
+  async function createSurplusDraft(event) {
+    event.preventDefault()
+    const form = event.currentTarget
+    const values = Object.fromEntries(new FormData(form).entries())
     setNotice('')
     setActionError('')
     try {
-      const result = await apiRequest(`/share-capital/payments/${transaction.id}/reverse`, {
-        token, method: 'POST', body: JSON.stringify({ reason: reason.trim() }),
+      const result = await apiRequest('/cooperative/surplus', {
+        token, method: 'POST', body: JSON.stringify(values),
+      })
+      setNotice(result.message)
+      form.reset()
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
+
+  async function approveSurplus(distribution) {
+    const amount = Number(distribution.share_capital_pool) + Number(distribution.patronage_pool)
+    if (!window.confirm(`Publish the ${distribution.fiscal_year} member-return distribution totaling ${formatPesos(amount)} for ${distribution.member_count} members? Confirm the net surplus and required approvals before proceeding.`)) return
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest(`/cooperative/surplus/${distribution.id}/approve`, {
+        token, method: 'POST', body: JSON.stringify({}),
+      })
+      setNotice(result.message)
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    }
+  }
+
+  async function cancelSurplus(distribution) {
+    if (!window.confirm(`Cancel the unpublished ${distribution.fiscal_year} draft? Its calculated member rows will be removed, and staff can prepare a corrected draft.`)) return
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest(`/cooperative/surplus/${distribution.id}/cancel`, {
+        token, method: 'POST', body: JSON.stringify({}),
       })
       setNotice(result.message)
       window.dispatchEvent(new Event('coopwise:refresh'))
@@ -2455,12 +2536,41 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
             <button className="button button-outline" type="button" disabled={!availableReturnTotal || Boolean(returnAction)} onClick={() => claimReturns('savings')}>
               {returnAction === 'savings' ? 'Adding…' : 'Add to savings'}
             </button>
-            <button className="button button-outline" type="button" disabled={!availableReturnTotal || !subscriptions.some((item) => item.status === 'active') || Boolean(returnAction)} onClick={() => claimReturns('share_capital')}>
+            <button className="button button-outline" type="button" disabled={!availableReturnTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(returnAction)} onClick={() => claimReturns('share_capital')}>
               {returnAction === 'share_capital' ? 'Reinvesting…' : 'Add to share capital'}
             </button>
           </div>}
         </article>
       </div>}
+      {user.role === 'admin' && <section>
+        <h3>Your investor returns</h3>
+        <p className="muted">This section shows returns allocated to the admin account’s own linked investor profile, not cooperative-wide totals.</p>
+        {!hasOwnInvestorProfile && <p className="muted">No active investor profile is linked to this admin account.</p>}
+        {hasOwnInvestorProfile && <>
+          <article className="portal-card"><span>Admin savings balance</span><strong>{formatPesos(data?.[1]?.member_savings_balance)}</strong></article>
+          <div className="dividend-action-buttons">
+            <button className="button button-outline" type="button" disabled={!availableReturnTotal || Boolean(returnAction)} onClick={() => claimReturns('savings')}>
+              {returnAction === 'savings' ? 'Adding…' : `Add ${formatPesos(availableReturnTotal)} to admin savings`}
+            </button>
+            <button className="button button-outline" type="button" disabled={!availableReturnTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(returnAction)} onClick={() => claimReturns('share_capital')}>
+              {returnAction === 'share_capital' ? 'Reinvesting…' : 'Reinvest in admin share capital'}
+            </button>
+          </div>
+          {!loading && memberReturns.length === 0 && <p className="muted">No approved member returns have been recorded for this investor profile.</p>}
+          {memberReturns.length > 0 && <div className="table-wrap"><table>
+            <thead><tr><th>Fiscal year</th><th>Share capital basis</th><th>Interest on share capital</th><th>Patronage basis</th><th>Patronage refund</th><th>Total return</th><th>Status</th></tr></thead>
+            <tbody>{memberReturns.map((item) => <tr key={item.id}>
+              <td>{item.fiscal_year}<small>Approved {item.approved_at}</small></td>
+              <td>{formatPesos(item.paid_up_share_capital)}</td>
+              <td>{formatPesos(item.interest_on_share_capital)}</td>
+              <td>{formatPesos(item.patronage_basis)}</td>
+              <td>{formatPesos(item.patronage_refund)}</td>
+              <td>{formatPesos(item.total_return)}</td>
+              <td>{item.claim_status.replaceAll('_', ' ')}{item.claimed_at && <small>{item.claimed_at}</small>}</td>
+            </tr>)}</tbody>
+          </table></div>}
+        </>}
+      </section>}
       {!staff && <details className="portal-card member-share-contribution">
         <summary>+ Contribute to share capital</summary>
         {loading && !capital
@@ -2518,6 +2628,37 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
             </button>
           </form>
         </details>}
+        <section className="surplus-management">
+          <h3>Annual surplus and member returns</h3>
+          <p className="muted">Annual surplus is what remains after income and expenses are reconciled. The draft allocates amounts to cooperative funds, then calculates possible interest on paid-up share capital and a patronage refund. This classroom version uses loan interest paid as a patronage proxy; neither return is the same as interest charged on a loan or guaranteed. Staff must verify the bylaws, accounts, limits, and approvals. Publishing records calculations only and does not pay money.</p>
+          <details className="portal-card">
+            <summary>Prepare annual distribution draft</summary>
+            {!hasCompletedFiscalYear && <p className="muted">A completed fiscal year after the cooperative’s registration year is required before a distribution can be prepared.</p>}
+            <form className="form-grid" onSubmit={createSurplusDraft}>
+              <label>Completed fiscal year<input name="fiscal_year" type="number" min={registrationYear || 2000} max={completedFiscalYear} defaultValue={completedFiscalYear} step="1" required disabled={!hasCompletedFiscalYear} /></label>
+              <label>Reconciled net surplus (PHP)<input name="net_surplus" type="number" min="0.01" step="0.01" required /></label>
+              <label>Reserve fund (%)<input name="reserve_percent" type="number" min={minimumReservePercent} max="100" step="0.01" defaultValue="50" required /></label>
+              <label>Education and training fund (%)<input name="education_percent" type="number" min="0" max="10" step="0.01" defaultValue="5" required /></label>
+              <label>Community development fund (%)<input name="community_percent" type="number" min="3" max="100" step="0.01" defaultValue="3" required /></label>
+              <label>Optional funds (%)<input name="optional_percent" type="number" min="0" max="7" step="0.01" defaultValue="0" required /></label>
+              <label>Remaining member pool for interest on share capital (%)<input name="share_capital_pool_percent" type="number" min="0" max="100" step="0.01" defaultValue="50" required /></label>
+              <button className="button button-primary" type="submit" disabled={!hasCompletedFiscalYear}>Calculate and save draft</button>
+            </form>
+            <small>The remaining member pool is split between interest on share capital and patronage refunds. Interest is not guaranteed; staff must verify the permitted return under the cooperative’s actual rules.</small>
+          </details>
+          {distributions.length > 0 && <div className="table-wrap"><table>
+            <thead><tr><th>Year / status</th><th>Net surplus</th><th>Required fund allocations</th><th>Member-return pools</th><th>Members</th><th>Prepared / approved by</th><th>Action</th></tr></thead>
+            <tbody>{distributions.map((distribution) => <tr key={distribution.id}>
+              <td>{distribution.fiscal_year}<small>{distribution.status}</small></td>
+              <td>{formatPesos(distribution.net_surplus)}</td>
+              <td>Reserve {formatPesos(distribution.reserve_allocation)}<small>Education {formatPesos(distribution.education_allocation)} · Community {formatPesos(distribution.community_allocation)} · Optional {formatPesos(distribution.optional_allocation)}</small></td>
+              <td>Share-capital interest {formatPesos(distribution.share_capital_pool)}<small>Patronage refunds {formatPesos(distribution.patronage_pool)} · Total {formatPesos(distribution.total_member_returns)}</small></td>
+              <td>{distribution.member_count}</td>
+              <td>{distribution.created_by_name || 'Staff'}<small>{distribution.approved_by_name ? `Approved by ${distribution.approved_by_name}` : 'Awaiting staff approval'}</small></td>
+              <td>{distribution.status === 'draft' && <><button className="button button-primary" type="button" onClick={() => approveSurplus(distribution)}>Approve and publish</button> <button className="button" type="button" onClick={() => cancelSurplus(distribution)}>Cancel draft</button></>}</td>
+            </tr>)}</tbody>
+          </table></div>}
+        </section>
       </>}
       <h3>Share subscriptions</h3>
       {loading && <StaffEmptyState type="members" title="Loading share capital…" description="Please wait while share subscriptions are retrieved." loading />}
@@ -2533,18 +2674,28 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
           <td>{formatPesos(item.unpaid_amount)}</td>
           <td><span className={`status status-${item.status}`}>{item.status}</span>
             {Number(item.pending_payment_amount) > 0 && <small>Cancel the pending checkout in Payments first.</small>}</td>
-          <td>{item.status === 'active' && Number(item.paid_up_amount) === 0 && Number(item.pending_payment_amount) === 0 && <button
-            className="text-button"
-            type="button"
-            disabled={cancellingSubscriptionId === item.id}
-            onClick={() => cancelUnpaidSubscription(item)}
-          >{cancellingSubscriptionId === item.id ? 'Cancelling…' : 'Cancel'}</button>}</td>
+          <td>
+            {item.status === 'active' && Number(item.paid_up_amount) === 0 && Number(item.pending_payment_amount) === 0 && <button
+              className="text-button"
+              type="button"
+              disabled={cancellingSubscriptionId === item.id}
+              onClick={() => cancelUnpaidSubscription(item)}
+            >{cancellingSubscriptionId === item.id ? 'Cancelling…' : 'Cancel'}</button>}
+            {(user.role === 'member' || (user.role === 'admin' && Number(item.owner_user_id) === Number(user.id)))
+              && item.status === 'active'
+              && Number(item.paid_up_amount) > 0
+              && Number(item.paid_up_amount) === Number(item.subscribed_amount)
+              && Number(item.pending_payment_amount) === 0
+              && <button className="text-button" type="button" disabled={transferringSubscriptionId === item.id} onClick={() => transferSubscriptionToSavings(item)}>
+                {transferringSubscriptionId === item.id ? 'Transferring…' : 'Transfer to savings'}
+              </button>}
+          </td>
         </tr>)}</tbody>
       </table></div>}
       <h3>Contribution history</h3>
-      {!loading && capital && !transactions.length && <p className="muted">No share capital contributions or corrections have been recorded.</p>}
+      {!loading && capital && !transactions.length && <p className="muted">No share capital transactions have been recorded.</p>}
       {transactions.length > 0 && <div className="table-wrap"><table>
-        <thead><tr><th>Date / reference</th>{staff && <th>Member</th>}<th>Subscription</th><th>Activity</th><th>Amount</th><th>Paid-up balance</th><th>Method / reason</th>{staff && <th>Correction</th>}</tr></thead>
+        <thead><tr><th>Date / reference</th>{staff && <th>Member</th>}<th>Subscription</th><th>Activity</th><th>Amount</th><th>Paid-up balance</th><th>Method / reason</th></tr></thead>
         <tbody>{transactions.map((transaction) => <tr key={transaction.id}>
           <td>{transaction.created_at}<small>{transaction.transaction_reference}</small></td>
           {staff && <td>{transaction.member_number} · {transaction.first_name} {transaction.last_name}</td>}
@@ -2553,7 +2704,6 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
           <td>{transaction.transaction_type === 'reversal' ? '−' : ''}{formatPesos(transaction.amount)}</td>
           <td>{formatPesos(transaction.balance_after)}</td>
           <td>{transaction.payment_method || transaction.description || '—'}</td>
-          {staff && <td>{transaction.transaction_type === 'payment' && !Number(transaction.is_reversed) && !reversedPaymentIds.has(Number(transaction.id)) && <button className="text-button" type="button" onClick={() => reversePayment(transaction)}>Reverse</button>}</td>}
         </tr>)}</tbody>
       </table></div>}
       {staff && capital?.pagination && <div className="pagination-controls" aria-label="Share capital history pages">
@@ -2609,7 +2759,7 @@ function LearningCenter({ token, user, refreshKey, standalone = false }) {
       <article className="portal-card"><span className="eyebrow">02 · Share capital</span><h3>Ownership, not wallet money</h3><p>Share capital represents a member’s ownership contribution. CoopWise tracks subscriptions and paid-up amounts separately from available savings.</p></article>
       <article className="portal-card"><span className="eyebrow">03 · Loans</span><h3>Borrow from available cooperative capital</h3><p>Loan offers are limited by paid-up share capital and collected loan interest, less outstanding principal and pending applications. Repaying principal makes that capital available again.</p></article>
       <article className="portal-card"><span className="eyebrow">04 · Paluwagan</span><h3>Contribute to a rotating pool</h3><p>Enrolled members contribute to a scheduled cycle. The system tracks the order and contributions; staff confirm the simulated payout to the next recipient.</p></article>
-      <article className="portal-card"><span className="eyebrow">05 · Payments</span><h3>Know what is real</h3><p>Xendit Test Mode checks an incoming checkout. Never enter real payment details. CoopWise withdrawals update the savings ledger but do not transfer money to a bank or e-wallet.</p></article>
+      <article className="portal-card"><span className="eyebrow">05 · Payments</span><h3>Review payment records</h3><p>Online payment records are added after provider confirmation. CoopWise withdrawals update the savings ledger; they do not initiate an external bank or e-wallet transfer.</p></article>
       <article className="portal-card"><span className="eyebrow">06 · Records</span><h3>Keep the history clear</h3><p>Each balance credit or debit should have a source and reference. Share capital stays separate, and corrections should be recorded with a reason rather than deleting history.</p></article>
       <article className="portal-card"><span className="eyebrow">07 · Member returns</span><h3>Surplus is not guaranteed</h3><p>After the cooperative determines and allocates its net surplus under its rules, an approved distribution may include interest on share capital and patronage refunds. Loan interest is charged to borrowers; it is not itself a dividend.</p></article>
     </div>
@@ -2791,15 +2941,6 @@ function ActivityDetails({ details }) {
 function ReportsPortal({ token, refreshKey, standalone = false }) {
   const { data, error, loading } = usePortalData(token, refreshKey, REPORT_ENDPOINTS)
   const report = data?.[0]
-  const finance = data?.[1]
-  const surplusDistributions = data?.[2]?.distributions || []
-  const registrationYear = finance?.cooperative_registration_date
-    ? Number(finance.cooperative_registration_date.slice(0, 4))
-    : null
-  const completedFiscalYear = CURRENT_YEAR - 1
-  const hasCompletedFiscalYear = !registrationYear || registrationYear <= completedFiscalYear
-  const minimumReservePercent = registrationYear && completedFiscalYear - registrationYear < 5 ? 50 : 10
-  const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [loadedActivityHistory, setLoadedActivityHistory] = useState(null)
   const [loadingMoreActivity, setLoadingMoreActivity] = useState(false)
@@ -2844,60 +2985,10 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
     }
   }
 
-  async function createSurplusDraft(event) {
-    event.preventDefault()
-    const form = event.currentTarget
-    const values = Object.fromEntries(new FormData(form).entries())
-    setNotice('')
-    setActionError('')
-    try {
-      const result = await apiRequest('/cooperative/surplus', {
-        token, method: 'POST', body: JSON.stringify(values),
-      })
-      setNotice(result.message)
-      form.reset()
-      window.dispatchEvent(new Event('coopwise:refresh'))
-    } catch (requestError) {
-      setActionError(requestError.message)
-    }
-  }
-
-  async function approveSurplus(distribution) {
-    const amount = Number(distribution.share_capital_pool) + Number(distribution.patronage_pool)
-    if (!window.confirm(`Publish the ${distribution.fiscal_year} member-return distribution totaling ${formatPesos(amount)} for ${distribution.member_count} members? Confirm the net surplus and required approvals before proceeding.`)) return
-    setNotice('')
-    setActionError('')
-    try {
-      const result = await apiRequest(`/cooperative/surplus/${distribution.id}/approve`, {
-        token, method: 'POST', body: JSON.stringify({}),
-      })
-      setNotice(result.message)
-      window.dispatchEvent(new Event('coopwise:refresh'))
-    } catch (requestError) {
-      setActionError(requestError.message)
-    }
-  }
-
-  async function cancelSurplus(distribution) {
-    if (!window.confirm(`Cancel the unpublished ${distribution.fiscal_year} draft? Its calculated member rows will be removed, and staff can prepare a corrected draft.`)) return
-    setNotice('')
-    setActionError('')
-    try {
-      const result = await apiRequest(`/cooperative/surplus/${distribution.id}/cancel`, {
-        token, method: 'POST', body: JSON.stringify({}),
-      })
-      setNotice(result.message)
-      window.dispatchEvent(new Event('coopwise:refresh'))
-    } catch (requestError) {
-      setActionError(requestError.message)
-    }
-  }
-
   return (
     <section className="portal-section">
       <PortalMessage error>{error}</PortalMessage>
       <PortalMessage error>{actionError}</PortalMessage>
-      <PortalMessage>{notice}</PortalMessage>
       {!report && !error && <StaffEmptyState
         type="report"
         title={loading ? 'Loading current figures…' : 'No report figures yet.'}
@@ -2940,37 +3031,6 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
           <tr><td>Loan principal repaid</td><td>{formatPesos(report.monthly.loan_principal_received)}</td></tr>
           <tr><td>Loan interest received</td><td>{formatPesos(report.monthly.loan_interest_received)}</td></tr>
         </tbody></table></div>
-        <section className="surplus-management">
-          <h3>Annual surplus and member returns</h3>
-          <p className="muted">Annual surplus is what remains after income and expenses are reconciled. The draft allocates amounts to cooperative funds, then calculates possible interest on paid-up share capital and a patronage refund. This classroom version uses loan interest paid as a patronage proxy; neither return is the same as interest charged on a loan or guaranteed. Staff must verify the bylaws, accounts, limits, and approvals. Publishing records calculations only and does not pay money.</p>
-          <details className="portal-card">
-            <summary>Prepare annual distribution draft</summary>
-            {!hasCompletedFiscalYear && <p className="muted">A completed fiscal year after the cooperative’s registration year is required before a distribution can be prepared.</p>}
-            <form className="form-grid" onSubmit={createSurplusDraft}>
-              <label>Completed fiscal year<input name="fiscal_year" type="number" min={registrationYear || 2000} max={completedFiscalYear} defaultValue={completedFiscalYear} step="1" required disabled={!hasCompletedFiscalYear} /></label>
-              <label>Reconciled net surplus (PHP)<input name="net_surplus" type="number" min="0.01" step="0.01" required /></label>
-              <label>Reserve fund (%)<input name="reserve_percent" type="number" min={minimumReservePercent} max="100" step="0.01" defaultValue="50" required /></label>
-              <label>Education and training fund (%)<input name="education_percent" type="number" min="0" max="10" step="0.01" defaultValue="5" required /></label>
-              <label>Community development fund (%)<input name="community_percent" type="number" min="3" max="100" step="0.01" defaultValue="3" required /></label>
-              <label>Optional funds (%)<input name="optional_percent" type="number" min="0" max="7" step="0.01" defaultValue="0" required /></label>
-              <label>Remaining member pool for interest on share capital (%)<input name="share_capital_pool_percent" type="number" min="0" max="100" step="0.01" defaultValue="50" required /></label>
-              <button className="button button-primary" type="submit" disabled={!hasCompletedFiscalYear}>Calculate and save draft</button>
-            </form>
-            <small>The remaining member pool is split between interest on share capital and patronage refunds. Interest is not guaranteed; staff must verify the permitted return under the cooperative’s actual rules.</small>
-          </details>
-          {surplusDistributions.length > 0 && <div className="table-wrap"><table>
-            <thead><tr><th>Year / status</th><th>Net surplus</th><th>Required fund allocations</th><th>Member-return pools</th><th>Members</th><th>Prepared / approved by</th><th>Action</th></tr></thead>
-            <tbody>{surplusDistributions.map((distribution) => <tr key={distribution.id}>
-              <td>{distribution.fiscal_year}<small>{distribution.status}</small></td>
-              <td>{formatPesos(distribution.net_surplus)}</td>
-              <td>Reserve {formatPesos(distribution.reserve_allocation)}<small>Education {formatPesos(distribution.education_allocation)} · Community {formatPesos(distribution.community_allocation)} · Optional {formatPesos(distribution.optional_allocation)}</small></td>
-              <td>Share-capital interest {formatPesos(distribution.share_capital_pool)}<small>Patronage refunds {formatPesos(distribution.patronage_pool)} · Total {formatPesos(distribution.total_member_returns)}</small></td>
-              <td>{distribution.member_count}</td>
-              <td>{distribution.created_by_name || 'Staff'}<small>{distribution.approved_by_name ? `Approved by ${distribution.approved_by_name}` : 'Awaiting staff approval'}</small></td>
-              <td>{distribution.status === 'draft' && <><button className="button button-primary" type="button" onClick={() => approveSurplus(distribution)}>Approve and publish</button> <button className="button" type="button" onClick={() => cancelSurplus(distribution)}>Cancel draft</button></>}</td>
-            </tr>)}</tbody>
-          </table></div>}
-        </section>
         <h3>Recent activity</h3>
         {activityLogs.length ? <div className="table-wrap"><table className="recent-activity-table">
           <thead><tr><th>Date</th><th>Actor</th><th>Area</th><th>Action</th><th>Details</th></tr></thead>
@@ -3003,7 +3063,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
   const { data, error, loading, refreshEndpoint } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState(() => {
     const result = new URLSearchParams(window.location.search).get('payment')
-    if (result === 'success') return 'Xendit returned you to CoopWise. We are checking the payment; your account changes after Xendit confirms it.'
+    if (result === 'success') return 'The payment provider returned you to CoopWise. We are verifying the transaction; your account updates after provider confirmation.'
     if (result === 'cancelled') return 'Checkout was cancelled. No payment has been added to your account.'
     return ''
   })
@@ -3301,9 +3361,9 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
           {purpose === 'paluwagan' && <p className="full muted">The amount must equal the selected cycle’s daily contribution. Only one payment is accepted per member per day.</p>}
           <button className="button button-primary full" type="submit" disabled={submitting}>{submitting
             ? (effectivePaymentMethod === 'xendit' ? 'Opening secure checkout…' : 'Processing savings payment…')
-            : (purpose === 'savings' ? 'Continue to Xendit Test Mode' : effectivePaymentMethod === 'xendit' ? 'Continue to Xendit' : 'Pay from savings')}</button>
+            : (effectivePaymentMethod === 'xendit' ? 'Continue to payment provider' : 'Pay from savings')}</button>
           {submitting && effectivePaymentMethod === 'xendit' && <p className="full muted" role="status">{slowCheckout
-            ? 'The payment service is taking longer than usual to respond. Please wait; do not click again. No payment is taken until you complete Xendit checkout.'
+            ? 'The payment service is taking longer than usual to respond. Please wait; do not click again. No payment is recorded until you complete the provider checkout.'
             : 'Connecting securely to Xendit. Please wait before leaving this page.'}</p>}
         </form>
       )}

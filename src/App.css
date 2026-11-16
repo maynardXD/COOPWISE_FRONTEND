@@ -889,7 +889,7 @@ footer {
 .member-dashboard-actions .button { border-radius:10px; }
 .operational-overview-list { display:grid; gap:0; max-width:760px; margin:10px 0 24px; padding:0; list-style:none; }
 .operational-overview-list li { display:flex; align-items:center; justify-content:space-between; gap:18px; min-height:42px; padding:8px 12px; border-bottom:1px solid var(--border); }
-.operational-overview-list li span { color:#bf7028; font-weight:650; }
+.operational-overview-list li span { color:var(--ink); font-weight:650; }
 .operational-overview-list li span small { display:block; margin-top:3px; color:var(--muted); font-weight:400; }
 .operational-overview-list li strong { min-width:30px; color:var(--ink); font-size:17px; text-align:right; }
 .loan-status-summary { max-width:520px; margin:12px 0 20px; padding:14px 16px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
@@ -933,7 +933,9 @@ footer {
 }
 .record-modal-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:18px; }
 .record-modal-heading h2 { margin:5px 0 0; color:#17392f; font-size:25px; letter-spacing:-.5px; }
-.modal-close { display:grid; place-items:center; width:38px; height:38px; border:1px solid #dce7e1; border-radius:50%; background:#fff; color:#34544a; font-size:25px; line-height:1; cursor:pointer; }
+.modal-close { display:grid; place-items:center; width:38px; height:38px; padding:0; border:1px solid #dce7e1; border-radius:50%; background:#fff; color:#34544a; cursor:pointer; }
+.modal-close svg { display:block; width:16px; height:16px; }
+.modal-close svg path { fill:none; stroke:currentColor; stroke-linecap:round; stroke-width:1.8; }
 .ledger-controls { display:flex; align-items:flex-end; flex-wrap:wrap; gap:10px; margin:0 0 18px; padding:14px; border:1px solid #e1e9e5; border-radius:13px; background:#fff; }
 .ledger-controls label { flex:1 1 150px; margin:0; color:#3e5a50; font-size:12px; font-weight:650; }
 .ledger-controls select,.ledger-controls input { min-height:42px; margin-top:6px; border-radius:9px; }
@@ -1464,7 +1466,7 @@ html[data-theme="dark"] .staff-subsection-title {
 }
 html[data-theme="dark"] .staff-subsection-title .staff-nav-icon { color:#8ecfb3; }
 html[data-theme="dark"] .staff-content .portal-card summary::after { background:#35434c; color:#b5ddca; }
-html[data-theme="dark"] .operational-overview-list li span { color:#edaa61; }
+html[data-theme="dark"] .operational-overview-list li span { color:var(--ink); }
 html[data-theme="dark"] .cycle-create-card { border-color:#456d59; border-left-color:#58a981; background:#1b3027; }
 html[data-theme="dark"] .cycle-create-card h3 { color:#b8e4cc; }
 html[data-theme="dark"] .cycle-create-card p { color:#bdcec4; }
