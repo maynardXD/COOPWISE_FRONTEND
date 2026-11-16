@@ -8,6 +8,23 @@
   flex-direction: column;
 }
 
+.page-shell-auth {
+  width: 100%;
+  max-width: none;
+}
+
+.page-shell-auth > .topbar,
+.page-shell-auth > footer {
+  padding-right: max(24px, calc((100% - 1120px) / 2));
+  padding-left: max(24px, calc((100% - 1120px) / 2));
+}
+
+.page-shell-auth > .auth-layout {
+  width: min(1120px, calc(100% - 48px));
+  margin-right: auto;
+  margin-left: auto;
+}
+
 .page-shell-auth-loading {
   width: 100%;
   margin: 0;
@@ -353,7 +370,13 @@ small {
 .savings-balance span,.report-grid span { color:var(--muted); font-size:13px; }
 .savings-balance strong { color:var(--ink); font-size:26px; }
 .report-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; }
+.share-capital-summary { grid-template-columns:repeat(4,minmax(0,1fr)); align-items:stretch; }
 .report-grid .portal-card { display:flex; flex-direction:column; gap:9px; margin:0; }
+.dividend-action-buttons { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-top:auto; padding-top:5px; }
+.dividend-action-buttons .button { min-width:0; padding:8px 5px; font-size:11px; line-height:1.25; white-space:normal; }
+.loan-capital-summary { display:flex; flex-direction:column; gap:7px; margin:14px 0; }
+.loan-capital-summary strong { font-size:23px; }
+.loan-capital-summary small { color:var(--muted); line-height:1.5; }
 .report-grid strong { color:var(--ink); font-size:21px; }
 .report-grid small { color:var(--muted); }
 .report-chart-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr)); gap:14px; margin:12px 0 24px; }
@@ -484,6 +507,7 @@ footer {
 
 @media(max-width:850px) {
   .auth-layout { grid-template-columns:1fr minmax(330px,430px); gap:32px; padding:44px 0; }
+  .share-capital-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 
 @media(max-width:680px) {
@@ -495,6 +519,8 @@ footer {
 }
 
 @media(max-width:520px) {
+  .share-capital-summary { grid-template-columns:1fr; }
+  .dividend-action-buttons .button { font-size:12px; }
   .tagline { display:none; }
   .card { padding:20px; }
   .form-grid { grid-template-columns:1fr; }

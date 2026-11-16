@@ -69,11 +69,15 @@ simulate a withdrawal that debits their balance and appears in their ledger.
 No staff approval, financial-account details, receipt, Xendit payout, or real
 money transfer is involved. Loan proceeds, confirmed Paluwagan payouts, and
 provider-confirmed Xendit Test Mode deposits can fund the member balance.
-The approved loan principal is also deducted from a separate simulated
-cooperative lending pool; it does not reduce the member’s share capital. Staff
-must record demo funding in Reports before approving loans. Loan eligibility
-uses configurable sample rules, and the member sees the current limit and
-reasons before applying. For the classroom simulation, each required
+Loan capacity is calculated from paid-up share capital and collected loan
+interest, less principal already lent and pending applications. A disbursement
+reduces capital available for other loans; principal repayments restore it.
+Member ownership balances remain intact. Loan eligibility uses configurable
+sample rules, and the member sees the current limit and reasons before
+applying. Collected interest increases cooperative lending capacity; approved
+annual surplus distributions are separate member returns, not guaranteed
+dividends. Members can transfer an approved return once to savings or reinvest
+it as share capital. For the classroom simulation, each required
 membership day takes six seconds, so the default 30-day period takes three
 minutes; this accelerated clock is not for real cooperative decisions.
 Repayments are recorded as separate principal and interest amounts.
@@ -125,8 +129,8 @@ the old screen's static sample figures. Access tokens are kept in per-tab
 session storage. Other legacy pages are still available in the LavaLust
 application and have not yet been moved into this separate frontend.
 The staff Reports page visualizes monthly financial activity with Google
-Charts. Application status counts and simulated lending-pool history are shown
-in Loans. The Reports activity audit log initially loads five rows and loads
+Charts. Application status counts and available share capital are shown in
+Loans. The Reports activity audit log initially loads five rows and loads
 older rows on request. Draft Paluwagan cycles can be removed only when they
 have no contribution, payout, or payment history. Meetings and voting are no
 longer part of the application.

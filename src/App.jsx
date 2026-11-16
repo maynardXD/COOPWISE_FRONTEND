@@ -4,10 +4,10 @@ import './App.css'
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost/COOPWISE/LavaLust-COOPWISE/api').replace(/\/+$/, '')
 const TODAY = new Date().toISOString().slice(0, 10)
 const CURRENT_YEAR = Number(TODAY.slice(0, 4))
-const LOAN_ENDPOINTS = ['/loan-products', '/loans', '/payments', '/loan-readiness', '/loans/eligibility', '/cooperative/finance?fund_history=1&fund_page=1&per_page=5']
+const LOAN_ENDPOINTS = ['/loan-products', '/loans', '/payments', '/loan-readiness', '/loans/eligibility']
 const PAYMENT_ENDPOINTS = ['/loans', '/cooperative/cycles', '/share-capital', '/checkout-transactions', '/savings']
-const SHARE_CAPITAL_ENDPOINTS = ['/share-capital', '/cooperative/finance?fund_history=0']
-const REPORT_ENDPOINTS = ['/reports', '/cooperative/finance?fund_history=0', '/cooperative/surplus']
+const SHARE_CAPITAL_ENDPOINTS = ['/share-capital', '/cooperative/finance']
+const REPORT_ENDPOINTS = ['/reports', '/cooperative/finance', '/cooperative/surplus']
 const POLICY_ENDPOINTS = ['/cooperative/policies']
 const PORTAL_CACHE_MAX_AGE_MS = 15_000
 const portalDataCache = new Map()
@@ -965,33 +965,23 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const [clockNow, setClockNow] = useState(() => Date.now())
   const [refreshing, setRefreshing] = useState(false)
   const endpoints = useMemo(() => LOAN_ENDPOINTS
-    .filter((path) => staff || !path.startsWith('/cooperative/finance'))
     .map((path) => {
       if (path === '/loans') return `${path}?page=${loansPage}&per_page=25`
       if (path === '/payments') return `${path}?page=${paymentsPage}&per_page=25`
       return path
-    }), [loansPage, paymentsPage, staff])
+    }), [loansPage, paymentsPage])
   const { data, error, loading, refreshEndpoint } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [schedule, setSchedule] = useState(null)
   const [applicationInputs, setApplicationInputs] = useState({})
   const [staffLoanTab, setStaffLoanTab] = useState(null)
-  const [loadedFundHistory, setLoadedFundHistory] = useState(null)
-  const [loadingMoreFund, setLoadingMoreFund] = useState(false)
   const products = data?.[0]?.products || []
   const loans = data?.[1]?.loans || []
   const payments = data?.[2]?.payments || []
   const readiness = data?.[3]?.readiness
   const eligibility = data?.[4]?.eligibility
-  const finance = staff ? data?.[5] : null
-  const fundHistory = loadedFundHistory?.refreshKey === refreshKey ? loadedFundHistory : null
-  const fundTransactions = [
-    ...(finance?.fund_transactions || []),
-    ...(fundHistory?.transactions || []),
-  ]
-  const fundPage = fundHistory?.page || 1
-  const hasMoreFund = fundHistory?.hasMore ?? Boolean(finance?.fund_transactions_pagination?.has_more)
+  const availableLoanCapital = data?.[0]?.available_loan_capital || eligibility?.available_loan_capital || '0.00'
   const readinessAvailable = data?.[3]?.available !== false
   const readinessSubmissions = data?.[3]?.submissions || []
   const pendingLoanApplications = loans.filter((loan) => loan.status === 'pending')
@@ -1036,32 +1026,6 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       setActionError(requestError.message)
     } finally {
       setRefreshing(false)
-    }
-  }
-
-  async function loadMoreFundTransactions() {
-    if (loadingMoreFund || !hasMoreFund) return
-    const nextPage = fundPage + 1
-    setLoadingMoreFund(true)
-    setActionError('')
-    try {
-      const result = await apiRequest(`/cooperative/finance?fund_page=${nextPage}&per_page=5`, { token })
-      const baseIds = new Set(fundTransactions.map((transaction) => Number(transaction.id)))
-      const newTransactions = (result.fund_transactions || [])
-        .filter((transaction) => !baseIds.has(Number(transaction.id)))
-      setLoadedFundHistory((current) => ({
-        refreshKey,
-        page: nextPage,
-        hasMore: Boolean(result.fund_transactions_pagination?.has_more),
-        transactions: [
-          ...(current?.refreshKey === refreshKey ? current.transactions : []),
-          ...newTransactions,
-        ],
-      }))
-    } catch (requestError) {
-      setActionError(requestError.message)
-    } finally {
-      setLoadingMoreFund(false)
     }
   }
 
@@ -1198,36 +1162,13 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           Applications
           {pendingLoanCount > 0 && <span className="loan-review-badge" aria-label={`${pendingLoanCount} loan applications awaiting review`}>{pendingLoanCount}</span>}
         </button>
-        <button className={`loan-subtab${activeStaffLoanTab === 'lending_pool' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'lending_pool' ? 'page' : undefined} onClick={() => setStaffLoanTab('lending_pool')}>Lending pool</button>
       </nav>}
 
-      {!loading && staff && activeStaffLoanTab === 'lending_pool' && (
-        <section>
-          <h3>Simulated lending pool</h3>
-          <p className="muted">This is a simulated fund the cooperative uses to issue loans. Staff-recorded funding adds to the pool; approving a loan subtracts its principal, and repayments put money back. It is separate from members’ savings and share capital. No real money moves.</p>
-          <article className="portal-card loan-fund-summary">
-            <span>Available for approved loan disbursements</span>
-            <strong>{formatPesos(finance?.loan_fund?.available_balance || '0.00')}</strong>
-          </article>
-          <h4>Recent pool activity</h4>
-          {fundTransactions.length === 0
-            ? <p className="muted">No lending-pool transactions have been recorded.</p>
-            : <div className="table-wrap"><table>
-              <thead><tr><th>Date / reference</th><th>Activity</th><th>Amount</th><th>Balance after</th><th>Loan</th><th>Staff</th></tr></thead>
-              <tbody>{fundTransactions.map((transaction) => <tr key={transaction.id}>
-                <td>{transaction.created_at}<small>{transaction.reference_no}</small></td>
-                <td>{transaction.transaction_type.replaceAll('_', ' ')}</td>
-                <td>{formatPesos(transaction.amount)}</td>
-                <td>{formatPesos(transaction.balance_after)}</td>
-                <td>{transaction.loan_code || '—'}</td>
-                <td>{transaction.actor_name || 'System'}</td>
-              </tr>)}</tbody>
-            </table></div>}
-          {hasMoreFund && <button className="button button-outline" type="button" onClick={loadMoreFundTransactions} disabled={loadingMoreFund}>
-            {loadingMoreFund ? 'Loading…' : 'Load more pool activity'}
-          </button>}
-        </section>
-      )}
+      {!loading && <article className="portal-card loan-capital-summary">
+        <span>Share capital available to lend</span>
+        <strong>{formatPesos(availableLoanCapital)}</strong>
+        <small>Paid-up shares plus collected loan interest, less outstanding principal and pending applications.</small>
+      </article>}
 
       {!loading && staff && activeStaffLoanTab === 'documents' && (
         <section>
@@ -1339,10 +1280,17 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
               <div className="section-heading section-heading-compact">
                 <div><h3>Available loan offers</h3><p className="muted">Choose an offer to see its application form.</p></div>
               </div>
+              <article className="portal-card loan-capital-summary">
+                <span>Share capital available to lend</span>
+                <strong>{formatPesos(availableLoanCapital)}</strong>
+                <small>Pending applications reserve capital. Loan repayments restore principal, and collected interest adds to cooperative capital.</small>
+              </article>
               {products.length === 0
                 ? <p className="notice">{productLoadFailed
                   ? 'Your documents are approved, but loan offers could not be loaded. Use Refresh status to try again or contact cooperative staff.'
-                  : 'Your documents are approved, but there are no active loan offers yet. Please check back later or contact cooperative staff.'}</p>
+                  : Number(availableLoanCapital) <= 0
+                    ? 'No share capital is currently available to lend. New offers will appear when capital becomes available.'
+                    : 'Your documents are approved, but there are no active offers within the available share capital. Please check back later or contact cooperative staff.'}</p>
                 : <div className="offer-grid">{products.map((product) => (
                   <article className="offer-card" key={product.id}>
                     <div className="offer-card-heading">
@@ -2116,15 +2064,46 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   const { data, error, loading } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
+  const [returnAction, setReturnAction] = useState('')
   const capital = data?.[0]
   const subscriptions = capital?.subscriptions || []
   const transactions = capital?.transactions || []
   const members = capital?.members || []
   const memberReturns = data?.[1]?.member_returns || []
+  const availableReturns = memberReturns.filter((item) => item.claim_status === 'available')
+  const availableReturnTotal = availableReturns.reduce((total, item) => total + Number(item.total_return || 0), 0)
+  const approvedReturnTotal = staff
+    ? Number(data?.[1]?.approved_member_returns || 0)
+    : memberReturns.reduce((total, item) => total + Number(item.total_return || 0), 0)
+  const availableReturnSummary = staff
+    ? Number(data?.[1]?.available_member_returns || 0)
+    : availableReturnTotal
   const reversedPaymentIds = new Set(transactions
     .filter((transaction) => transaction.transaction_type === 'reversal')
     .map((transaction) => Number(transaction.reverses_transaction_id)))
   const summary = capital?.summary || { subscribed_amount: 0, paid_up_amount: 0, unpaid_amount: 0 }
+
+  async function claimReturns(destination) {
+    if (returnAction || availableReturnTotal <= 0) return
+    const destinationLabel = destination === 'savings' ? 'your savings' : 'share capital'
+    if (!window.confirm(`Add PHP ${formatPesos(availableReturnTotal)} of approved returns to ${destinationLabel}?`)) return
+    setReturnAction(destination)
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest('/cooperative/returns/claim', {
+        token,
+        method: 'POST',
+        body: JSON.stringify({ destination }),
+      })
+      setNotice(result.message)
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    } finally {
+      setReturnAction('')
+    }
+  }
 
   async function submit(event, path, successMessage) {
     event.preventDefault()
@@ -2168,17 +2147,30 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
       <p className="muted">Share capital represents member ownership in the cooperative. It is separate from savings and is not an ordinary savings withdrawal.</p>
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
-      {capital && <div className="report-grid">
+      {capital && <div className="report-grid share-capital-summary">
         <article className="portal-card"><span>Subscribed share capital</span><strong>{formatPesos(summary.subscribed_amount)}</strong></article>
         <article className="portal-card"><span>Paid-up share capital</span><strong>{formatPesos(summary.paid_up_amount)}</strong></article>
         <article className="portal-card"><span>Unpaid subscriptions</span><strong>{formatPesos(summary.unpaid_amount)}</strong></article>
+        <article className="portal-card dividend-summary-card">
+          <span>Approved dividends / member returns</span>
+          <strong>{formatPesos(approvedReturnTotal)}</strong>
+          <small>{staff ? `Still available to members: ${formatPesos(availableReturnSummary)}` : `Available to allocate: ${formatPesos(availableReturnSummary)}`}</small>
+          {!staff && <div className="dividend-action-buttons">
+            <button className="button button-outline" type="button" disabled={!availableReturnTotal || Boolean(returnAction)} onClick={() => claimReturns('savings')}>
+              {returnAction === 'savings' ? 'Adding…' : 'Add to savings'}
+            </button>
+            <button className="button button-outline" type="button" disabled={!availableReturnTotal || !subscriptions.some((item) => item.status === 'active') || Boolean(returnAction)} onClick={() => claimReturns('share_capital')}>
+              {returnAction === 'share_capital' ? 'Reinvesting…' : 'Add to share capital'}
+            </button>
+          </div>}
+        </article>
       </div>}
       {!staff && <section>
         <h3>Approved member returns</h3>
         <p className="muted">These are approved interest-on-share-capital and patronage-refund allocations. They are separate from your share-capital balance and savings balance.</p>
         {!loading && memberReturns.length === 0 && <p className="muted">No approved member returns have been recorded for your account.</p>}
         {memberReturns.length > 0 && <div className="table-wrap"><table>
-          <thead><tr><th>Fiscal year</th><th>Share capital basis</th><th>Interest on share capital</th><th>Patronage basis</th><th>Patronage refund</th><th>Total return</th></tr></thead>
+          <thead><tr><th>Fiscal year</th><th>Share capital basis</th><th>Interest on share capital</th><th>Patronage basis</th><th>Patronage refund</th><th>Total return</th><th>Status</th></tr></thead>
           <tbody>{memberReturns.map((item) => <tr key={item.id}>
             <td>{item.fiscal_year}<small>Approved {item.approved_at}</small></td>
             <td>{formatPesos(item.paid_up_share_capital)}</td>
@@ -2186,6 +2178,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
             <td>{formatPesos(item.patronage_basis)}</td>
             <td>{formatPesos(item.patronage_refund)}</td>
             <td>{formatPesos(item.total_return)}</td>
+            <td>{item.claim_status.replaceAll('_', ' ')}{item.claimed_at && <small>{item.claimed_at}</small>}</td>
           </tr>)}</tbody>
         </table></div>}
       </section>}
@@ -2281,7 +2274,7 @@ function LearningCenter({ token, user, refreshKey, standalone = false }) {
     <div className="learning-grid">
       <article className="portal-card"><span className="eyebrow">01 · Membership</span><h3>Members are owners</h3><p>Members join under the cooperative’s membership rules, use services, and share responsibility for the organization. Membership is more than having a login.</p></article>
       <article className="portal-card"><span className="eyebrow">02 · Share capital</span><h3>Ownership, not wallet money</h3><p>Share capital represents a member’s ownership contribution. CoopWise tracks subscriptions and paid-up amounts separately from the available demo balance.</p></article>
-      <article className="portal-card"><span className="eyebrow">03 · Loans</span><h3>Borrow from a pooled fund</h3><p>Approved loans draw from a separately tracked simulated lending pool, not by reducing a member’s share capital. Members repay principal and interest under a reviewed schedule.</p></article>
+      <article className="portal-card"><span className="eyebrow">03 · Loans</span><h3>Borrow from available cooperative capital</h3><p>Loan offers are limited by paid-up share capital and collected loan interest, less outstanding principal and pending applications. Repaying principal makes that capital available again.</p></article>
       <article className="portal-card"><span className="eyebrow">04 · Paluwagan</span><h3>Contribute to a rotating pool</h3><p>Enrolled members contribute to a scheduled cycle. The system tracks the order and contributions; staff confirm the simulated payout to the next recipient.</p></article>
       <article className="portal-card"><span className="eyebrow">05 · Payments</span><h3>Know what is real</h3><p>Where enabled, Xendit Test Mode checks an incoming checkout simulation. Never enter real payment details for a class demo. CoopWise simulated withdrawals do not send money.</p></article>
       <article className="portal-card"><span className="eyebrow">06 · Records</span><h3>Keep the history clear</h3><p>Each balance credit or debit should have a source and reference. Share capital stays separate, and corrections should be recorded with a reason rather than deleting history.</p></article>
@@ -2299,7 +2292,7 @@ function LearningCenter({ token, user, refreshKey, standalone = false }) {
         </label>)}
         <div className="full">
           <h4>Configurable sample loan eligibility</h4>
-          <p className="muted">These are this demonstration cooperative’s rules, not universal legal requirements. Share capital remains ownership and is not spent when a member borrows.</p>
+          <p className="muted">These are this demonstration cooperative’s rules, not universal legal requirements. Loan principal uses cooperative capital and reduces the amount available for other loans until repayments are received.</p>
         </div>
         <label>Minimum membership period (days)<input type="number" min="0" max="3650" step="1" required value={policies.minimum_membership_days ?? 30} onChange={(event) => setPolicyDraft({ ...policies, minimum_membership_days: event.target.value })} /></label>
         <label>Minimum paid-up share capital (PHP)<input type="number" min="0" step="0.01" required value={policies.minimum_paid_up_share_capital ?? '5000.00'} onChange={(event) => setPolicyDraft({ ...policies, minimum_paid_up_share_capital: event.target.value })} /></label>
@@ -2313,7 +2306,7 @@ function LearningCenter({ token, user, refreshKey, standalone = false }) {
         {policyFields.map(([key, label]) => <article className="portal-card" key={key}><h4>{label}</h4><p>{policies[key]}</p></article>)}
         <article className="portal-card"><h4>Loan eligibility sample rules</h4>
           <p>Minimum membership: {policies.minimum_membership_days} days. Minimum paid-up share capital: {formatPesos(policies.minimum_paid_up_share_capital)}. Minimum savings: {formatPesos(policies.minimum_savings_balance)}. Maximum loan limit: {policies.loan_to_paid_up_share_capital_multiplier} × paid-up share capital, less any current loan balance.</p>
-          <p>These are the current configured sample rules. Eligibility allows you to apply; staff review and available cooperative funds still determine whether a loan is approved.</p>
+          <p>These are the current configured sample rules. Eligibility allows you to apply; staff review and available cooperative share capital still determine whether a loan is approved.</p>
         </article>
         {policies.updated_at && <small>Last updated: {policies.updated_at}</small>}
       </div>}
@@ -2326,7 +2319,7 @@ function DemoGuide({ setSection, standalone = false }) {
     { title: 'Understand the cooperative', section: 'learning', description: 'Learn what membership, share capital, loans, and Paluwagan mean in this classroom demo.' },
     { title: 'Compare sample loan offers', section: 'loans', description: 'Review the example interest rate and repayment schedule before applying. Staff review the application.' },
     { title: 'Explore a Paluwagan cycle', section: 'cooperative', description: 'See the contribution amount, randomized order, daily records, and payout status.' },
-    { title: 'Review your balance sources', section: 'savings', description: 'An approved loan draws from the simulated cooperative lending pool and credits your demo savings; it never reduces your share capital.' },
+    { title: 'Review your balance sources', section: 'savings', description: 'An approved loan is funded from cooperative share capital available to lend and credits your demo savings. Repayments restore the available capital.' },
     { title: 'Try a simulated withdrawal', section: 'savings', description: 'Choose a demo e-wallet or bank destination. The ledger updates, but no real money is transferred.' },
   ]
   return <section className="portal-section demo-guide">
@@ -2518,24 +2511,6 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
     }
   }
 
-  async function addLoanFund(event) {
-    event.preventDefault()
-    const form = event.currentTarget
-    const values = Object.fromEntries(new FormData(form).entries())
-    setNotice('')
-    setActionError('')
-    try {
-      const result = await apiRequest('/cooperative/finance/fund', {
-        token, method: 'POST', body: JSON.stringify(values),
-      })
-      setNotice(result.message)
-      form.reset()
-      window.dispatchEvent(new Event('coopwise:refresh'))
-    } catch (requestError) {
-      setActionError(requestError.message)
-    }
-  }
-
   async function createSurplusDraft(event) {
     event.preventDefault()
     const form = event.currentTarget
@@ -2605,21 +2580,11 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
           <article className="portal-card"><span>Paid-up share capital</span><strong>PHP {report.summary.share_capital_paid_up || '0.00'}</strong><small>Subscribed: PHP {report.summary.share_capital_subscribed || '0.00'}</small></article>
           <article className="portal-card"><span>Loan portfolio</span><strong>PHP {report.summary.loan_balance}</strong></article>
           <article className="portal-card"><span>Outstanding loan principal</span><strong>{formatPesos(report.summary.loan_principal_receivable)}</strong></article>
-          <article className="portal-card"><span>Simulated lending pool available</span><strong>{formatPesos(report.summary.loan_fund_available)}</strong></article>
+          <article className="portal-card"><span>Share capital available to lend</span><strong>{formatPesos(report.summary.available_loan_capital)}</strong></article>
           <article className="portal-card"><span>Loan payments received</span><strong>PHP {report.summary.loan_payments_received}</strong></article>
           <article className="portal-card"><span>Loan interest received</span><strong>{formatPesos(report.summary.loan_interest_received)}</strong></article>
           <article className="portal-card"><span>Approved member returns</span><strong>{formatPesos(report.summary.approved_member_returns)}</strong></article>
         </div>
-        <details className="portal-card">
-          <summary>Record simulated lending-pool funding</summary>
-          <p className="muted">Record simulated funds added to the cooperative’s loan pool. Loan approval subtracts principal from this pool, and repayments add funds back. This entry does not collect money, debit a member, or use share capital or savings.</p>
-          <form className="form-grid" onSubmit={addLoanFund}>
-            <label>Amount (PHP)<input name="amount" type="number" min="0.01" step="0.01" required /></label>
-            <label>Description<input name="description" maxLength="255" placeholder="Example: classroom demo seed funding" /></label>
-            <button className="button button-primary" type="submit">Add demo funding</button>
-          </form>
-          <small>Enter only a classroom simulation amount; this records no real transfer.</small>
-        </details>
         <h3>Operational overview</h3>
         <ul className="operational-overview-list">
           <li><span>Loan applications awaiting review</span><strong>{report.operations?.loans_awaiting_review ?? '—'}</strong></li>
@@ -3474,7 +3439,7 @@ function App() {
   if (memberCardToken) return <MemberCardVerification verificationToken={memberCardToken} theme={theme} onToggleTheme={toggleTheme} />
 
   return (
-    <main className={`page-shell${user ? ' page-shell-staff' : ''}${authenticating && !user ? ' page-shell-auth-loading' : ''}`}>
+    <main className={`page-shell${user ? ' page-shell-staff' : !memberCardToken ? ' page-shell-auth' : ''}${authenticating && !user ? ' page-shell-auth-loading' : ''}`}>
       {user ? (
         <StaffWorkspace token={token} user={user} section={section} setSection={setSection} refreshKey={refreshKey} onSignOut={signOut} theme={theme} onToggleTheme={toggleTheme} />
       ) : (
@@ -3502,7 +3467,6 @@ function App() {
           <div className="intro">
             <div className="eyebrow">CoopWise cooperative services</div>
             <h1>Built around your cooperative.</h1>
-            <p>Sign in to manage your loans, savings, Paluwagan contributions, and payment transactions.</p>
           </div>
 
           <div className="card auth-card">
@@ -3585,7 +3549,7 @@ function App() {
           </div>
         </section>
       )}
-      {!authenticating && <footer>Incoming payments use Xendit checkout and require server-side confirmation.</footer>}
+      {!authenticating && <footer aria-hidden="true" />}
         </>
       )}
     </main>
