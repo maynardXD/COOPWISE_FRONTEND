@@ -338,6 +338,9 @@ small {
 .status-rejected,.status-cancelled { color:#923d36; background:#f8ecea; }
 
 .offer-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
+.offer-grid.has-expanded { grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); align-items:start; }
+.offer-grid.has-expanded .offer-card.expanded { grid-column:1/-1; border-color:#a8cdb8; box-shadow:0 10px 24px rgb(23 61 46 / 8%); }
+.offer-grid.has-expanded .offer-card:not(.expanded) { opacity:.76; }
 .offer-card { margin:0; }
 .offer-card-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
 .offer-card h4 { margin:0; color:var(--ink); font-size:17px; }
@@ -349,6 +352,21 @@ small {
 .loan-offer-delete { color:#923d36; border-color:#d9aaa5; }
 .loan-offer-delete:hover { color:#7f2f29; border-color:#c9847d; background:#f8ecea; }
 .offer-application summary { color:var(--green); }
+.member-loan-readiness { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:start; gap:14px; margin:14px 0 22px; }
+.member-loan-readiness > .portal-card,
+.member-loan-readiness > .loan-eligibility-card { min-width:0; height:100%; margin:0; }
+.loan-eligibility-card > summary { display:flex; align-items:center; gap:10px; list-style:none; }
+.loan-eligibility-card > summary::-webkit-details-marker { display:none; }
+.loan-eligibility-card > summary strong { margin-left:auto; color:var(--muted); font-size:12px; text-align:right; }
+.eligibility-dot { flex:0 0 10px; width:10px; height:10px; border-radius:50%; background:#c4433c; box-shadow:0 0 0 3px rgb(196 67 60 / 12%); }
+.eligibility-dot.eligible { background:#218653; box-shadow:0 0 0 3px rgb(33 134 83 / 13%); }
+.loan-eligibility-details { padding-top:10px; }
+.loan-eligibility-details .offer-facts { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.member-share-contribution { margin:18px 0; }
+.member-share-contribution > summary { color:var(--green); font-size:16px; }
+.member-share-contribution h3 { margin-top:0; }
+.member-share-contribution > p { margin:8px 0; }
+.member-share-contribution > .muted { font-size:13px; }
 .payment-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:16px 0; padding:13px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
 .payment-facts div { min-width:0; }
 .payment-facts dt { color:var(--muted); font-size:12px; }
@@ -370,11 +388,15 @@ small {
 .search-results { margin-top:16px; }
 .search-results p { color:#35473e; }
 .savings-balance { display:flex; flex-direction:column; gap:8px; background:#f0f5f0; }
-.savings-member-overview { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:center; gap:14px; margin:14px 0; }
+.savings-member-overview { display:grid; grid-template-columns:minmax(0, 1fr) auto auto; align-items:center; gap:14px; margin:14px 0; }
 .savings-member-overview .portal-card { margin:0; }
 .savings-member-overview > .button { min-height:44px; }
+.savings-member-actions { display:grid; gap:8px; }
 .savings-balance span,.report-grid span { color:var(--muted); font-size:13px; }
 .savings-balance strong { color:var(--ink); font-size:26px; }
+.payment-available-savings { display:flex; flex-direction:column; gap:5px; margin:14px 0 20px; }
+.payment-available-savings span { color:var(--muted); font-size:13px; }
+.payment-available-savings strong { color:var(--ink); font-size:30px; line-height:1.2; }
 .report-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; }
 .share-capital-summary { grid-template-columns:repeat(4,minmax(0,1fr)); align-items:stretch; }
 .report-grid .portal-card { display:flex; flex-direction:column; gap:9px; margin:0; }
@@ -417,16 +439,14 @@ small {
 .theme-toggle:focus-visible { outline:3px solid color-mix(in srgb,var(--green) 35%,transparent); outline-offset:2px; }
 .theme-toggle svg { width:17px; height:17px; }
 .staff-topbar-actions .theme-toggle { min-height:36px; }
-.savings-admin-overview,.savings-transaction-tools,.loan-comparison,.policy-section { margin:22px 0; }
-.savings-admin-overview h3,.savings-transaction-tools h3,.loan-comparison h3 { margin-bottom:8px; }
+.savings-admin-overview,.savings-transaction-tools,.policy-section { margin:22px 0; }
+
+.savings-admin-overview h3,.savings-transaction-tools h3 { margin-bottom:8px; }
 .savings-search { display:block; max-width:380px; margin:16px 0 8px; }
 .savings-filter-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); align-items:end; gap:10px; padding:14px; border:1px solid var(--border); border-radius:12px; background:#fff; }
 .savings-filter-row label { margin:0; color:#486256; font-size:12px; font-weight:650; }
 .savings-filter-row input,.savings-filter-row select { margin-top:6px; }
 .savings-filter-row .button { min-height:42px; }
-.loan-comparison { padding:18px; border:1px solid #dfece5; border-radius:14px; background:#f7faf8; }
-.loan-comparison-inputs { max-width:680px; }
-.loan-comparison table { min-width:850px; }
 .learning-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:20px 0; }
 .learning-grid .portal-card { margin:0; }
 .learning-grid h3 { margin:7px 0; color:var(--ink); }
@@ -446,9 +466,6 @@ small {
 .demo-step-number { display:grid; width:34px; height:34px; place-items:center; border-radius:50%; color:#fff; background:var(--green); font-weight:800; }
 .demo-step h3 { margin:0 0 5px; color:var(--ink); font-size:15px; }
 .demo-step p { margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
-.withdrawal-launch-card { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:20px; }
-.withdrawal-launch-card h3 { margin:5px 0; color:var(--ink); }
-.withdrawal-launch-card p { margin:0; max-width:560px; }
 .withdrawal-page { max-width:900px; margin-inline:auto; }
 .withdrawal-back-link { margin:0 0 18px; }
 .withdrawal-page-heading { display:flex; align-items:center; gap:14px; margin:8px 0 24px; }
@@ -514,6 +531,10 @@ footer {
 @media(max-width:850px) {
   .auth-layout { grid-template-columns:1fr minmax(330px,430px); gap:32px; padding:44px 0; }
   .share-capital-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .member-loan-readiness { grid-template-columns:1fr; }
+  .savings-member-overview { grid-template-columns:minmax(0,1fr) auto; }
+  .savings-member-actions { grid-column:2; grid-row:1 / span 2; }
+  .savings-member-overview > .button { grid-column:1; }
 }
 
 @media(max-width:680px) {
@@ -538,6 +559,7 @@ footer {
   .offer-facts { grid-template-columns:1fr; }
   .payment-facts { grid-template-columns:1fr; }
   .savings-member-overview { grid-template-columns:1fr; }
+  .savings-member-actions { grid-column:auto; grid-row:auto; }
   .savings-member-overview > .button { width:100%; }
   .member-search-layout { grid-template-columns:1fr; gap:0; }
   .member-search-help { margin:0; }
@@ -1037,8 +1059,6 @@ footer {
   .savings-member-overview > .button { width:100%; }
   .demo-step { grid-template-columns:auto minmax(0,1fr); }
   .demo-step .button { grid-column:2; justify-self:start; }
-  .withdrawal-launch-card { align-items:stretch; flex-direction:column; }
-  .withdrawal-launch-card .button { width:100%; }
   .withdrawal-step-card { padding:17px; }
   .withdrawal-step-card .item-heading { flex-direction:column; }
   .withdrawal-review div { align-items:flex-start; flex-direction:column; }
@@ -1287,7 +1307,6 @@ html[data-theme="dark"] .staff-account-card,
 html[data-theme="dark"] .profile-card div,
 html[data-theme="dark"] .member-detail,
 html[data-theme="dark"] .savings-filter-row,
-html[data-theme="dark"] .loan-comparison,
 html[data-theme="dark"] .autopay-option,
 html[data-theme="dark"] .withdrawal-destination,
 html[data-theme="dark"] .ledger-controls {
