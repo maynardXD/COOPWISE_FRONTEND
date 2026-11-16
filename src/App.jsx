@@ -2172,6 +2172,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [returnAction, setReturnAction] = useState('')
+  const [adminInvestmentSubmitting, setAdminInvestmentSubmitting] = useState(false)
   const capital = data?.[0]
   const subscriptions = capital?.subscriptions || []
   const transactions = capital?.transactions || []
@@ -2189,6 +2190,31 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
     .filter((transaction) => transaction.transaction_type === 'reversal')
     .map((transaction) => Number(transaction.reverses_transaction_id)))
   const summary = capital?.summary || { subscribed_amount: 0, paid_up_amount: 0, unpaid_amount: 0 }
+
+  async function submitAdminInvestment(event) {
+    event.preventDefault()
+    const form = event.currentTarget
+    const values = Object.fromEntries(new FormData(form).entries())
+    const investmentTotal = Number(values.subscribed_shares) * Number(values.par_value)
+    if (!window.confirm(`Confirm that PHP ${investmentTotal.toFixed(2)} was received for ${values.subscribed_shares} share(s)? This will be recorded only as admin share capital.`)) return
+    setNotice('')
+    setActionError('')
+    setAdminInvestmentSubmitting(true)
+    try {
+      const result = await apiRequest('/share-capital/admin-investment', {
+        token,
+        method: 'POST',
+        body: JSON.stringify(values),
+      })
+      setNotice(`${result.message} Amount: PHP ${result.amount}. Reference: ${result.reference}`)
+      form.reset()
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    } finally {
+      setAdminInvestmentSubmitting(false)
+    }
+  }
 
   async function claimReturns(destination) {
     if (returnAction || availableReturnTotal <= 0) return
@@ -2290,6 +2316,24 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
         </table></div>}
       </section>}
       {staff && capital && <>
+        {user.role === 'admin' && <details className="portal-card">
+          <summary>Invest in share capital as admin</summary>
+          <p className="muted">Record the admin account’s own share-capital investment. This creates a linked investor profile if needed and records only share-capital ownership—no savings account, loan access, or other member services are enabled.</p>
+          <form className="form-grid" onSubmit={submitAdminInvestment}>
+            <label>Shares to purchase<input name="subscribed_shares" type="number" min="1" step="1" required /></label>
+            <label>Par value per share (PHP)<input name="par_value" type="number" min="0.01" step="0.01" required /></label>
+            <label>Payment received via<select name="payment_method" defaultValue="cash" required>
+              <option value="cash">Cash</option>
+              <option value="bank">Bank transfer</option>
+              <option value="gcash">GCash</option>
+              <option value="check">Check</option>
+              <option value="simulation">Simulation</option>
+            </select></label>
+            <button className="button button-primary" type="submit" disabled={adminInvestmentSubmitting}>
+              {adminInvestmentSubmitting ? 'Recording investment…' : 'Record admin share-capital payment'}
+            </button>
+          </form>
+        </details>}
         <details className="portal-card">
           <summary>Create share subscription</summary>
           <p className="muted">Use only the share count and par value approved by the cooperative. Creating a subscription records an amount owed; it does not record money received.</p>
