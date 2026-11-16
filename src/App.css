@@ -358,8 +358,12 @@ small {
 .loan-eligibility-card > summary { display:flex; align-items:center; gap:10px; list-style:none; }
 .loan-eligibility-card > summary::-webkit-details-marker { display:none; }
 .loan-eligibility-card > summary strong { margin-left:auto; color:var(--muted); font-size:12px; text-align:right; }
-.eligibility-dot { flex:0 0 10px; width:10px; height:10px; border-radius:50%; background:#c4433c; box-shadow:0 0 0 3px rgb(196 67 60 / 12%); }
-.eligibility-dot.eligible { background:#218653; box-shadow:0 0 0 3px rgb(33 134 83 / 13%); }
+.loan-eligibility-card > summary::after,
+.loan-readiness-card > summary::after { content:"+"; display:grid; place-items:center; flex:0 0 22px; width:22px; height:22px; border-radius:50%; background:#edf2ee; color:var(--green); font-size:16px; }
+.loan-eligibility-card[open] > summary::after,
+.loan-readiness-card[open] > summary::after { content:"−"; }
+.loan-readiness-card > summary { display:flex; align-items:center; justify-content:space-between; gap:10px; list-style:none; }
+.loan-readiness-card > summary::-webkit-details-marker { display:none; }
 .loan-eligibility-details { padding-top:10px; }
 .loan-eligibility-details .offer-facts { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .member-share-contribution { margin:18px 0; }
@@ -367,6 +371,14 @@ small {
 .member-share-contribution h3 { margin-top:0; }
 .member-share-contribution > p { margin:8px 0; }
 .member-share-contribution > .muted { font-size:13px; }
+.contribution-savings-balance { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:12px 0; padding:10px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.contribution-savings-balance span { color:var(--muted); font-size:13px; }
+.contribution-savings-balance strong { color:var(--ink); font-size:18px; }
+.outstanding-loan-summary { display:grid; gap:10px; margin:14px 0; }
+.outstanding-loan-summary > strong { color:var(--ink); font-size:clamp(28px,4vw,38px); line-height:1.15; }
+.outstanding-loan-details { display:grid; gap:10px; }
+.outstanding-loan-details > div { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px 12px; padding-top:10px; border-top:1px solid var(--border); }
+.outstanding-loan-details > div > span { min-width:0; color:var(--muted); font-size:13px; overflow-wrap:anywhere; }
 .payment-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:16px 0; padding:13px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
 .payment-facts div { min-width:0; }
 .payment-facts dt { color:var(--muted); font-size:12px; }
@@ -532,6 +544,7 @@ footer {
   .auth-layout { grid-template-columns:1fr minmax(330px,430px); gap:32px; padding:44px 0; }
   .share-capital-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .member-loan-readiness { grid-template-columns:1fr; }
+  .outstanding-loan-details > div { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .savings-member-overview { grid-template-columns:minmax(0,1fr) auto; }
   .savings-member-actions { grid-column:2; grid-row:1 / span 2; }
   .savings-member-overview > .button { grid-column:1; }
@@ -558,6 +571,7 @@ footer {
   .item-heading,.section-heading { align-items:flex-start; flex-direction:column; }
   .offer-facts { grid-template-columns:1fr; }
   .payment-facts { grid-template-columns:1fr; }
+  .outstanding-loan-details > div { grid-template-columns:1fr; }
   .savings-member-overview { grid-template-columns:1fr; }
   .savings-member-actions { grid-column:auto; grid-row:auto; }
   .savings-member-overview > .button { width:100%; }

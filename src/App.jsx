@@ -1079,8 +1079,8 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
     if (path === '/loans') {
       if (values.purpose === 'Other') {
         const detail = String(values.purpose_detail || '').trim()
-        if (!detail) {
-          setActionError('Describe the other loan purpose before submitting.')
+        if (!/^[A-Za-z ]{1,128}$/.test(detail)) {
+          setActionError('Use up to 128 letters and spaces only for the other loan purpose.')
           return
         }
         values.purpose = `Other: ${detail}`
@@ -1213,7 +1213,6 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
     <section className="portal-section">
       {!standalone && <div className="section-heading">
         <div>
-          <div className="eyebrow">Credit services</div>
           <h2>Loans</h2>
           <p className="muted">Review your document status and explore available loan offers.</p>
         </div>
@@ -1310,7 +1309,6 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           <div className="member-loan-readiness">
             {eligibility && <details className="portal-card loan-eligibility-card" open={!eligibility.eligible}>
               <summary>
-                <span className={`eligibility-dot${eligibility.eligible ? ' eligible' : ''}`} aria-hidden="true" />
                 <span>Loan eligibility check</span>
                 <strong>{eligibility.eligible ? 'Eligible to apply' : 'Not yet eligible'}</strong>
               </summary>
@@ -1322,15 +1320,13 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                   <div><dt>Paid-up share capital</dt><dd>{formatPesos(eligibility.paid_up_share_capital)} / {formatPesos(eligibility.criteria.minimum_paid_up_share_capital)} minimum</dd></div>
                   <div><dt>Membership waiting time</dt><dd>{formatSimulationTime(membershipElapsedSeconds)} / {formatSimulationTime(membershipRequiredSeconds)}</dd></div>
                   <div><dt>Savings balance</dt><dd>{formatPesos(eligibility.savings_balance)} / {formatPesos(eligibility.criteria.minimum_savings_balance)} minimum</dd></div>
-                  <div><dt>Outstanding loan balance</dt><dd>{formatPesos(eligibility.active_loan_balance)}</dd></div>
                 </dl>
                 {eligibility.reasons?.length > 0 && <ul className="member-order">{eligibility.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
-                <small>A 31-day membership requirement takes 3 minutes and 10 seconds. Staff review every loan application.</small>
               </div>
             </details>}
             {!readinessAvailable ? <p className="notice">Loan document review and loan applications are available to members aged 18 and over.</p> : (
-              <section className="portal-card loan-readiness-card">
-                <h3>Loan document approval</h3>
+              <details className="portal-card loan-readiness-card" open={readiness?.status !== 'approved'}>
+                <summary>Loan document approval</summary>
                 {readiness?.status === 'pending' && <p className="notice">Your loan documents are waiting for staff review. Loan offers will appear here after approval.</p>}
                 {readiness?.status === 'approved' && <p className="notice">Your loan documents have been approved. You can now view the available loan offers below.</p>}
                 {readiness?.status === 'rejected' && <p className="message message-error">Your loan documents need corrections. Staff note: {readiness.review_note || 'Please upload a corrected document set.'}</p>}
@@ -1353,7 +1349,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                     </li>
                   ))}</ul>
                 )}
-              </section>
+              </details>
             )}
           </div>
           {readiness?.status === 'approved' && (
@@ -1396,8 +1392,22 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                       {!eligibility?.eligible && <p className="notice">You cannot submit an application yet. Review the eligibility reasons above.</p>}
                       <form className="form-grid" onSubmit={(event) => submit(event, '/loans', 'POST', 'Loan application submitted.')}>
                         <input type="hidden" name="loan_type_id" value={product.id} />
-                        <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={Math.min(Number(product.max_amount), Number(eligibility?.max_eligible_amount || 0))} step="0.01" required disabled={!eligibility?.eligible} onChange={(event) => setApplicationInputs((current) => ({ ...current, [product.id]: { ...current[product.id], amount: event.target.value } }))} /></label>
-                        <label>Term (months)<input name="term_months" type="number" min="1" max={product.max_term_months} required onChange={(event) => setApplicationInputs((current) => ({ ...current, [product.id]: { ...current[product.id], term: event.target.value } }))} /></label>
+                        <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={Math.min(Number(product.max_amount), Number(eligibility?.max_eligible_amount || 0))} step="0.01" required disabled={!eligibility?.eligible} value={applicationInputs[product.id]?.amount ?? ''} onChange={(event) => {
+                          const rawAmount = event.target.value
+                          const maximumAmount = Math.min(Number(product.max_amount), Number(eligibility?.max_eligible_amount || 0))
+                          const amount = rawAmount && Number.isFinite(Number(rawAmount)) && Number(rawAmount) > maximumAmount
+                            ? maximumAmount.toFixed(2)
+                            : rawAmount
+                          setApplicationInputs((current) => ({ ...current, [product.id]: { ...current[product.id], amount } }))
+                        }} /></label>
+                        <label>Term (months)<input name="term_months" type="number" min="1" max={product.max_term_months} required value={applicationInputs[product.id]?.term ?? ''} onChange={(event) => {
+                          const rawTerm = event.target.value
+                          const maximumTerm = Number(product.max_term_months)
+                          const term = rawTerm && Number.isFinite(Number(rawTerm)) && Number(rawTerm) > maximumTerm
+                            ? String(maximumTerm)
+                            : rawTerm
+                          setApplicationInputs((current) => ({ ...current, [product.id]: { ...current[product.id], term } }))
+                        }} /></label>
                         <label className="full">Purpose
                           <select name="purpose" value={applicationInputs[product.id]?.purpose || ''} required onChange={(event) => setApplicationInputs((current) => ({ ...current, [product.id]: { ...current[product.id], purpose: event.target.value } }))}>
                             <option value="" disabled>Select a loan purpose</option>
@@ -1409,7 +1419,10 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                             <option value="Other">Other</option>
                           </select>
                         </label>
-                        {applicationInputs[product.id]?.purpose === 'Other' && <label className="full">Specify other purpose<input name="purpose_detail" maxLength="248" required /></label>}
+                        {applicationInputs[product.id]?.purpose === 'Other' && <label className="full">Specify other purpose<input name="purpose_detail" maxLength="128" pattern="[A-Za-z ]{1,128}" title="Use up to 128 letters and spaces only." required value={applicationInputs[product.id]?.purposeDetail || ''} onChange={(event) => {
+                          const purposeDetail = event.target.value.replace(/[^A-Za-z ]/g, '').slice(0, 128)
+                          setApplicationInputs((current) => ({ ...current, [product.id]: { ...current[product.id], purposeDetail } }))
+                        }} /></label>}
                         {applicationInputs[product.id]?.amount && !loanApplicationIsWithinLimits(product, eligibility, applicationInputs[product.id]) && (
                           <p className="full notice">Enter an amount up to {formatPesos(Math.min(Number(product.max_amount), Number(eligibility?.max_eligible_amount || 0)))} and a term from 1 to {product.max_term_months} months. The estimate and submission stay disabled until both are within the offer limits.</p>
                         )}
@@ -1437,6 +1450,21 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
 
       {!loading && (!staff || activeStaffLoanTab === 'applications') && <>
       <h3>{staff ? 'Applications and active loans' : 'Your loans'}</h3>
+      {!staff && Number(eligibility?.active_loan_balance) > 0 && <section className="portal-card outstanding-loan-summary">
+        <span className="eyebrow">Outstanding loan balance</span>
+        <strong>{formatPesos(eligibility.active_loan_balance)}</strong>
+        <div className="outstanding-loan-details">
+          {(eligibility.active_loans || []).map((loan) => (
+            <div key={loan.id}>
+              <span>{loan.loan_type_name} · {loan.loan_code}</span>
+              <span>Balance: {formatPesos(loan.current_balance)}</span>
+              <span>Next due: {loan.next_due_date || 'No upcoming installment'}</span>
+              {loan.next_due_date && <span>Installment due: {formatPesos(loan.next_due_amount)}</span>}
+            </div>
+          ))}
+          {!(eligibility.active_loans || []).length && <span>Your active loan details are being refreshed.</span>}
+        </div>
+      </section>}
       {staff && <div className="loan-status-summary">
         <strong>Application counts</strong>
         {(data?.[1]?.status_counts || []).length
@@ -2112,7 +2140,6 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
         </div>
         <button className="button button-primary" type="button" onClick={() => { setSelectedSavingsMember(null); setLedgerOpen(true) }}>View / print my savings ledger</button>
       </div>}
-      {!staff && <p className="muted">Add funds through Xendit Test Mode, or view other credits from approved loans and Paluwagan payouts. Test Mode deposits do not transfer real money.</p>}
       {!staff && <SmsReminderSettings token={token} />}
       {!staff && data?.[0]?.balance_breakdown && <div className="report-grid savings-balance-breakdown">
         <article className="portal-card"><span>Loan proceeds credited</span><strong>{formatPesos(data[0].balance_breakdown.loan_credits)}</strong></article>
@@ -2188,6 +2215,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   const endpoints = useMemo(() => [
     `${SHARE_CAPITAL_ENDPOINTS[0]}?page=${staff ? transactionsPage : 1}&per_page=${staff ? 50 : 5}`,
     SHARE_CAPITAL_ENDPOINTS[1],
+    ...(!staff ? ['/savings?page=1&per_page=1'] : []),
   ], [staff, transactionsPage])
   const { data, error, loading } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState('')
@@ -2197,6 +2225,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   const [memberContributionSubmitting, setMemberContributionSubmitting] = useState(false)
   const [cancellingSubscriptionId, setCancellingSubscriptionId] = useState(null)
   const capital = data?.[0]
+  const savingsBalance = data?.[2]?.balance
   const subscriptions = capital?.subscriptions || []
   const fetchedTransactions = capital?.transactions || []
   const memberTransactionHistoryKey = `${refreshKey}:${token}`
@@ -2434,12 +2463,15 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
       </div>}
       {!staff && <details className="portal-card member-share-contribution">
         <summary>+ Contribute to share capital</summary>
-        <p>Choose an amount and pay with Xendit or your savings. The contribution uses the cooperative’s current par value; any amount below the next full share remains unpaid on your subscription.</p>
         {loading && !capital
           ? <p className="muted">Loading cooperative share terms…</p>
           : capital?.share_par_value
           ? <p className="muted">Current par value: {formatPesos(capital.share_par_value)} per share.</p>
           : <p className="message message-error">Share-capital terms are not configured. Ask cooperative staff to record an approved share subscription first.</p>}
+        <div className="contribution-savings-balance">
+          <span>Available savings</span>
+          <strong>{loading && savingsBalance === undefined ? 'Loading…' : formatPesos((savingsBalance || 0) / 100)}</strong>
+        </div>
         <form className="form-grid" onSubmit={submitMemberContribution}>
           <label>Contribution amount (PHP)<input name="amount" type="number" min="0.01" max="9999999999.99" step="0.01" required /></label>
           <label>Pay using<select name="payment_method" defaultValue="xendit" required>
