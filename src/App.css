@@ -8,6 +8,16 @@
   flex-direction: column;
 }
 
+.page-shell-auth-loading {
+  width: 100%;
+  margin: 0;
+}
+
+.page-shell-auth-loading .auth-loading {
+  width: 100%;
+  min-height: 100vh;
+}
+
 .page-shell:not(.page-shell-staff) > .topbar {
   width: 100%;
 }
@@ -323,6 +333,7 @@ small {
 
 .button-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .pagination-controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:12px; margin:14px 0 24px; color:var(--muted); font-size:13px; }
+.load-more-row { display:flex; justify-content:center; margin:16px 0 24px; }
 .inline-form { display:flex; flex-wrap:wrap; align-items:center; gap:8px; flex:1 1 100%; }
 .inline-form input,.inline-form select { flex:1 1 150px; width:auto; margin:0; }
 .payout-callout { display:flex; flex-wrap:wrap; align-items:center; gap:12px; background:#f0f5f0; border-radius:7px; padding:14px; margin:16px 0; }
@@ -339,7 +350,6 @@ small {
 .savings-member-overview { display:grid; grid-template-columns:minmax(0, 1fr) auto; align-items:center; gap:14px; margin:14px 0; }
 .savings-member-overview .portal-card { margin:0; }
 .savings-member-overview > .button { min-height:44px; }
-.savings-staff-hint { margin:8px 0 18px; font-size:13px; }
 .savings-balance span,.report-grid span { color:var(--muted); font-size:13px; }
 .savings-balance strong { color:var(--ink); font-size:26px; }
 .report-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; }

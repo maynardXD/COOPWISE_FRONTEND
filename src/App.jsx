@@ -1204,7 +1204,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       {!loading && staff && activeStaffLoanTab === 'lending_pool' && (
         <section>
           <h3>Simulated lending pool</h3>
-          <p className="muted">This is the cooperative’s separate demo fund for loan disbursements. Staff-recorded funding increases the available pool; approving a loan deducts its principal, and repayments return to the pool. It is not member savings or share capital, and no real money moves.</p>
+          <p className="muted">This is a simulated fund the cooperative uses to issue loans. Staff-recorded funding adds to the pool; approving a loan subtracts its principal, and repayments put money back. It is separate from members’ savings and share capital. No real money moves.</p>
           <article className="portal-card loan-fund-summary">
             <span>Available for approved loan disbursements</span>
             <strong>{formatPesos(finance?.loan_fund?.available_balance || '0.00')}</strong>
@@ -1580,7 +1580,6 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
           <div>
             <span className="eyebrow">Staff action</span>
             <h3>Create a daily cycle</h3>
-            <p>Set the contribution and start date, select the members, review their member numbers and names, then confirm. CoopWise randomizes the payout order after creation.</p>
           </div>
           <form ref={createCycleForm} className="form-grid" onSubmit={reviewNewCycle}>
             <label>Cycle name<input name="name" required maxLength="120" /></label>
@@ -1620,7 +1619,13 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
           <p>{cycle.today_contributions} of {cycle.member_count} contributions recorded today.</p>
           {staff && cycle.status === 'draft' && <div className="button-row">
             <button className="button button-primary" type="button" onClick={() => changeCycle('/cooperative/cycles/activate', { cycle_id: cycle.id }, 'Cycle activated.')}>Activate cycle</button>
-            {cycle.can_remove && <button className="button button-outline" type="button" onClick={() => removeCycle(cycle)}>Remove draft</button>}
+            <button
+              className="button button-outline"
+              type="button"
+              disabled={cycle.can_remove === false}
+              title={cycle.can_remove === false ? 'This draft has transaction history and cannot be removed.' : undefined}
+              onClick={() => removeCycle(cycle)}
+            >Remove draft</button>
           </div>}
           {cycle.ready_payout && (
             <div className="payout-callout">
@@ -1728,7 +1733,7 @@ function MembersPortal({ token, standalone = false }) {
   return (
     <section className="portal-section">
       <div className="section-heading members-heading">
-        {!standalone && <div><h2>Members</h2><p className="muted">Member directory and account status.</p></div>}
+        {!standalone && <h2>Members</h2>}
         <span className="status" aria-live="polite">{members.length} shown</span>
       </div>
       <div className="member-search-layout">
@@ -1774,16 +1779,17 @@ function MembersPortal({ token, standalone = false }) {
 
 function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit }) {
   const staff = ['admin', 'officer'].includes(user.role)
-  const [transactionPage, setTransactionPage] = useState(1)
+  const [loadedTransactionHistory, setLoadedTransactionHistory] = useState(null)
+  const [loadingMoreTransactions, setLoadingMoreTransactions] = useState(false)
   const [appliedTransactionFilters, setAppliedTransactionFilters] = useState({ q: '', type: 'all', from: '', to: '' })
   const endpoints = useMemo(() => {
-    const params = new URLSearchParams({ page: String(transactionPage), per_page: '50' })
+    const params = new URLSearchParams({ page: '1', per_page: '10' })
     if (staff && appliedTransactionFilters.q.trim()) params.set('q', appliedTransactionFilters.q.trim())
     if (staff && appliedTransactionFilters.type !== 'all') params.set('type', appliedTransactionFilters.type)
     if (staff && appliedTransactionFilters.from) params.set('from', appliedTransactionFilters.from)
     if (staff && appliedTransactionFilters.to) params.set('to', appliedTransactionFilters.to)
     return [`/savings?${params}`]
-  }, [staff, transactionPage, appliedTransactionFilters])
+  }, [staff, appliedTransactionFilters])
   const { data, error, loading } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
@@ -1801,6 +1807,17 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
   const [transactionFilters, setTransactionFilters] = useState({ q: '', type: 'all', from: '', to: '' })
   const [exportingTransactions, setExportingTransactions] = useState(false)
   const transactions = data?.[0]?.transactions || []
+  const transactionHistoryKey = `${refreshKey}:${endpoints[0]}`
+  const additionalTransactions = loadedTransactionHistory?.key === transactionHistoryKey
+    ? loadedTransactionHistory.transactions
+    : []
+  const transactionPage = loadedTransactionHistory?.key === transactionHistoryKey
+    ? loadedTransactionHistory.page
+    : 1
+  const hasMoreTransactions = loadedTransactionHistory?.key === transactionHistoryKey
+    ? loadedTransactionHistory.hasMore
+    : Boolean(data?.[0]?.pagination?.has_more)
+  const allTransactions = [...transactions, ...additionalTransactions]
   const balance = data?.[0]?.balance
   const memberBalances = data?.[0]?.member_balances || []
   const savingsSummary = data?.[0]?.summary
@@ -1808,7 +1825,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
   const filteredMembers = memberBalances.filter((member) =>
     `${member.member_number} ${member.first_name} ${member.last_name}`.toLowerCase().includes(memberSearch.trim().toLowerCase())
   )
-  const filteredTransactions = transactions.filter((entry) => {
+  const filteredTransactions = allTransactions.filter((entry) => {
     const matchesText = `${entry.member_number || ''} ${entry.first_name || ''} ${entry.last_name || ''} ${entry.reference_no} ${entry.description || ''}`.toLowerCase()
       .includes(transactionFilters.q.trim().toLowerCase())
     const date = String(entry.created_at || '').slice(0, 10)
@@ -1818,9 +1835,39 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
       && (!transactionFilters.to || date <= transactionFilters.to)
   })
 
+  async function loadMoreTransactions() {
+    if (loadingMoreTransactions || !hasMoreTransactions) return
+    const nextPage = transactionPage + 1
+    const params = new URLSearchParams({ page: String(nextPage), per_page: '10' })
+    if (staff && appliedTransactionFilters.q.trim()) params.set('q', appliedTransactionFilters.q.trim())
+    if (staff && appliedTransactionFilters.type !== 'all') params.set('type', appliedTransactionFilters.type)
+    if (staff && appliedTransactionFilters.from) params.set('from', appliedTransactionFilters.from)
+    if (staff && appliedTransactionFilters.to) params.set('to', appliedTransactionFilters.to)
+    setLoadingMoreTransactions(true)
+    setActionError('')
+    try {
+      const result = await apiRequest(`/savings?${params}`, { token })
+      const existingIds = new Set(allTransactions.map((transaction) => Number(transaction.id)))
+      const newTransactions = (result.transactions || [])
+        .filter((transaction) => !existingIds.has(Number(transaction.id)))
+      setLoadedTransactionHistory((current) => ({
+        key: transactionHistoryKey,
+        page: nextPage,
+        hasMore: Boolean(result.pagination?.has_more),
+        transactions: [
+          ...(current?.key === transactionHistoryKey ? current.transactions : []),
+          ...newTransactions,
+        ],
+      }))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    } finally {
+      setLoadingMoreTransactions(false)
+    }
+  }
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setTransactionPage(1)
       setAppliedTransactionFilters(transactionFilters)
     }, 350)
     return () => window.clearTimeout(timer)
@@ -2001,7 +2048,6 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
           <p className="autopay-caveat">Auto-pay runs only after the cooperative configures the recurring daily job. Savings withdrawals and their loan or Paluwagan records are saved together.</p>
         </form>
       )}
-      {staff && <p className="muted savings-staff-hint">To preview or print a member’s passbook-style savings ledger, open the Members directory and choose <strong>Savings ledger</strong> for that member.</p>}
       {staff && savingsSummary && <section className="savings-admin-overview">
         <h3>Member balance overview</h3>
         <div className="report-grid">
@@ -2050,10 +2096,10 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
         <td>{entry.created_at}</td>{staff && <td>{entry.member_number} · {entry.first_name} {entry.last_name}</td>}
         <td>{entry.type}</td><td>PHP {entry.amount}</td><td>PHP {entry.balance_after}</td><td>{entry.reference_no}</td><td>{entry.description || '—'}</td>
       </tr>)}</tbody></table></div>}
-      {data?.[0]?.pagination && <div className="pagination-controls" aria-label="Savings history pages">
-        <button className="button button-outline" type="button" disabled={transactionPage <= 1 || loading} onClick={() => setTransactionPage((page) => page - 1)}>Previous</button>
-        <span>Page {transactionPage}</span>
-        <button className="button button-outline" type="button" disabled={!data[0].pagination.has_more || loading} onClick={() => setTransactionPage((page) => page + 1)}>Next</button>
+      {hasMoreTransactions && <div className="load-more-row">
+        <button className="button button-outline" type="button" disabled={loadingMoreTransactions || loading} onClick={loadMoreTransactions}>
+          {loadingMoreTransactions ? 'Loading…' : 'Load more'}
+        </button>
       </div>}
       {ledgerOpen && <SavingsLedgerDialog token={token} member={selectedSavingsMember} onClose={() => { setLedgerOpen(false); setSelectedSavingsMember(null) }} />}
     </section>
@@ -2566,7 +2612,7 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
         </div>
         <details className="portal-card">
           <summary>Record simulated lending-pool funding</summary>
-          <p className="muted">Use this to record demo funds provided to the cooperative’s separate lending pool. The pool is checked when staff approve a loan: the approved principal is deducted from the pool, and repayments are returned to it. This entry does not collect money, debit a member, or use share capital or savings.</p>
+          <p className="muted">Record simulated funds added to the cooperative’s loan pool. Loan approval subtracts principal from this pool, and repayments add funds back. This entry does not collect money, debit a member, or use share capital or savings.</p>
           <form className="form-grid" onSubmit={addLoanFund}>
             <label>Amount (PHP)<input name="amount" type="number" min="0.01" step="0.01" required /></label>
             <label>Description<input name="description" maxLength="255" placeholder="Example: classroom demo seed funding" /></label>
@@ -2826,15 +2872,13 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
 
   return (
     <section className="portal-section">
-      <div className="section-heading">
-        {!standalone && <div>
-          <div className="eyebrow">{staff ? 'Confirmed transactions' : 'Secure checkout'}</div>
-          <h2>{staff ? 'Payment transactions' : 'Make a payment'}</h2>
-          <p className="muted">{staff
-            ? 'Online and savings-funded member payments appear here. Members can see only their own transactions.'
-            : 'Choose what to pay and whether to use Xendit or your available savings balance.'}</p>
-        </div>}
-      </div>
+      {!staff && !standalone && <div className="section-heading">
+        <div>
+          <div className="eyebrow">Secure checkout</div>
+          <h2>Make a payment</h2>
+          <p className="muted">Choose what to pay and whether to use Xendit or your available savings balance.</p>
+        </div>
+      </div>}
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
       {!staff && (
@@ -2961,10 +3005,10 @@ const STAFF_PAGE_DETAILS = {
   loans: ['Loans', 'Review loan documents, applications, and available loan offers.'],
   'share-capital': ['Share Capital', 'Track member ownership subscriptions and paid-up contributions.'],
   reports: ['Reports', 'View recorded cooperative totals and monthly activity.'],
-  payments: ['Payment Transactions', 'Review provider-confirmed payments from members.'],
+  payments: ['Payment Transactions', ''],
   cooperative: ['Daily Paluwagan', 'Members contribute through Xendit checkout. Staff confirm the payout and add it to the recipient’s available balance.'],
   savings: ['Savings', 'Review member balances funded by approved loans and completed Paluwagan payouts.'],
-  members: ['Members', 'Member directory and account status.'],
+  members: ['Members', ''],
 }
 
 const MEMBER_PAGE_DETAILS = {
@@ -3138,7 +3182,7 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
           <div className="staff-banner-copy">
             {section === 'dashboard' && <h1>Welcome, {user.full_name} 👋</h1>}
             {section !== 'dashboard' && <h1>{pageTitle}</h1>}
-            <p>{section === 'dashboard' && staff ? 'Manage cooperative services and member activity.' : pageDescription}</p>
+            {pageDescription && <p>{pageDescription}</p>}
           </div>
           <span className="staff-banner-art" aria-hidden="true" />
         </section>
@@ -3173,7 +3217,6 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
                       ? <PaymentPortal key={`payments-${paymentInitialPurpose}`} token={token} user={user} refreshKey={refreshKey} standalone initialPurpose={paymentInitialPurpose} />
                       : <ReportsPortal key="reports" token={token} refreshKey={refreshKey} standalone />}
         </div>
-        <footer className="staff-footer">Xendit confirms incoming payments. Confirmed Paluwagan payouts are credited to the recipient’s demo balance.</footer>
       </div>
     </div>
   )
@@ -3431,12 +3474,12 @@ function App() {
   if (memberCardToken) return <MemberCardVerification verificationToken={memberCardToken} theme={theme} onToggleTheme={toggleTheme} />
 
   return (
-    <main className={`page-shell${user ? ' page-shell-staff' : ''}`}>
+    <main className={`page-shell${user ? ' page-shell-staff' : ''}${authenticating && !user ? ' page-shell-auth-loading' : ''}`}>
       {user ? (
         <StaffWorkspace token={token} user={user} section={section} setSection={setSection} refreshKey={refreshKey} onSignOut={signOut} theme={theme} onToggleTheme={toggleTheme} />
       ) : (
         <>
-      <header className="topbar">
+      {!authenticating && <header className="topbar">
         <a className="brand" href="/" aria-label="CoopWise home">
           <svg className="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 27C4 15 11 7 27 5c-1 14-8 22-21 22Z" fill="currentColor" /><path d="M8 27c4-7 9-12 16-17" fill="none" stroke="#fff" strokeLinecap="round" strokeWidth="1.5" /></svg>
           <span>Coop<span>Wise</span></span>
@@ -3445,7 +3488,7 @@ function App() {
           <span className="tagline">Cooperative services, made clear</span>
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
-      </header>
+      </header>}
 
       {authenticating ? (
         <section className="auth-loading" role="status" aria-live="polite">
@@ -3542,7 +3585,7 @@ function App() {
           </div>
         </section>
       )}
-      <footer>Incoming payments use Xendit checkout and require server-side confirmation.</footer>
+      {!authenticating && <footer>Incoming payments use Xendit checkout and require server-side confirmation.</footer>}
         </>
       )}
     </main>
