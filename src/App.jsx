@@ -1020,6 +1020,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const [expandedOfferId, setExpandedOfferId] = useState(null)
   const [staffLoanTab, setStaffLoanTab] = useState(null)
   const products = data?.[0]?.products || []
+  const loanCapitalBreakdown = data?.[0]?.loan_capital_breakdown
   const fetchedLoans = data?.[1]?.loans || []
   const memberLoanHistoryKey = `${refreshKey}:${token}`
   const extraMemberLoans = !staff && memberLoanHistory?.key === memberLoanHistoryKey
@@ -1516,9 +1517,20 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                 <div><h3>Available loan offers</h3><p className="muted">Choose an offer to see its application form.</p></div>
               </div>
               <article className="portal-card loan-capital-summary">
-                <span>Share capital available to lend</span>
+                <span>Cooperative lending capital available</span>
                 <strong>{formatPesos(availableLoanCapital)}</strong>
-                <small>Pending applications reserve capital. Loan repayments restore principal, and collected interest adds to cooperative capital.</small>
+                <small>Pending applications and unpaid principal reduce availability. Collected interest already allocated to investors is not counted as lendable capital.</small>
+                {loanCapitalBreakdown && <details className="loan-capital-breakdown">
+                  <summary>View lending-capital calculation</summary>
+                  <dl>
+                    <div><dt>Paid-up share capital</dt><dd>{formatPesos(loanCapitalBreakdown.paid_up_share_capital)}</dd></div>
+                    <div><dt>Collected interest not allocated to investors</dt><dd>{formatPesos(loanCapitalBreakdown.lendable_interest)}</dd></div>
+                    <div><dt>Outstanding loan principal</dt><dd>− {formatPesos(loanCapitalBreakdown.outstanding_principal)}</dd></div>
+                    <div><dt>Pending loan applications</dt><dd>− {formatPesos(loanCapitalBreakdown.pending_principal)}</dd></div>
+                    <div className="loan-capital-breakdown-total"><dt>Available to lend</dt><dd>{formatPesos(availableLoanCapital)}</dd></div>
+                  </dl>
+                  <small>Distributed interest: {formatPesos(loanCapitalBreakdown.distributed_interest)}. Overdue penalties remain separate from this regular-interest distribution.</small>
+                </details>}
               </article>
               {products.length === 0
                 ? <p className="notice">{productLoadFailed
@@ -2454,6 +2466,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
   const [returnAction, setReturnAction] = useState('')
+  const [loanInterestAction, setLoanInterestAction] = useState('')
   const [adminInvestmentSubmitting, setAdminInvestmentSubmitting] = useState(false)
   const [memberContributionSubmitting, setMemberContributionSubmitting] = useState(false)
   const [cancellingSubscriptionId, setCancellingSubscriptionId] = useState(null)
@@ -2474,8 +2487,13 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
     ? memberTransactionHistory.hasMore
     : Boolean(capital?.pagination?.has_more)
   const memberReturns = data?.[1]?.member_returns || []
+  const loanInterestReturns = data?.[1]?.loan_interest_returns || []
   const availableReturns = memberReturns.filter((item) => item.claim_status === 'available')
   const availableReturnTotal = availableReturns.reduce((total, item) => total + Number(item.total_return || 0), 0)
+  const availableLoanInterestReturns = loanInterestReturns.filter((item) => item.claim_status === 'available')
+  const availableLoanInterestTotal = availableLoanInterestReturns.reduce((total, item) => total + Number(item.amount || 0), 0)
+  const memberLoanInterestTotal = loanInterestReturns.reduce((total, item) => total + Number(item.amount || 0), 0)
+  const loanInterestSummary = data?.[1]?.loan_interest_summary || {}
   const approvedReturnTotal = staff
     ? Number(data?.[1]?.approved_member_returns || 0)
     : memberReturns.reduce((total, item) => total + Number(item.total_return || 0), 0)
@@ -2659,7 +2677,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   }
 
   async function claimReturns(destination) {
-    if (returnAction || availableReturnTotal <= 0) return
+    if (returnAction || loanInterestAction || availableReturnTotal <= 0) return
     const destinationLabel = destination === 'savings' ? 'your savings' : 'share capital'
     if (!window.confirm(`Add PHP ${formatPesos(availableReturnTotal)} of approved returns to ${destinationLabel}?`)) return
     setReturnAction(destination)
@@ -2682,6 +2700,35 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
       setActionError(requestError.message)
     } finally {
       setReturnAction('')
+    }
+  }
+
+  async function claimLoanInterestReturns(destination) {
+    if (loanInterestAction || returnAction || availableLoanInterestTotal <= 0) return
+    const destinationLabel = destination === 'savings' ? 'your savings' : 'share capital'
+    if (!window.confirm(
+      `Add PHP ${formatPesos(availableLoanInterestTotal)} of equal loan-interest returns to ${destinationLabel}?`
+    )) return
+    setLoanInterestAction(destination)
+    setNotice('')
+    setActionError('')
+    try {
+      const result = await apiRequest('/cooperative/returns/claim', {
+        token,
+        method: 'POST',
+        body: JSON.stringify({ destination, source: 'loan_interest' }),
+      })
+      setNotice(result.message)
+      if (destination === 'share_capital') {
+        window.dispatchEvent(new CustomEvent('coopwise:member-profile-updated', {
+          detail: { is_investor: true },
+        }))
+      }
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    } finally {
+      setLoanInterestAction('')
     }
   }
 
@@ -2710,15 +2757,54 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
           <strong>{formatPesos(approvedReturnTotal)}</strong>
           <small>{staff ? `Still available to members: ${formatPesos(availableReturnSummary)}` : `Available to allocate: ${formatPesos(availableReturnSummary)}`}</small>
           {!staff && <div className="dividend-action-buttons">
-            <button className="button button-outline" type="button" disabled={!availableReturnTotal || Boolean(returnAction)} onClick={() => claimReturns('savings')}>
+            <button className="button button-outline" type="button" disabled={!availableReturnTotal || Boolean(returnAction) || Boolean(loanInterestAction)} onClick={() => claimReturns('savings')}>
               {returnAction === 'savings' ? 'Adding…' : 'Add to savings'}
             </button>
-            <button className="button button-outline" type="button" disabled={!availableReturnTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(returnAction)} onClick={() => claimReturns('share_capital')}>
+            <button className="button button-outline" type="button" disabled={!availableReturnTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(returnAction) || Boolean(loanInterestAction)} onClick={() => claimReturns('share_capital')}>
               {returnAction === 'share_capital' ? 'Reinvesting…' : 'Add to share capital'}
             </button>
           </div>}
         </article>
       </div>}
+      {data?.[1] && (staff
+        ? <article className="portal-card loan-interest-return-summary">
+          <span>Loan interest allocated equally to investors</span>
+          <strong>{formatPesos(loanInterestSummary.allocated_interest || 0)}</strong>
+          <small>
+            Available to claim: {formatPesos(loanInterestSummary.available_returns || 0)}
+            {' · '}Retained because no eligible investor: {formatPesos(loanInterestSummary.retained_interest || 0)}
+          </small>
+        </article>
+        : <article className="portal-card loan-interest-return-summary">
+          <span>Your loan-interest returns</span>
+          <strong>{formatPesos(memberLoanInterestTotal)}</strong>
+          <small>Available to claim: {formatPesos(availableLoanInterestTotal)}. This is separate from annual approved surplus distributions.</small>
+          <div className="dividend-action-buttons">
+            <button className="button button-outline" type="button" disabled={!availableLoanInterestTotal || Boolean(loanInterestAction) || Boolean(returnAction)} onClick={() => claimLoanInterestReturns('savings')}>
+              {loanInterestAction === 'savings' ? 'Adding…' : 'Add to savings'}
+            </button>
+            <button className="button button-outline" type="button" disabled={!availableLoanInterestTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(loanInterestAction) || Boolean(returnAction)} onClick={() => claimLoanInterestReturns('share_capital')}>
+              {loanInterestAction === 'share_capital' ? 'Reinvesting…' : 'Add to share capital'}
+            </button>
+          </div>
+        </article>)}
+      {staff && <section>
+        <h3>Recent loan-interest allocations</h3>
+        <p className="muted">Regular loan interest is allocated among active investors with paid-up share capital. This is separate from approved annual surplus returns.</p>
+        {!loading && (data?.[1]?.loan_interest_allocations || []).length === 0 && <p className="muted">No loan-interest allocations have been recorded.</p>}
+        {(data?.[1]?.loan_interest_allocations || []).length > 0 && <div className="table-wrap"><table>
+          <thead><tr><th>Investor</th><th>Loan</th><th>Interest collected</th><th>Investor share</th><th>Investor count</th><th>Status</th><th>Allocated</th></tr></thead>
+          <tbody>{data[1].loan_interest_allocations.map((item) => <tr key={`staff-interest-${item.id}`}>
+            <td>{item.first_name} {item.last_name}<small>{item.member_number}</small></td>
+            <td>{item.loan_code}<small>{item.payment_date}</small></td>
+            <td>{formatPesos(item.interest_amount)}</td>
+            <td>{formatPesos(item.amount)}</td>
+            <td>{item.eligible_investor_count}</td>
+            <td>{item.claim_status.replaceAll('_', ' ')}{item.claimed_at && <small>{item.claimed_at}</small>}</td>
+            <td>{item.created_at}</td>
+          </tr>)}</tbody>
+        </table></div>}
+      </section>}
       {user.role === 'admin' && <section>
         <h3>Your investor returns</h3>
         <p className="muted">This section shows returns allocated to the admin account’s own linked investor profile, not cooperative-wide totals.</p>
@@ -2726,13 +2812,33 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
         {hasOwnInvestorProfile && <>
           <article className="portal-card"><span>Admin savings balance</span><strong>{formatPesos(data?.[1]?.member_savings_balance)}</strong></article>
           <div className="dividend-action-buttons">
-            <button className="button button-outline" type="button" disabled={!availableReturnTotal || Boolean(returnAction)} onClick={() => claimReturns('savings')}>
+            <button className="button button-outline" type="button" disabled={!availableReturnTotal || Boolean(returnAction) || Boolean(loanInterestAction)} onClick={() => claimReturns('savings')}>
               {returnAction === 'savings' ? 'Adding…' : `Add ${formatPesos(availableReturnTotal)} to admin savings`}
             </button>
-            <button className="button button-outline" type="button" disabled={!availableReturnTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(returnAction)} onClick={() => claimReturns('share_capital')}>
+            <button className="button button-outline" type="button" disabled={!availableReturnTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(returnAction) || Boolean(loanInterestAction)} onClick={() => claimReturns('share_capital')}>
               {returnAction === 'share_capital' ? 'Reinvesting…' : 'Reinvest in admin share capital'}
             </button>
           </div>
+          <p className="muted">Available loan-interest returns: {formatPesos(availableLoanInterestTotal)}</p>
+          <div className="dividend-action-buttons">
+            <button className="button button-outline" type="button" disabled={!availableLoanInterestTotal || Boolean(loanInterestAction) || Boolean(returnAction)} onClick={() => claimLoanInterestReturns('savings')}>
+              {loanInterestAction === 'savings' ? 'Adding…' : 'Add loan-interest returns to admin savings'}
+            </button>
+            <button className="button button-outline" type="button" disabled={!availableLoanInterestTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(loanInterestAction) || Boolean(returnAction)} onClick={() => claimLoanInterestReturns('share_capital')}>
+              {loanInterestAction === 'share_capital' ? 'Reinvesting…' : 'Reinvest loan-interest returns'}
+            </button>
+          </div>
+          {loanInterestReturns.length > 0 && <div className="table-wrap"><table>
+            <thead><tr><th>Loan</th><th>Interest collected</th><th>Investor share</th><th>Investor count</th><th>Status</th><th>Allocated</th></tr></thead>
+            <tbody>{loanInterestReturns.map((item) => <tr key={`interest-${item.id}`}>
+              <td>{item.loan_code}<small>{item.reference_no}</small></td>
+              <td>{formatPesos(item.interest_amount)}</td>
+              <td>{formatPesos(item.amount)}</td>
+              <td>{item.eligible_investor_count}</td>
+              <td>{item.claim_status.replaceAll('_', ' ')}{item.claimed_at && <small>{item.claimed_at}</small>}</td>
+              <td>{item.created_at}</td>
+            </tr>)}</tbody>
+          </table></div>}
           {!loading && memberReturns.length === 0 && <p className="muted">No approved member returns have been recorded for this investor profile.</p>}
           {memberReturns.length > 0 && <div className="table-wrap"><table>
             <thead><tr><th>Fiscal year</th><th>Share capital basis</th><th>Interest on share capital</th><th>Patronage basis</th><th>Patronage refund</th><th>Total return</th><th>Status</th></tr></thead>
@@ -2770,6 +2876,22 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
           </button>
         </form>
       </details>}
+      {!staff && <section>
+        <h3>Your loan-interest return history</h3>
+        <p className="muted">Each recorded regular-interest payment is split equally among active members with paid-up share capital. Overdue penalties and annual surplus distributions are tracked separately.</p>
+        {!loading && loanInterestReturns.length === 0 && <p className="muted">No loan-interest returns have been allocated to your investor profile.</p>}
+        {loanInterestReturns.length > 0 && <div className="table-wrap"><table>
+          <thead><tr><th>Loan</th><th>Interest collected</th><th>Your equal share</th><th>Investor count</th><th>Status</th><th>Allocated</th></tr></thead>
+          <tbody>{loanInterestReturns.map((item) => <tr key={`interest-${item.id}`}>
+            <td>{item.loan_code}<small>{item.reference_no}</small></td>
+            <td>{formatPesos(item.interest_amount)}</td>
+            <td>{formatPesos(item.amount)}</td>
+            <td>{item.eligible_investor_count}</td>
+            <td>{item.claim_status.replaceAll('_', ' ')}{item.claimed_at && <small>{item.claimed_at}</small>}</td>
+            <td>{item.created_at}</td>
+          </tr>)}</tbody>
+        </table></div>}
+      </section>}
       {!staff && <section>
         <h3>Approved member returns</h3>
         <p className="muted">These are approved interest-on-share-capital and patronage-refund allocations. They are separate from your share-capital balance and savings balance.</p>
@@ -2907,7 +3029,7 @@ function LearningCenter({ token, user, refreshKey, standalone = false }) {
       <article className="portal-card"><span className="eyebrow">04 · Paluwagan</span><h3>Contribute to a rotating pool</h3><p>Enrolled members contribute to a scheduled cycle. The system tracks the order and contributions; staff confirm the simulated payout to the next recipient.</p></article>
       <article className="portal-card"><span className="eyebrow">05 · Payments</span><h3>Review payment records</h3><p>Online payment records are added after provider confirmation. CoopWise withdrawals update the savings ledger; they do not initiate an external bank or e-wallet transfer.</p></article>
       <article className="portal-card"><span className="eyebrow">06 · Records</span><h3>Keep the history clear</h3><p>Each balance credit or debit should have a source and reference. Share capital stays separate, and corrections should be recorded with a reason rather than deleting history.</p></article>
-      <article className="portal-card"><span className="eyebrow">07 · Member returns</span><h3>Surplus is not guaranteed</h3><p>After the cooperative determines and allocates its net surplus under its rules, an approved distribution may include interest on share capital and patronage refunds. Loan interest is charged to borrowers; it is not itself a dividend.</p></article>
+      <article className="portal-card"><span className="eyebrow">07 · Member returns</span><h3>Surplus and loan-interest returns are different</h3><p>Annual surplus distributions require cooperative review and approval; they may include interest on share capital and patronage refunds. In this CoopWise simulation, regular loan interest is separately allocated equally among active investors with paid-up share capital when collected. Overdue penalties are excluded, and these equal loan-interest returns are not a guaranteed annual dividend.</p></article>
     </div>
     <section className="policy-section">
       <div className="section-heading"><div><h3>Cooperative policies for this demo</h3><p className="muted">These are this project’s sample rules, not universal cooperative rules or legal advice.</p></div></div>
@@ -2948,7 +3070,7 @@ function DemoGuide({ setSection, standalone = false }) {
     { title: 'Understand the cooperative', section: 'learning', description: 'Learn what membership, share capital, loans, and Paluwagan mean in this classroom demo.' },
     { title: 'Compare sample loan offers', section: 'loans', description: 'Review the example interest rate and repayment schedule before applying. Staff review the application.' },
     { title: 'Explore a Paluwagan cycle', section: 'cooperative', description: 'See the contribution amount, randomized order, daily records, and payout status.' },
-    { title: 'Review your balance sources', section: 'savings', description: 'An approved loan is funded from cooperative share capital available to lend and credits your demo savings. Repayments restore the available capital.' },
+    { title: 'Review your balance sources', section: 'savings', description: 'An approved loan is funded from cooperative lending capital and credits your demo savings. Principal repayments restore lending capacity; regular interest is allocated separately to eligible investors.' },
     { title: 'Try a simulated withdrawal', section: 'savings', description: 'Choose a demo e-wallet or bank destination. The ledger updates, but no real money is transferred.' },
   ]
   return <section className="portal-section demo-guide">
@@ -3150,7 +3272,10 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
           <article className="portal-card"><span>Paid-up share capital</span><strong>PHP {report.summary.share_capital_paid_up || '0.00'}</strong><small>Subscribed: PHP {report.summary.share_capital_subscribed || '0.00'}</small></article>
           <article className="portal-card"><span>Loan portfolio</span><strong>PHP {report.summary.loan_balance}</strong></article>
           <article className="portal-card"><span>Outstanding loan principal</span><strong>{formatPesos(report.summary.loan_principal_receivable)}</strong></article>
-          <article className="portal-card"><span>Share capital available to lend</span><strong>{formatPesos(report.summary.available_loan_capital)}</strong></article>
+          <article className="portal-card"><span>Cooperative lending capital available</span><strong>{formatPesos(report.summary.available_loan_capital)}</strong><small>Paid-up share capital + unallocated collected interest − outstanding and pending principal.</small></article>
+          <article className="portal-card"><span>Collected interest still lendable</span><strong>{formatPesos(report.summary.lendable_loan_interest)}</strong></article>
+          <article className="portal-card"><span>Loan interest allocated to investors</span><strong>{formatPesos(report.summary.distributed_loan_interest)}</strong></article>
+          <article className="portal-card"><span>Pending loan principal reserve</span><strong>{formatPesos(report.summary.pending_loan_principal)}</strong></article>
           <article className="portal-card"><span>Loan payments received</span><strong>PHP {report.summary.loan_payments_received}</strong></article>
           <article className="portal-card"><span>Loan interest received</span><strong>{formatPesos(report.summary.loan_interest_received)}</strong></article>
           <article className="portal-card"><span>Approved member returns</span><strong>{formatPesos(report.summary.approved_member_returns)}</strong></article>

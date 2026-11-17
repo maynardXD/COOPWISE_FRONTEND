@@ -439,9 +439,21 @@ small {
 .report-grid .portal-card { display:flex; flex-direction:column; gap:9px; margin:0; }
 .dividend-action-buttons { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-top:auto; padding-top:5px; }
 .dividend-action-buttons .button { min-width:0; padding:8px 5px; font-size:11px; line-height:1.25; white-space:normal; }
+.loan-interest-return-summary { display:grid; gap:8px; margin:14px 0; }
+.loan-interest-return-summary > span { color:var(--muted); font-size:13px; }
+.loan-interest-return-summary > strong { color:var(--ink); font-size:26px; font-variant-numeric:tabular-nums; }
+.loan-interest-return-summary > small { color:var(--muted); line-height:1.5; }
 .loan-capital-summary { display:flex; flex-direction:column; gap:7px; margin:14px 0; }
 .loan-capital-summary strong { font-size:23px; }
 .loan-capital-summary small { color:var(--muted); line-height:1.5; }
+.loan-capital-breakdown { margin-top:5px; padding-top:8px; border-top:1px solid var(--border); }
+.loan-capital-breakdown summary { cursor:pointer; color:var(--ink); font-size:13px; font-weight:650; }
+.loan-capital-breakdown dl { display:grid; gap:5px; margin:10px 0; }
+.loan-capital-breakdown dl > div { display:flex; justify-content:space-between; gap:14px; color:var(--muted); font-size:12px; }
+.loan-capital-breakdown dt,.loan-capital-breakdown dd { margin:0; }
+.loan-capital-breakdown dd { color:var(--ink); font-variant-numeric:tabular-nums; text-align:right; }
+.loan-capital-breakdown .loan-capital-breakdown-total { padding-top:6px; border-top:1px solid var(--border); color:var(--ink); font-weight:700; }
+.loan-capital-breakdown-total dd { font-weight:700; }
 .report-grid strong { color:var(--ink); font-size:21px; }
 .report-grid small { color:var(--muted); }
 .report-chart-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr)); gap:14px; margin:12px 0 24px; }
