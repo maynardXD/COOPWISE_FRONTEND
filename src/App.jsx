@@ -2691,6 +2691,13 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
       <p className="muted">Share capital represents member ownership in the cooperative. It is separate from savings and is not an ordinary savings withdrawal.</p>
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
+      {capital && <article className="portal-card cooperative-share-capital-highlight">
+        <span>Cooperative-wide paid-up share capital</span>
+        <strong>{capital.cooperative_paid_up_amount === undefined
+          ? '—'
+          : formatPesos(capital.cooperative_paid_up_amount)}</strong>
+        <small>Combined contributions from all investors, net of recorded reversals.</small>
+      </article>}
       {capital && <div className="report-grid share-capital-summary">
         <article className="portal-card"><span>Subscribed share capital</span><strong>{formatPesos(summary.subscribed_amount)}</strong></article>
         <article className="portal-card share-capital-total-card">
