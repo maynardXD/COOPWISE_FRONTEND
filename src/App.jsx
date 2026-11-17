@@ -383,71 +383,6 @@ function PortalMessage({ children, error = false }) {
   return children ? <div className={error ? 'message message-error' : 'message'} role="status">{children}</div> : null
 }
 
-function SmsReminderSettings({ token }) {
-  const [settings, setSettings] = useState(null)
-  const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    let active = true
-    apiRequest('/notifications/sms-preferences', { token })
-      .then((result) => {
-        if (active) setSettings(result)
-      })
-      .catch((requestError) => {
-        if (active) setError(requestError.message)
-      })
-    return () => { active = false }
-  }, [token])
-
-  async function setEnabled(enabled) {
-    setSaving(true)
-    setError('')
-    try {
-      const result = await apiRequest('/notifications/sms-preferences', {
-        token,
-        method: 'POST',
-        body: JSON.stringify({ payment_reminders_enabled: enabled }),
-      })
-      setSettings(result)
-    } catch (requestError) {
-      setError(requestError.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const preferences = settings?.preferences
-  return (
-    <section className="portal-card autopay-card sms-reminder-card" aria-labelledby="sms-reminder-title">
-      <div className="autopay-heading">
-        <div><span className="eyebrow">Optional notification</span><h3 id="sms-reminder-title">SMS payment reminders</h3></div>
-      </div>
-      <p>Opt in to a text when a loan installment becomes overdue or a previous day’s Paluwagan contribution is not recorded. Messages contain no balance or loan amount, and are not promotional.</p>
-      {preferences && (
-        <>
-          <p className="muted">{preferences.phone_available
-            ? `Sent to your registered mobile ending ${preferences.phone_masked.slice(-4)}.`
-            : 'A valid Philippine mobile number is required to enable reminders.'}</p>
-          <label className="autopay-option">
-            <input
-              type="checkbox"
-              checked={preferences.payment_reminders_enabled}
-              disabled={saving || !preferences.phone_available}
-              onChange={(event) => setEnabled(event.target.checked)}
-            />
-            <span><strong>Send me late-payment reminders by SMS</strong><small>You can turn this off at any time. We send one reminder per overdue installment or missed Paluwagan date.</small></span>
-          </label>
-          {!settings.sms_configured && <p className="form-help">SMS delivery is not configured yet. Your choice is saved, but reminders will not be sent until the cooperative configures Brevo SMS and its scheduled job.</p>}
-        </>
-      )}
-      {!settings && !error && <p className="muted" role="status">Loading SMS reminder settings…</p>}
-      <PortalMessage error>{error}</PortalMessage>
-      {saving && <p className="muted" role="status">Saving your preference…</p>}
-    </section>
-  )
-}
-
 function StaffEmptyState({ type, title, description, loading = false }) {
   return (
     <div className={`staff-empty-state${loading ? ' is-loading' : ''}`} role={loading ? 'status' : 'group'} aria-live={loading ? 'polite' : undefined}>
@@ -959,12 +894,17 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const [refreshing, setRefreshing] = useState(false)
   const [recordingLoanId, setRecordingLoanId] = useState(null)
   const [deletingOfferId, setDeletingOfferId] = useState(null)
+  const [staffApplicationStatus, setStaffApplicationStatus] = useState('pending')
+  const [sendingLoanEmailId, setSendingLoanEmailId] = useState(null)
   const endpoints = useMemo(() => LOAN_ENDPOINTS
     .map((path) => {
-      if (path === '/loans') return `${path}?page=${staff ? loansPage : 1}&per_page=${staff ? 25 : 2}`
+      if (path === '/loans') {
+        const status = staff ? `&status=${encodeURIComponent(staffApplicationStatus)}` : ''
+        return `${path}?page=${staff ? loansPage : 1}&per_page=${staff ? 25 : 2}${status}`
+      }
       if (path === '/payments') return `${path}?page=${paymentsPage}&per_page=25`
       return path
-    }), [loansPage, paymentsPage, staff])
+    }), [loansPage, paymentsPage, staff, staffApplicationStatus])
   const { data, error, loading, refreshEndpoint } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState('')
   const [actionError, setActionError] = useState('')
@@ -990,6 +930,20 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const activeStaffLoanTab = staffLoanTab || (
     readinessSubmissions.length ? 'documents' : pendingLoanCount ? 'applications' : 'offers'
   )
+  const loanStatusCounts = Object.fromEntries(
+    (data?.[1]?.status_counts || []).map((item) => [item.status, Number(item.total)])
+  )
+  const defaultStaffApplicationStatus = ['pending', 'approved', 'active', 'completed', 'rejected']
+    .find((status) => loanStatusCounts[status] > 0) || 'pending'
+  const staffApplicationStatuses = [
+    { status: 'pending', label: 'Pending applications' },
+    { status: 'approved', label: 'Approved' },
+    { status: 'active', label: 'Active' },
+    { status: 'completed', label: 'Completed' },
+    { status: 'rejected', label: 'Rejected' }
+  ]
+  const currentApplicationStatusLabel = staffApplicationStatuses
+    .find((item) => item.status === staffApplicationStatus)?.label || 'Loans'
   const productLoadFailed = error.includes('/loan-products:')
 
   useEffect(() => {
@@ -1162,6 +1116,23 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
     }
   }
 
+  async function emailLoanPaymentDetails(loanId) {
+    setNotice('')
+    setActionError('')
+    setSendingLoanEmailId(loanId)
+    try {
+      const result = await apiRequest(`/loans/${loanId}/payment-details/email`, {
+        token,
+        method: 'POST',
+      })
+      setNotice(result.message)
+    } catch (requestError) {
+      setActionError(requestError.message)
+    } finally {
+      setSendingLoanEmailId(null)
+    }
+  }
+
   async function reviewReadiness(submissionId, decision) {
     setNotice('')
     setActionError('')
@@ -1240,7 +1211,13 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           Document reviews
           {readinessSubmissions.length > 0 && <span className="loan-review-badge" aria-label={`${readinessSubmissions.length} pending document reviews`}>{readinessSubmissions.length}</span>}
         </button>
-        <button className={`loan-subtab${activeStaffLoanTab === 'applications' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'applications' ? 'page' : undefined} onClick={() => setStaffLoanTab('applications')}>
+        <button className={`loan-subtab${activeStaffLoanTab === 'applications' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'applications' ? 'page' : undefined} onClick={() => {
+          setStaffLoanTab('applications')
+          setStaffApplicationStatus((current) => current === 'pending' && !pendingLoanCount
+            ? defaultStaffApplicationStatus
+            : current)
+          setLoansPage(1)
+        }}>
           Applications
           {pendingLoanCount > 0 && <span className="loan-review-badge" aria-label={`${pendingLoanCount} loan applications awaiting review`}>{pendingLoanCount}</span>}
         </button>
@@ -1458,7 +1435,23 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       )}
 
       {!loading && (!staff || activeStaffLoanTab === 'applications') && <>
-      <h3>{staff ? 'Applications and active loans' : 'Your loans'}</h3>
+      <h3>{staff ? 'Loan applications' : 'Your loans'}</h3>
+      {staff && <nav className="loan-subtabs loan-status-subtabs" aria-label="Filter loan applications by status">
+        {staffApplicationStatuses.map(({ status, label }) => (
+          <button
+            className={`loan-subtab${staffApplicationStatus === status ? ' active' : ''}`}
+            type="button"
+            key={status}
+            aria-pressed={staffApplicationStatus === status}
+            onClick={() => {
+              setStaffApplicationStatus(status)
+              setLoansPage(1)
+            }}
+          >
+            {label}<span className="loan-status-count">{loanStatusCounts[status] || 0}</span>
+          </button>
+        ))}
+      </nav>}
       {!staff && Number(eligibility?.active_loan_balance) > 0 && <section className="portal-card outstanding-loan-summary">
         <span className="eyebrow">Outstanding loan balance</span>
         <strong>{formatPesos(eligibility.active_loan_balance)}</strong>
@@ -1474,13 +1467,9 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           {!(eligibility.active_loans || []).length && <span>Your active loan details are being refreshed.</span>}
         </div>
       </section>}
-      {staff && <div className="loan-status-summary">
-        <strong>Application counts</strong>
-        {(data?.[1]?.status_counts || []).length
-          ? <ul>{data[1].status_counts.map((item) => <li key={item.status}><span>{item.status.replaceAll('_', ' ')}</span><b>{item.total}</b></li>)}</ul>
-          : <p className="muted">No loan applications have been recorded.</p>}
-      </div>}
-      {data && loans.length === 0 && <p className="muted">No loan applications yet.</p>}
+      {data && loans.length === 0 && <p className="muted">
+        {staff ? `No ${currentApplicationStatusLabel.toLowerCase()} found.` : 'No loan applications yet.'}
+      </p>}
       {loans.map((loan) => (
         <article className="portal-card" key={loan.id}>
           <div className="item-heading">
@@ -1498,6 +1487,17 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
             {staff && ['approved', 'active'].includes(loan.status) && Number(loan.available_repayment_amount ?? loan.current_balance) > 0 && (
               <button className="button button-outline" type="button" onClick={() => setRecordingLoanId(recordingLoanId === loan.id ? null : loan.id)}>
                 {recordingLoanId === loan.id ? 'Close payment form' : 'Record payment'}
+              </button>
+            )}
+            {staff && ['approved', 'active', 'completed'].includes(loan.status) && (
+              <button
+                className="button button-outline"
+                type="button"
+                onClick={() => emailLoanPaymentDetails(loan.id)}
+                disabled={sendingLoanEmailId === loan.id}
+                aria-busy={sendingLoanEmailId === loan.id}
+              >
+                {sendingLoanEmailId === loan.id ? 'Sending…' : 'Email payment details'}
               </button>
             )}
             {staff && loan.status === 'pending' && <>
@@ -2149,7 +2149,6 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
         </div>
         <button className="button button-primary" type="button" onClick={() => { setSelectedSavingsMember(null); setLedgerOpen(true) }}>View / print my savings ledger</button>
       </div>}
-      {!staff && <SmsReminderSettings token={token} />}
       {!staff && data?.[0]?.balance_breakdown && <div className="report-grid savings-balance-breakdown">
         <article className="portal-card"><span>Loan proceeds credited</span><strong>{formatPesos(data[0].balance_breakdown.loan_credits)}</strong></article>
         <article className="portal-card"><span>Paluwagan payouts credited</span><strong>{formatPesos(data[0].balance_breakdown.paluwagan_credits)}</strong></article>
