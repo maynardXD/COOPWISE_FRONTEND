@@ -3,7 +3,6 @@ import './App.css'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost/COOPWISE/LavaLust-COOPWISE/api').replace(/\/+$/, '')
 const TODAY = new Date().toISOString().slice(0, 10)
-const CURRENT_YEAR = Number(TODAY.slice(0, 4))
 const LOAN_ENDPOINTS = ['/loan-products', '/loans', '/payments', '/loan-readiness', '/loans/eligibility']
 const COOPWISE_TERMS_VERSION = '2026-11-17'
 const PAYMENT_ENDPOINTS = ['/loans', '/cooperative/cycles', '/share-capital', '/checkout-transactions', '/savings']
@@ -117,6 +116,25 @@ function readPortalCache(token, endpoints) {
     data: cached.map((entry) => entry?.data ?? null),
     fresh: cached.every((entry) => entry && Date.now() - entry.savedAt < PORTAL_CACHE_MAX_AGE_MS),
   }
+}
+
+function summarizePortalErrors(results) {
+  const groupedErrors = new Map()
+  results.forEach(({ error }) => {
+    if (!error) return
+    const separator = error.indexOf(': ')
+    const path = separator < 0 ? '' : error.slice(0, separator)
+    const message = separator < 0 ? error : error.slice(separator + 2)
+    const group = groupedErrors.get(message) || { paths: [], message }
+    if (path) group.paths.push(path)
+    groupedErrors.set(message, group)
+  })
+
+  return [...groupedErrors.values()]
+    .map(({ paths, message }) => paths.length > 1 || !paths.length
+      ? message
+      : `${paths[0]}: ${message}`)
+    .join(' · ')
 }
 
 async function apiRequest(path, { token, ...options } = {}) {
@@ -393,7 +411,7 @@ function usePortalData(token, refreshKey, endpoints) {
       .then((results) => {
       if (active && requestRevision === portalCacheRevision) {
           setData(results.map((item, index) => item.result ?? previousData.current?.[index] ?? null))
-          setError(results.filter((item) => item.error).map((item) => item.error).join(' · '))
+          setError(summarizePortalErrors(results))
         }
       })
       .finally(() => {
@@ -2431,7 +2449,6 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
     `${SHARE_CAPITAL_ENDPOINTS[0]}?page=${staff ? transactionsPage : 1}&per_page=${staff ? 50 : 5}`,
     SHARE_CAPITAL_ENDPOINTS[1],
     ...(!staff ? ['/savings?page=1&per_page=1'] : []),
-    ...(staff ? ['/cooperative/surplus'] : []),
   ], [staff, transactionsPage])
   const { data, error, loading } = usePortalData(token, refreshKey, endpoints)
   const [notice, setNotice] = useState('')
@@ -2465,13 +2482,6 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   const availableReturnSummary = staff
     ? Number(data?.[1]?.available_member_returns || 0)
     : availableReturnTotal
-  const distributions = staff ? data?.[2]?.distributions || [] : []
-  const registrationYear = data?.[1]?.cooperative_registration_date
-    ? Number(data[1].cooperative_registration_date.slice(0, 4))
-    : null
-  const completedFiscalYear = CURRENT_YEAR - 1
-  const hasCompletedFiscalYear = !registrationYear || registrationYear <= completedFiscalYear
-  const minimumReservePercent = registrationYear && completedFiscalYear - registrationYear < 5 ? 50 : 10
   const hasOwnInvestorProfile = user.role === 'admin' && Boolean(data?.[1]?.member_profile)
   const summary = capital?.summary || { subscribed_amount: 0, paid_up_amount: 0, unpaid_amount: 0 }
 
@@ -2675,55 +2685,6 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
     }
   }
 
-  async function createSurplusDraft(event) {
-    event.preventDefault()
-    const form = event.currentTarget
-    const values = Object.fromEntries(new FormData(form).entries())
-    setNotice('')
-    setActionError('')
-    try {
-      const result = await apiRequest('/cooperative/surplus', {
-        token, method: 'POST', body: JSON.stringify(values),
-      })
-      setNotice(result.message)
-      form.reset()
-      window.dispatchEvent(new Event('coopwise:refresh'))
-    } catch (requestError) {
-      setActionError(requestError.message)
-    }
-  }
-
-  async function approveSurplus(distribution) {
-    const amount = Number(distribution.share_capital_pool) + Number(distribution.patronage_pool)
-    if (!window.confirm(`Publish the ${distribution.fiscal_year} member-return distribution totaling ${formatPesos(amount)} for ${distribution.member_count} members? Confirm the net surplus and required approvals before proceeding.`)) return
-    setNotice('')
-    setActionError('')
-    try {
-      const result = await apiRequest(`/cooperative/surplus/${distribution.id}/approve`, {
-        token, method: 'POST', body: JSON.stringify({}),
-      })
-      setNotice(result.message)
-      window.dispatchEvent(new Event('coopwise:refresh'))
-    } catch (requestError) {
-      setActionError(requestError.message)
-    }
-  }
-
-  async function cancelSurplus(distribution) {
-    if (!window.confirm(`Cancel the unpublished ${distribution.fiscal_year} draft? Its calculated member rows will be removed, and staff can prepare a corrected draft.`)) return
-    setNotice('')
-    setActionError('')
-    try {
-      const result = await apiRequest(`/cooperative/surplus/${distribution.id}/cancel`, {
-        token, method: 'POST', body: JSON.stringify({}),
-      })
-      setNotice(result.message)
-      window.dispatchEvent(new Event('coopwise:refresh'))
-    } catch (requestError) {
-      setActionError(requestError.message)
-    }
-  }
-
   return (
     <section className="portal-section">
       {!standalone && <h2>Share capital</h2>}
@@ -2837,37 +2798,6 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
             </button>
           </form>
         </details>}
-        <section className="surplus-management">
-          <h3>Annual surplus and member returns</h3>
-          <p className="muted">Annual surplus is what remains after income and expenses are reconciled. The draft allocates amounts to cooperative funds, then calculates possible interest on paid-up share capital and a patronage refund. This classroom version uses loan interest paid as a patronage proxy; neither return is the same as interest charged on a loan or guaranteed. Staff must verify the bylaws, accounts, limits, and approvals. Publishing records calculations only and does not pay money.</p>
-          <details className="portal-card">
-            <summary>Prepare annual distribution draft</summary>
-            {!hasCompletedFiscalYear && <p className="muted">A completed fiscal year after the cooperative’s registration year is required before a distribution can be prepared.</p>}
-            <form className="form-grid" onSubmit={createSurplusDraft}>
-              <label>Completed fiscal year<input name="fiscal_year" type="number" min={registrationYear || 2000} max={completedFiscalYear} defaultValue={completedFiscalYear} step="1" required disabled={!hasCompletedFiscalYear} /></label>
-              <label>Reconciled net surplus (PHP)<input name="net_surplus" type="number" min="0.01" step="0.01" required /></label>
-              <label>Reserve fund (%)<input name="reserve_percent" type="number" min={minimumReservePercent} max="100" step="0.01" defaultValue="50" required /></label>
-              <label>Education and training fund (%)<input name="education_percent" type="number" min="0" max="10" step="0.01" defaultValue="5" required /></label>
-              <label>Community development fund (%)<input name="community_percent" type="number" min="3" max="100" step="0.01" defaultValue="3" required /></label>
-              <label>Optional funds (%)<input name="optional_percent" type="number" min="0" max="7" step="0.01" defaultValue="0" required /></label>
-              <label>Remaining member pool for interest on share capital (%)<input name="share_capital_pool_percent" type="number" min="0" max="100" step="0.01" defaultValue="50" required /></label>
-              <button className="button button-primary" type="submit" disabled={!hasCompletedFiscalYear}>Calculate and save draft</button>
-            </form>
-            <small>The remaining member pool is split between interest on share capital and patronage refunds. Interest is not guaranteed; staff must verify the permitted return under the cooperative’s actual rules.</small>
-          </details>
-          {distributions.length > 0 && <div className="table-wrap"><table>
-            <thead><tr><th>Year / status</th><th>Net surplus</th><th>Required fund allocations</th><th>Member-return pools</th><th>Members</th><th>Prepared / approved by</th><th>Action</th></tr></thead>
-            <tbody>{distributions.map((distribution) => <tr key={distribution.id}>
-              <td>{distribution.fiscal_year}<small>{distribution.status}</small></td>
-              <td>{formatPesos(distribution.net_surplus)}</td>
-              <td>Reserve {formatPesos(distribution.reserve_allocation)}<small>Education {formatPesos(distribution.education_allocation)} · Community {formatPesos(distribution.community_allocation)} · Optional {formatPesos(distribution.optional_allocation)}</small></td>
-              <td>Share-capital interest {formatPesos(distribution.share_capital_pool)}<small>Patronage refunds {formatPesos(distribution.patronage_pool)} · Total {formatPesos(distribution.total_member_returns)}</small></td>
-              <td>{distribution.member_count}</td>
-              <td>{distribution.created_by_name || 'Staff'}<small>{distribution.approved_by_name ? `Approved by ${distribution.approved_by_name}` : 'Awaiting staff approval'}</small></td>
-              <td>{distribution.status === 'draft' && <><button className="button button-primary" type="button" onClick={() => approveSurplus(distribution)}>Approve and publish</button> <button className="button" type="button" onClick={() => cancelSurplus(distribution)}>Cancel draft</button></>}</td>
-            </tr>)}</tbody>
-          </table></div>}
-        </section>
       </>}
       <h3>Share subscriptions</h3>
       {loading && !capital && <PortalSkeleton rows={5} columns={staff ? 8 : 7} label="Loading share subscriptions" />}
