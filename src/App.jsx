@@ -5,6 +5,7 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost/COOPWIS
 const TODAY = new Date().toISOString().slice(0, 10)
 const CURRENT_YEAR = Number(TODAY.slice(0, 4))
 const LOAN_ENDPOINTS = ['/loan-products', '/loans', '/payments', '/loan-readiness', '/loans/eligibility']
+const COOPWISE_TERMS_VERSION = '2026-11-17'
 const PAYMENT_ENDPOINTS = ['/loans', '/cooperative/cycles', '/share-capital', '/checkout-transactions', '/savings']
 const SHARE_CAPITAL_ENDPOINTS = ['/share-capital', '/cooperative/finance']
 const REPORT_ENDPOINTS = ['/reports']
@@ -162,6 +163,47 @@ async function apiRequest(path, { token, ...options } = {}) {
   return body
 }
 
+function enforceNumericKey(event) {
+  const input = event.target
+  if (!(input instanceof HTMLInputElement) || input.type !== 'number') return
+  if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1) return
+  const integerOnly = input.step === '1'
+  if (!/[0-9]/.test(event.key) && !(event.key === '.' && !integerOnly && !input.value.includes('.'))) {
+    event.preventDefault()
+  }
+}
+
+function enforceNumericPaste(event) {
+  const input = event.target
+  if (!(input instanceof HTMLInputElement) || input.type !== 'number') return
+  const value = event.clipboardData?.getData('text') || ''
+  const integerOnly = input.step === '1'
+  if (!/^\d+$/.test(value) && !(!integerOnly && /^\d*(?:\.\d*)?$/.test(value))) {
+    event.preventDefault()
+  }
+}
+
+function enforceNumericDrop(event) {
+  const input = event.target
+  if (!(input instanceof HTMLInputElement) || input.type !== 'number') return
+  const value = event.dataTransfer?.getData('text') || ''
+  const integerOnly = input.step === '1'
+  if (!/^\d+$/.test(value) && !(!integerOnly && /^\d*(?:\.\d*)?$/.test(value))) {
+    event.preventDefault()
+  }
+}
+
+function enforceNumericInput(event) {
+  const input = event.target
+  if (!(input instanceof HTMLInputElement) || input.type !== 'number') return
+  const value = event.nativeEvent?.data
+  if (value === null || value === undefined) return
+  const integerOnly = input.step === '1'
+  if (!/^\d+$/.test(value) && !(!integerOnly && /^\d*(?:\.\d*)?$/.test(value))) {
+    event.preventDefault()
+  }
+}
+
 let refreshRequest = null
 
 function expireSession() {
@@ -313,7 +355,9 @@ async function openProtectedImage(token, path) {
 function usePortalData(token, refreshKey, endpoints) {
   const [data, setData] = useState(() => readPortalCache(token, endpoints)?.data || null)
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(() => !readPortalCache(token, endpoints))
+  const requestKey = `${token || 'anonymous'}:${refreshKey}:${endpoints.join('|')}`
+  const [completedRequestKey, setCompletedRequestKey] = useState(null)
+  const loading = !readPortalCache(token, endpoints)?.fresh && completedRequestKey !== requestKey
   const previousData = useRef(data)
 
   useEffect(() => {
@@ -329,7 +373,7 @@ function usePortalData(token, refreshKey, endpoints) {
         if (active) {
           setData(cached.data)
           setError('')
-          setLoading(false)
+          setCompletedRequestKey(requestKey)
         }
       })
       return () => { active = false }
@@ -353,10 +397,10 @@ function usePortalData(token, refreshKey, endpoints) {
         }
       })
       .finally(() => {
-        if (active) setLoading(false)
+        if (active) setCompletedRequestKey(requestKey)
       })
     return () => { active = false }
-  }, [token, refreshKey, endpoints])
+  }, [token, refreshKey, endpoints, requestKey])
 
   const refreshEndpoint = useCallback(async (endpoint, requestOptions = {}) => {
     const index = endpoints.indexOf(endpoint)
@@ -415,6 +459,46 @@ function StaffEmptyState({ type, title, description, loading = false }) {
       {loading && <span className="staff-empty-spinner" aria-hidden="true" />}
       <strong>{title}</strong>
       <p>{description}</p>
+    </div>
+  )
+}
+
+function PortalSkeleton({ kind = 'table', rows = 4, columns = 5, label = 'Loading records' }) {
+  const rowIndexes = Array.from({ length: rows }, (_, index) => index)
+  const columnIndexes = Array.from({ length: columns }, (_, index) => index)
+
+  return (
+    <div className={`portal-skeleton portal-skeleton-${kind}`} role="status" aria-busy="true" aria-label={label}>
+      <div className="portal-skeleton-content" aria-hidden="true">
+        {kind === 'cards'
+          ? rowIndexes.map((row) => (
+            <article className="portal-skeleton-card" key={row}>
+              <div className="portal-skeleton-card-heading"><span className="portal-skeleton-bar" /><span className="portal-skeleton-bar" /></div>
+              <span className="portal-skeleton-bar portal-skeleton-bar-wide" />
+              <div className="portal-skeleton-card-lines">
+                <span className="portal-skeleton-bar" /><span className="portal-skeleton-bar" />
+                <span className="portal-skeleton-bar" /><span className="portal-skeleton-bar" />
+              </div>
+              <span className="portal-skeleton-bar portal-skeleton-bar-action" />
+            </article>
+          ))
+          : kind === 'metrics'
+            ? <div className="portal-skeleton-metrics">{rowIndexes.map((row) => (
+              <article className="portal-skeleton-card" key={row}>
+                <span className="portal-skeleton-bar" />
+                <span className="portal-skeleton-bar portal-skeleton-bar-value" />
+                <span className="portal-skeleton-bar portal-skeleton-bar-short" />
+              </article>
+            ))}</div>
+            : <div className="portal-skeleton-table table-wrap">
+              <table>
+                <thead><tr>{columnIndexes.map((column) => <th key={column}><span className="portal-skeleton-bar" /></th>)}</tr></thead>
+                <tbody>{rowIndexes.map((row) => (
+                  <tr key={row}>{columnIndexes.map((column) => <td key={column}><span className="portal-skeleton-bar" /></td>)}</tr>
+                ))}</tbody>
+              </table>
+            </div>}
+      </div>
     </div>
   )
 }
@@ -893,9 +977,12 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const [clockNow, setClockNow] = useState(() => Date.now())
   const [refreshing, setRefreshing] = useState(false)
   const [recordingLoanId, setRecordingLoanId] = useState(null)
+  const [recordPaymentAmount, setRecordPaymentAmount] = useState('')
   const [deletingOfferId, setDeletingOfferId] = useState(null)
   const [staffApplicationStatus, setStaffApplicationStatus] = useState('pending')
   const [sendingLoanEmailId, setSendingLoanEmailId] = useState(null)
+  const [eligibilityDetailsOpen, setEligibilityDetailsOpen] = useState(null)
+  const [readinessDetailsOpen, setReadinessDetailsOpen] = useState(null)
   const endpoints = useMemo(() => LOAN_ENDPOINTS
     .map((path) => {
       if (path === '/loans') {
@@ -910,6 +997,8 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const [actionError, setActionError] = useState('')
   const [schedule, setSchedule] = useState(null)
   const [applicationInputs, setApplicationInputs] = useState({})
+  const [pendingLoanApplication, setPendingLoanApplication] = useState(null)
+  const [confirmingLoanApplication, setConfirmingLoanApplication] = useState(false)
   const [expandedOfferId, setExpandedOfferId] = useState(null)
   const [staffLoanTab, setStaffLoanTab] = useState(null)
   const products = data?.[0]?.products || []
@@ -933,12 +1022,12 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const loanStatusCounts = Object.fromEntries(
     (data?.[1]?.status_counts || []).map((item) => [item.status, Number(item.total)])
   )
-  const defaultStaffApplicationStatus = ['pending', 'approved', 'active', 'completed', 'rejected']
+  loanStatusCounts.approved_active = (loanStatusCounts.approved || 0) + (loanStatusCounts.active || 0)
+  const defaultStaffApplicationStatus = ['pending', 'approved_active', 'completed', 'rejected']
     .find((status) => loanStatusCounts[status] > 0) || 'pending'
   const staffApplicationStatuses = [
     { status: 'pending', label: 'Pending applications' },
-    { status: 'approved', label: 'Approved' },
-    { status: 'active', label: 'Active' },
+    { status: 'approved_active', label: 'Approved / active' },
     { status: 'completed', label: 'Completed' },
     { status: 'rejected', label: 'Rejected' }
   ]
@@ -1049,6 +1138,26 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
         values.purpose = `Other: ${detail}`
       }
       delete values.purpose_detail
+      const product = products.find((item) => Number(item.id) === Number(values.loan_type_id))
+      const amount = Number(values.amount)
+      const term = Number(values.term_months)
+      const preview = product ? buildLoanSchedulePreview(amount, term, product.interest_rate) : null
+      if (!product || !preview || !Number.isFinite(amount) || !Number.isInteger(term)) {
+        setActionError('Check the loan amount and term, then try again.')
+        return
+      }
+      setPendingLoanApplication({
+        values,
+        productName: product.name,
+        amount,
+        term,
+        purpose: values.purpose,
+        overdueRate: product.overdue_interest_rate,
+        preview,
+        totalRepayment: preview.reduce((total, row) => total + Number(row.total_due), 0)
+      })
+      setActionError('')
+      return
     }
     setNotice('')
     setActionError('')
@@ -1066,6 +1175,31 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       window.dispatchEvent(new Event('coopwise:refresh'))
     } catch (requestError) {
       setActionError(requestError.message)
+    }
+  }
+
+  async function confirmLoanApplication() {
+    if (!pendingLoanApplication || confirmingLoanApplication) return
+    setConfirmingLoanApplication(true)
+    setActionError('')
+    try {
+      const result = await apiRequest('/loans', {
+        token,
+        method: 'POST',
+        body: JSON.stringify(pendingLoanApplication.values)
+      })
+      setNotice(result.message || 'Loan application submitted for staff review.')
+      setPendingLoanApplication(null)
+      setApplicationInputs((current) => {
+        const next = { ...current }
+        delete next[pendingLoanApplication.values.loan_type_id]
+        return next
+      })
+      window.dispatchEvent(new Event('coopwise:refresh'))
+    } catch (requestError) {
+      setActionError(requestError.message)
+    } finally {
+      setConfirmingLoanApplication(false)
     }
   }
 
@@ -1203,8 +1337,6 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       {standalone && <div className="standalone-actions"><button className="button button-outline" type="button" onClick={refreshLoanData} disabled={loading || refreshing} aria-busy={refreshing}>{loading || refreshing ? 'Checking…' : 'Refresh status'}</button></div>}
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
-      {loading && <p className="loading-note" role="status">Loading your loan information…</p>}
-
       {staff && <nav className="loan-subtabs" aria-label="Loan management sections">
         <button className={`loan-subtab${activeStaffLoanTab === 'offers' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'offers' ? 'page' : undefined} onClick={() => setStaffLoanTab('offers')}>Loan offers</button>
         <button className={`loan-subtab${activeStaffLoanTab === 'documents' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'documents' ? 'page' : undefined} onClick={() => setStaffLoanTab('documents')}>
@@ -1222,6 +1354,8 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           {pendingLoanCount > 0 && <span className="loan-review-badge" aria-label={`${pendingLoanCount} loan applications awaiting review`}>{pendingLoanCount}</span>}
         </button>
       </nav>}
+
+      {loading && <PortalSkeleton kind="cards" rows={3} label="Loading loan information" />}
 
       {!loading && staff && activeStaffLoanTab === 'documents' && (
         <section>
@@ -1263,6 +1397,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                   </div>
                   <dl className="offer-facts">
                     <div><dt>Monthly rate</dt><dd>{product.interest_rate}%</dd></div>
+                    <div><dt>Overdue interest</dt><dd>{product.overdue_interest_rate}% per year</dd></div>
                     <div><dt>Maximum amount</dt><dd>PHP {product.max_amount}</dd></div>
                     <div><dt>Maximum term</dt><dd>{product.max_term_months} months</dd></div>
                   </dl>
@@ -1282,6 +1417,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
             <form className="form-grid" onSubmit={(event) => submit(event, '/loan-products', 'POST', 'Loan offer created.')}>
               <label>Product name<input name="name" required maxLength="100" /></label>
               <label>Monthly interest rate (%)<input name="interest_rate" type="number" min="0" max="99.99" step="0.01" required /></label>
+              <label>Overdue interest (% per year)<input name="overdue_interest_rate" type="number" min="0" max="99.99" step="0.01" defaultValue="6.00" required /></label>
               <label>Maximum amount (PHP)<input name="max_amount" type="number" min="0.01" step="0.01" required /></label>
               <label>Maximum term (months)<input name="max_term_months" type="number" min="1" max="120" required /></label>
               <label className="full">Description<input name="description" maxLength="255" /></label>
@@ -1293,7 +1429,16 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       {!loading && !staff && (
         <>
           <div className="member-loan-readiness">
-            {eligibility && <details className="portal-card loan-eligibility-card" open={!eligibility.eligible}>
+            {eligibility && <details
+              className="portal-card loan-eligibility-card"
+              open={eligibilityDetailsOpen?.status === eligibility.eligible
+                ? eligibilityDetailsOpen.open
+                : !eligibility.eligible}
+              onToggle={(event) => setEligibilityDetailsOpen({
+                status: eligibility.eligible,
+                open: event.currentTarget.open
+              })}
+            >
               <summary>
                 <span>Loan eligibility check</span>
                 <strong>{eligibility.eligible ? 'Eligible to apply' : 'Not yet eligible'}</strong>
@@ -1310,8 +1455,17 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                 {eligibility.reasons?.length > 0 && <ul className="member-order">{eligibility.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
               </div>
             </details>}
-            {!readinessAvailable ? <p className="notice">Loan document review and loan applications are available to members aged 18 and over.</p> : (
-              <details className="portal-card loan-readiness-card" open={readiness?.status !== 'approved'}>
+            {!readinessAvailable ? <p className="notice">Loan document review and loan applications are available to members aged 20 and over.</p> : (
+              <details
+                className="portal-card loan-readiness-card"
+                open={readinessDetailsOpen?.status === readiness?.status
+                  ? readinessDetailsOpen.open
+                  : readiness?.status !== 'approved'}
+                onToggle={(event) => setReadinessDetailsOpen({
+                  status: readiness?.status,
+                  open: event.currentTarget.open
+                })}
+              >
                 <summary>Loan document approval</summary>
                 {readiness?.status === 'pending' && <p className="notice">Your loan documents are waiting for staff review. Loan offers will appear here after approval.</p>}
                 {readiness?.status === 'approved' && <p className="notice">Your loan documents have been approved. You can now view the available loan offers below.</p>}
@@ -1362,6 +1516,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                     </div>
                     <dl className="offer-facts">
                       <div><dt>Monthly rate</dt><dd>{product.interest_rate}%</dd></div>
+                      <div><dt>Overdue interest</dt><dd>{product.overdue_interest_rate}% per year</dd></div>
                       <div><dt>Product maximum</dt><dd>{formatPesos(product.max_amount)}</dd></div>
                       <div><dt>Your current limit</dt><dd>{formatPesos(Math.min(Number(product.max_amount), Number(eligibility?.max_eligible_amount || 0)))}</dd></div>
                       <div><dt>Maximum term</dt><dd>{product.max_term_months} months</dd></div>
@@ -1409,6 +1564,12 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                           const purposeDetail = event.target.value.replace(/[^A-Za-z ]/g, '').slice(0, 128)
                           setApplicationInputs((current) => ({ ...current, [product.id]: { ...current[product.id], purposeDetail } }))
                         }} /></label>}
+                        {Number(product.overdue_interest_rate) > 0 && (
+                          <label className="full">
+                            <span>Overdue interest is calculated simply at {product.overdue_interest_rate}% per year on unpaid installment principal, from the day after the due date. It does not compound.</span>
+                            <span><input name="accept_overdue_terms" type="checkbox" value="1" required /> I have read and accept these overdue-interest terms.</span>
+                          </label>
+                        )}
                         {applicationInputs[product.id]?.amount && !loanApplicationIsWithinLimits(product, eligibility, applicationInputs[product.id]) && (
                           <p className="full notice">Enter an amount up to {formatPesos(Math.min(Number(product.max_amount), Number(eligibility?.max_eligible_amount || 0)))} and a term from 1 to {product.max_term_months} months. The estimate and submission stay disabled until both are within the offer limits.</p>
                         )}
@@ -1477,6 +1638,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
             <span className={`status status-${loan.status}`}>{loan.status}</span>
           </div>
           <p>Requested PHP {loan.principal_amount} · {loan.term_months} months · {loan.interest_rate}% monthly</p>
+          {Number(loan.overdue_interest_rate) > 0 && <p className="muted">Overdue interest: {loan.overdue_interest_rate}% per year, simple, on unpaid installment principal.</p>}
           {loan.status !== 'pending' && <p>Balance: PHP {loan.current_balance} · Paid: PHP {loan.total_paid}</p>}
           {loan.purpose && <p className="muted">Purpose: {loan.purpose}</p>}
           {loan.review_note && <p className="notice">Review note: {loan.review_note}</p>}
@@ -1485,7 +1647,10 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
               ? <button className="button button-outline" type="button" onClick={() => showSchedule(loan.id)}>View schedule</button>
               : null}
             {staff && ['approved', 'active'].includes(loan.status) && Number(loan.available_repayment_amount ?? loan.current_balance) > 0 && (
-              <button className="button button-outline" type="button" onClick={() => setRecordingLoanId(recordingLoanId === loan.id ? null : loan.id)}>
+              <button className="button button-outline" type="button" onClick={() => {
+                setRecordingLoanId(recordingLoanId === loan.id ? null : loan.id)
+                setRecordPaymentAmount('')
+              }}>
                 {recordingLoanId === loan.id ? 'Close payment form' : 'Record payment'}
               </button>
             )}
@@ -1508,10 +1673,27 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           {staff && recordingLoanId === loan.id && (
             <form className="form-grid staff-loan-payment-form" onSubmit={(event) => recordLoanPayment(event, loan)}>
               <p className="full notice">Record only a payment already received by the cooperative. Amounts reserved by a pending online checkout are unavailable. Recordable now: {formatPesos(loan.available_repayment_amount ?? loan.current_balance)}.</p>
-              <label>Amount received (PHP)<input name="amount" type="number" min="0.01" max={loan.available_repayment_amount ?? loan.current_balance} step="0.01" required /></label>
-              <button className="button button-outline" type="button" onClick={(event) => {
-                const amountInput = event.currentTarget.form?.elements.namedItem('amount')
-                if (amountInput) amountInput.value = Number(loan.available_repayment_amount ?? loan.current_balance).toFixed(2)
+              <label>Amount received (PHP)<input
+                name="amount"
+                type="number"
+                min="0.01"
+                max={loan.available_repayment_amount ?? loan.current_balance}
+                step="0.01"
+                required
+                value={recordPaymentAmount}
+                onChange={(event) => {
+                  const rawAmount = event.target.value
+                  const maximumCents = Math.max(0, Math.round(Number(loan.available_repayment_amount ?? loan.current_balance) * 100))
+                  const enteredCents = Math.round(Number(rawAmount) * 100)
+                  setRecordPaymentAmount(
+                    rawAmount && Number.isFinite(enteredCents) && enteredCents > maximumCents
+                      ? (maximumCents / 100).toFixed(2)
+                      : rawAmount
+                  )
+                }}
+              /></label>
+              <button className="button button-outline" type="button" onClick={() => {
+                setRecordPaymentAmount(Number(loan.available_repayment_amount ?? loan.current_balance).toFixed(2))
               }}>Full balance</button>
               <label>Received via<select name="payment_method" defaultValue="cash" required>
                 <option value="cash">Cash</option>
@@ -1537,8 +1719,8 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
         </button>
       </div>}
       {staff && <details className="portal-card"><summary>Recent payments</summary>
-        {payments.length ? <div className="table-wrap"><table><thead><tr><th>Loan</th><th>Member</th><th>Total</th><th>Principal</th><th>Interest</th><th>Method</th><th>Date</th></tr></thead>
-          <tbody>{payments.map((payment) => <tr key={payment.id}><td>{payment.loan_code}</td><td>{payment.first_name} {payment.last_name}</td><td>{formatPesos(payment.amount_paid)}</td><td>{payment.breakdown_recorded ? formatPesos(payment.principal_paid) : 'Legacy — not split'}</td><td>{payment.breakdown_recorded ? formatPesos(payment.interest_paid) : 'Legacy — not split'}</td><td>{payment.payment_method}</td><td>{payment.payment_date}</td></tr>)}</tbody>
+        {payments.length ? <div className="table-wrap"><table><thead><tr><th>Loan</th><th>Member</th><th>Total</th><th>Principal</th><th>Interest</th><th>Overdue interest</th><th>Method</th><th>Date</th></tr></thead>
+          <tbody>{payments.map((payment) => <tr key={payment.id}><td>{payment.loan_code}</td><td>{payment.first_name} {payment.last_name}</td><td>{formatPesos(payment.amount_paid)}</td><td>{payment.breakdown_recorded ? formatPesos(payment.principal_paid) : 'Legacy — not split'}</td><td>{payment.breakdown_recorded ? formatPesos(payment.interest_paid) : 'Legacy — not split'}</td><td>{payment.breakdown_recorded ? formatPesos(payment.overdue_interest_paid) : '—'}</td><td>{payment.payment_method}</td><td>{payment.payment_date}</td></tr>)}</tbody>
         </table></div> : <p className="muted">No payments recorded.</p>}
         {data?.[2]?.pagination && <div className="pagination-controls" aria-label="Loan payment pages">
           <button className="button button-outline" type="button" disabled={paymentsPage <= 1 || loading} onClick={() => setPaymentsPage((page) => page - 1)}>Previous</button>
@@ -1560,11 +1742,12 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                 <div><span>Loan</span><strong>{schedule.loan.loan_code} · {schedule.loan.loan_type_name}</strong></div>
                 <div><span>Principal</span><strong>{formatPesos(schedule.loan.approved_amount)}</strong></div>
                 <div><span>Monthly rate</span><strong>{schedule.loan.interest_rate}%</strong></div>
+                <div><span>Overdue rate</span><strong>{schedule.loan.overdue_interest_rate}% yearly</strong></div>
                 <div><span>Term / total interest</span><strong>{schedule.loan.term_months} months · {formatPesos(schedule.total_interest)}</strong></div>
               </div>
               <p className="loan-schedule-explanation">Interest uses the cooperative’s current flat-interest rule: approved principal × monthly rate × term. Installments are equal, with any rounding cents distributed across early installments. Remaining shows unpaid installments after each row.</p>
-              <div className="table-wrap"><table className="loan-schedule-table"><thead><tr><th>#</th><th>Due date</th><th>Principal</th><th>Interest</th><th>Installment</th><th>Paid</th><th>Remaining after</th><th>Status</th></tr></thead>
-                <tbody>{schedule.schedule.map((item, index) => <tr key={item.id}><td>{index + 1}</td><td>{item.due_date}</td><td>{formatPesos(item.principal_due)}</td><td>{formatPesos(item.interest_due)}</td><td>{formatPesos(item.total_due)}</td><td>{formatPesos(item.paid_amount)}</td><td>{formatPesos(item.remaining_after)}</td><td>{item.status}</td></tr>)}</tbody>
+              <div className="table-wrap"><table className="loan-schedule-table"><thead><tr><th>#</th><th>Due date</th><th>Principal</th><th>Interest</th><th>Overdue interest</th><th>Total due</th><th>Paid</th><th>Remaining after</th><th>Status</th></tr></thead>
+                <tbody>{schedule.schedule.map((item, index) => <tr key={item.id}><td>{index + 1}</td><td>{item.due_date}</td><td>{formatPesos(item.principal_due)}</td><td>{formatPesos(item.interest_due)}</td><td>{formatPesos(item.overdue_interest_accrued)}</td><td>{formatPesos(item.display_total_due)}</td><td>{formatPesos(item.display_paid_amount)}</td><td>{formatPesos(item.remaining_after)}</td><td>{item.status}</td></tr>)}</tbody>
                 <tfoot><tr><th colSpan="2">Totals</th><th>{formatPesos(schedule.total_principal)}</th><th>{formatPesos(schedule.total_interest)}</th><th>{formatPesos(schedule.total_due)}</th><th>{formatPesos(schedule.total_paid)}</th><th>{formatPesos(schedule.loan.current_balance)}</th><th /></tr></tfoot>
               </table></div>
               <footer className="ledger-document-footer"><span>Generated {schedule.generated_at}</span><span>Actual payments and account balances may change this schedule. Contact cooperative staff for clarification.</span></footer>
@@ -1572,6 +1755,30 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           </section>
         </div>
       )}
+      {pendingLoanApplication && <div className="record-modal-backdrop">
+        <section className="record-modal loan-application-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="loan-application-confirm-title">
+          <div className="record-modal-heading">
+            <div><span className="eyebrow">Review before submission</span><h2 id="loan-application-confirm-title">Confirm your loan application</h2></div>
+          </div>
+          <PortalMessage error>{actionError}</PortalMessage>
+          <p>Check that the requested amount and repayment term are correct. Go back to edit them if needed.</p>
+          <dl className="offer-facts loan-application-confirm-facts">
+            <div><dt>Loan offer</dt><dd>{pendingLoanApplication.productName}</dd></div>
+            <div><dt>Amount requested</dt><dd>{formatPesos(pendingLoanApplication.amount)}</dd></div>
+            <div><dt>Repayment term</dt><dd>{pendingLoanApplication.term} months</dd></div>
+            <div><dt>Purpose</dt><dd>{pendingLoanApplication.purpose}</dd></div>
+            <div><dt>Estimated total repayment</dt><dd>{formatPesos(pendingLoanApplication.totalRepayment)}</dd></div>
+            {Number(pendingLoanApplication.overdueRate) > 0 && <div><dt>Overdue interest if late</dt><dd>{pendingLoanApplication.overdueRate}% yearly, simple</dd></div>}
+          </dl>
+          <p className="muted">The estimate is not an approval. Cooperative staff will review your application and confirm the final schedule.</p>
+          <div className="button-row">
+            <button className="button button-outline" type="button" disabled={confirmingLoanApplication} onClick={() => setPendingLoanApplication(null)}>Go back and edit</button>
+            <button className="button button-primary" type="button" disabled={confirmingLoanApplication} onClick={confirmLoanApplication}>
+              {confirmingLoanApplication ? 'Submitting…' : 'Confirm and submit application'}
+            </button>
+          </div>
+        </section>
+      </div>}
     </section>
   )
 }
@@ -1723,8 +1930,8 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
         )}
       </>}
 
-      {loading && !data && <StaffEmptyState type="cooperative" title="Loading daily cycles…" description="Please wait while we fetch the latest cycle and contribution details." loading />}
-      {data && cycles.length === 0 && <p className="muted">No daily cycles are available.</p>}
+      {loading && cycles.length === 0 && <PortalSkeleton kind="cards" rows={3} label="Loading daily cycles" />}
+      {!loading && data && cycles.length === 0 && <p className="muted">No daily cycles are available.</p>}
       {cycles.map((cycle) => (
         <article className="portal-card" key={cycle.id}>
           <div className="item-heading">
@@ -1858,9 +2065,9 @@ function MembersPortal({ token, standalone = false }) {
         <small className="member-search-help">Results update as you type. Names may match anywhere; member numbers, phones, and emails match from the beginning.</small>
       </div>
       <PortalMessage error>{error}</PortalMessage>
-      {loading && <StaffEmptyState type="members" title="Loading members…" description="Please wait while we search the member directory." loading />}
+      {loading && <PortalSkeleton rows={5} columns={7} label="Loading member directory" />}
       {!loading && !error && members.length === 0 && <StaffEmptyState type="members" title="No matching members" description="Try another name, member number, phone, or email address." />}
-      {!!members.length && <div className="table-wrap"><table>
+      {!loading && !!members.length && <div className="table-wrap"><table>
         <thead><tr><th>Member #</th><th>Name</th><th>Phone</th><th>Email</th><th>Account</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>{members.map((member) => <tr key={member.id}>
           <td>{member.member_number}</td>
@@ -2196,7 +2403,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
         </div>
       </div>}
       <div className="staff-subsection-title"><StaffIcon name="savings" /><h3>Transaction history</h3></div>
-      {loading && !data && <StaffEmptyState type="savings" title="Loading savings history…" description="Please wait while we fetch the latest transactions." loading />}
+      {loading && transactions.length === 0 && <PortalSkeleton rows={5} columns={staff ? 7 : 6} label="Loading savings transactions" />}
       {data && transactions.length === 0 && <p className="muted">No savings transactions recorded.</p>}
       {staff && transactions.length > 0 && filteredTransactions.length === 0 && <p className="muted">No transactions match these filters.</p>}
       {!!filteredTransactions.length && <div className="table-wrap"><table><thead><tr>
@@ -2525,8 +2732,11 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
       <PortalMessage>{notice}</PortalMessage>
       {capital && <div className="report-grid share-capital-summary">
         <article className="portal-card"><span>Subscribed share capital</span><strong>{formatPesos(summary.subscribed_amount)}</strong></article>
-        <article className="portal-card"><span>Paid-up share capital</span><strong>{formatPesos(summary.paid_up_amount)}</strong></article>
-        <article className="portal-card"><span>Unpaid subscriptions</span><strong>{formatPesos(summary.unpaid_amount)}</strong></article>
+        <article className="portal-card share-capital-total-card">
+          <span>{staff ? 'Cooperative paid-up share capital' : 'Your total paid-up share capital'}</span>
+          <strong>{formatPesos(summary.paid_up_amount)}</strong>
+          <small>{staff ? 'Total member ownership contributions recorded' : 'Your recorded ownership contribution'}</small>
+        </article>
         <article className="portal-card dividend-summary-card">
           <span>Approved dividends / member returns</span>
           <strong>{formatPesos(approvedReturnTotal)}</strong>
@@ -2573,7 +2783,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
       {!staff && <details className="portal-card member-share-contribution">
         <summary>+ Contribute to share capital</summary>
         {loading && !capital
-          ? <p className="muted">Loading cooperative share terms…</p>
+          ? <PortalSkeleton kind="cards" rows={1} label="Loading share terms" />
           : capital?.share_par_value
           ? <p className="muted">Current par value: {formatPesos(capital.share_par_value)} per share.</p>
           : <p className="message message-error">Share-capital terms are not configured. Ask cooperative staff to record an approved share subscription first.</p>}
@@ -2660,7 +2870,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
         </section>
       </>}
       <h3>Share subscriptions</h3>
-      {loading && <StaffEmptyState type="members" title="Loading share capital…" description="Please wait while share subscriptions are retrieved." loading />}
+      {loading && !capital && <PortalSkeleton rows={5} columns={staff ? 8 : 7} label="Loading share subscriptions" />}
       {!loading && capital && !subscriptions.length && <StaffEmptyState type="members" title="No subscriptions recorded" description={staff ? 'Members can contribute directly using the cooperative-approved share terms.' : 'Your share subscriptions will appear here after you start a contribution.'} />}
       {subscriptions.length > 0 && <div className="table-wrap"><table>
         <thead><tr>{staff && <th>Member</th>}<th>Subscription</th><th>Shares × par value</th><th>Subscribed</th><th>Paid up</th><th>Unpaid</th><th>Status</th><th>Action</th></tr></thead>
@@ -2988,11 +3198,11 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
     <section className="portal-section">
       <PortalMessage error>{error}</PortalMessage>
       <PortalMessage error>{actionError}</PortalMessage>
-      {!report && !error && <StaffEmptyState
+      {!report && loading && <PortalSkeleton kind="metrics" rows={4} label="Loading report figures" />}
+      {!report && !loading && !error && <StaffEmptyState
         type="report"
-        title={loading ? 'Loading current figures…' : 'No report figures yet.'}
-        description={loading ? 'Please wait while we fetch the latest data.' : 'Recorded cooperative totals will appear here.'}
-        loading={loading}
+        title="No report figures yet."
+        description="Recorded cooperative totals will appear here."
       />}
       {report && <>
         {!standalone && <h2>Reports</h2>}
@@ -3354,8 +3564,30 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
             </label>
           )}
           <div className="payment-amount-field">
-            <label>Amount (PHP)<input name="amount" type="number" min="1.00" max={purpose === 'loan' ? maximumLoanPayment : '1000000.00'} step="0.01" required value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} /></label>
-            {purpose === 'loan' && <button className="button button-outline" type="button" disabled={!selectedLoan || maximumLoanPayment < 1} onClick={() => setPaymentAmount(maximumLoanPayment.toFixed(2))}>Full</button>}
+            <label>Amount (PHP)<input
+              name="amount"
+              type="number"
+              min={purpose === 'loan' ? '0.01' : '1.00'}
+              max={purpose === 'loan' ? maximumLoanPayment : '1000000.00'}
+              step="0.01"
+              required
+              value={paymentAmount}
+              onChange={(event) => {
+                const rawAmount = event.target.value
+                if (purpose === 'loan' && rawAmount) {
+                  const maximumCents = Math.max(0, Math.round(maximumLoanPayment * 100))
+                  const enteredCents = Math.round(Number(rawAmount) * 100)
+                  setPaymentAmount(
+                    Number.isFinite(enteredCents) && enteredCents > maximumCents
+                      ? (maximumCents / 100).toFixed(2)
+                      : rawAmount
+                  )
+                  return
+                }
+                setPaymentAmount(rawAmount)
+              }}
+            /></label>
+            {purpose === 'loan' && <button className="button button-outline" type="button" disabled={!selectedLoan || maximumLoanPayment < 0.01} onClick={() => setPaymentAmount(maximumLoanPayment.toFixed(2))}>Full</button>}
           </div>
           {purpose === 'paluwagan' && <p className="full muted">The amount must equal the selected cycle’s daily contribution. Only one payment is accepted per member per day.</p>}
           <button className="button button-primary full" type="submit" disabled={submitting}>{submitting
@@ -3369,7 +3601,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
       <div className="item-heading"><h3>{staff ? 'All member transactions' : 'Your transactions'}</h3>
         <button className="button button-outline" type="button" onClick={() => window.dispatchEvent(new Event('coopwise:refresh'))}>Refresh</button>
       </div>
-      {loading && <StaffEmptyState type="payment" title="Loading transactions…" description="Please wait while we check recent payment records." loading />}
+      {loading && transactions.length === 0 && <PortalSkeleton rows={5} columns={staff ? 8 : 7} label="Loading payment transactions" />}
       {!loading && !error && transactions.length === 0 && <StaffEmptyState type="payment" title="No payment transactions yet." description="Completed Xendit payments, staff-recorded repayments, savings deposits, and savings-funded payments will appear here." />}
       {transactions.length > 0 && <div className="table-wrap"><table>
         <thead><tr>{staff && <th>Member</th>}<th>Date</th><th>Purpose</th><th>Amount</th><th>Payment method</th>{staff && <th>Provider fee / net</th>}<th>Reference</th><th>Status</th>{!staff && <th>Action</th>}</tr></thead>
@@ -3415,6 +3647,7 @@ const STAFF_NAV_ITEMS = [
   { id: 'payments', label: 'Transactions', icon: 'payments' },
   { id: 'members', label: 'Members', icon: 'members' },
   { id: 'reports', label: 'Reports', icon: 'reports' },
+  { id: 'terms', label: 'Terms & Conditions', icon: 'terms' },
 ]
 
 const MEMBER_NAV_ITEMS = [
@@ -3426,6 +3659,7 @@ const MEMBER_NAV_ITEMS = [
   { id: 'payments', label: 'Online Payments', icon: 'payments' },
   { id: 'cooperative', label: 'Daily Paluwagan', icon: 'cooperative' },
   { id: 'savings', label: 'Savings', icon: 'savings' },
+  { id: 'terms', label: 'Terms & Conditions', icon: 'terms' },
 ]
 
 const STAFF_PAGE_DETAILS = {
@@ -3439,6 +3673,7 @@ const STAFF_PAGE_DETAILS = {
   cooperative: ['Daily Paluwagan', 'Members contribute through Xendit checkout. Staff confirm the payout and add it to the recipient’s available balance.'],
   savings: ['Savings', 'Review member balances funded by approved loans and completed Paluwagan payouts.'],
   members: ['Members', ''],
+  terms: ['Terms & Conditions', 'Review the account terms and cooperative service guidelines.'],
 }
 
 const MEMBER_PAGE_DETAILS = {
@@ -3450,6 +3685,7 @@ const MEMBER_PAGE_DETAILS = {
   payments: ['Payments', 'Pay cooperative dues through Xendit and view transaction history.'],
   cooperative: ['Daily Paluwagan', 'Pay the agreed contribution through Xendit. Once staff confirm the pooled payout, it is added to the recipient’s available balance.'],
   savings: ['Savings', 'View your available balance and transaction history.'],
+  terms: ['Terms & Conditions', 'Review the account terms and cooperative service guidelines.'],
 }
 
 function StaffIcon({ name }) {
@@ -3464,11 +3700,12 @@ function StaffIcon({ name }) {
     savings: <><path d="M19.5 9.5c-1.6-2.4-4.1-3.5-7.5-3.5-4.7 0-8 2.5-8 6s3.3 6 8 6c3.4 0 5.9-1.1 7.5-3.5" /><path d="M18 10h3v4h-3m-7-2h.01" /></>,
     members: <><circle cx="9" cy="8" r="3" /><path d="M3.5 20v-1.5A5.5 5.5 0 0 1 9 13h1a5.5 5.5 0 0 1 5.5 5.5V20z" /><path d="M16 5.5a3 3 0 0 1 0 5.8m2 2a5 5 0 0 1 2.5 4.3V20" /></>,
     'share-capital': <><circle cx="12" cy="12" r="9" /><path d="M12 7v10M15.5 9.5c0-1.4-1.4-2.5-3.5-2.5S8.5 8.1 8.5 9.5 10 11.5 12 12s3.5 1.1 3.5 2.5S14 17 12 17s-3.5-1.1-3.5-2.5" /></>,
+    terms: <><path d="M5 3.5h10l4 4V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z" /><path d="M14 3.5V8h5M8 12h8m-8 4h8" /></>,
   }
   return <svg className="staff-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
 
-function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, refreshKey, paymentInitialPurpose, onSavingsDeposit, resetPaymentPurpose }) {
+function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, refreshKey, paymentInitialPurpose, onSavingsDeposit, resetPaymentPurpose, onBlockedLoanAccess }) {
   const [memberCardOpen, setMemberCardOpen] = useState(false)
   const tabs = [
     { id: 'savings', label: 'Savings' },
@@ -3510,6 +3747,10 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
             key={tab.id}
             aria-current={selectedTab === tab.id ? 'page' : undefined}
             onClick={() => {
+              if (tab.id === 'loans' && user.role === 'member' && !user.member?.loan_age_eligible) {
+                onBlockedLoanAccess()
+                return
+              }
               if (tab.id === 'payments') resetPaymentPurpose()
               setSelectedTab(tab.id)
             }}
@@ -3536,10 +3777,74 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
   )
 }
 
+function TermsAndConditionsDocument() {
+  return (
+    <article className="terms-document">
+      <p className="eyebrow">Effective November 17, 2026 · Version {COOPWISE_TERMS_VERSION}</p>
+      <p>These terms explain how to use the CoopWise cooperative-services portal. Please read them before continuing.</p>
+      <h3>1. Account and membership information</h3>
+      <p>Keep your account credentials private and provide accurate information. Notify cooperative staff if you believe someone accessed your account without permission. Account access may be restricted if your membership or account is inactive.</p>
+      <h3>2. Cooperative services</h3>
+      <p>Share capital represents ownership in the cooperative and is separate from savings. Loan applications are subject to member eligibility, cooperative policies, available funds, document review, and staff approval. An application or estimate is not a promise of approval. Review the amount, term, repayment schedule, and disclosed charges before submitting.</p>
+      <h3>3. Savings, payments, and Paluwagan</h3>
+      <p>Review transaction details before confirming a payment. A savings-funded payment deducts the stated amount from the available savings balance. Paluwagan contributions and payouts follow the cycle terms configured by cooperative staff. Report a transaction you believe is incorrect as soon as possible.</p>
+      <h3>4. Classroom and online-payment features</h3>
+      <p>This CoopWise installation is a school project. Displayed sample balances, transactions, approvals, returns, and payouts are for demonstration and do not represent a bank account or guaranteed real-money transfer. Provider checkout may use test mode. Never submit card, bank, or payment credentials except on the payment provider’s official checkout page.</p>
+      <h3>5. Responsible use and support</h3>
+      <p>Use the portal only for its intended cooperative services. Do not attempt to access another person’s account, submit false information, or interfere with the system. Contact cooperative staff through the contact method provided by your cooperative if you need help or wish to report a concern.</p>
+      <h3>6. Changes and acceptance</h3>
+      <p>Cooperative policies and service terms may be updated. If material terms change, you may be asked to review the updated version. Your acceptance is recorded with the account and the version shown above.</p>
+      <p>These project terms are informational and do not replace the cooperative’s bylaws, written loan agreement, privacy notice, or advice from a qualified professional.</p>
+    </article>
+  )
+}
+
+function TermsDecisionDialog({ onAccept, onDecline, saving, error }) {
+  const [reachedEnd, setReachedEnd] = useState(false)
+  const [accepted, setAccepted] = useState(false)
+  const termsRef = useRef(null)
+
+  function updateScrollStatus() {
+    const element = termsRef.current
+    if (element && element.scrollTop + element.clientHeight >= element.scrollHeight - 8) {
+      setReachedEnd(true)
+    }
+  }
+
+  return (
+    <div className="record-modal-backdrop terms-modal-backdrop">
+      <section className="record-modal terms-modal" role="dialog" aria-modal="true" aria-labelledby="terms-dialog-title">
+        <div className="record-modal-heading">
+          <div><span className="eyebrow">Required for new accounts</span><h2 id="terms-dialog-title">Terms & Conditions</h2></div>
+        </div>
+        <p>Scroll through the complete terms before you choose whether to continue.</p>
+        <div className="terms-scroll" ref={termsRef} onScroll={updateScrollStatus} tabIndex={0} aria-label="Terms and conditions, scroll to the end">
+          <TermsAndConditionsDocument />
+        </div>
+        {!reachedEnd && <p className="notice" role="status">Scroll to the bottom of the terms to enable your choice.</p>}
+        {error && <p className="message message-error" role="alert">{error}</p>}
+        <label className="terms-accept-checkbox">
+          <input type="checkbox" checked={accepted} disabled={!reachedEnd || saving} onChange={(event) => setAccepted(event.target.checked)} />
+          <span>I have read and agree to these Terms & Conditions.</span>
+        </label>
+        <div className="button-row terms-actions">
+          <button className="button button-outline" type="button" disabled={!reachedEnd || saving} onClick={onDecline}>
+            I do not agree — sign out
+          </button>
+          <button className="button button-primary" type="button" disabled={!reachedEnd || !accepted || saving} onClick={onAccept}>
+            {saving ? 'Recording acceptance…' : 'Agree and continue'}
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOut, theme, onToggleTheme }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [dashboardTab, setDashboardTab] = useState('savings')
   const [paymentInitialPurpose, setPaymentInitialPurpose] = useState('loan')
+  const [loanAgeNoticeOpen, setLoanAgeNoticeOpen] = useState(false)
   const staff = ['admin', 'officer'].includes(user.role)
   const navItems = staff ? STAFF_NAV_ITEMS : MEMBER_NAV_ITEMS
   const pageDetails = staff ? STAFF_PAGE_DETAILS : MEMBER_PAGE_DETAILS
@@ -3547,6 +3852,11 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
   const initials = user.full_name.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 
   function navigate(nextSection) {
+    if (nextSection === 'loans' && user.role === 'member' && !user.member?.loan_age_eligible) {
+      setLoanAgeNoticeOpen(true)
+      setSidebarOpen(false)
+      return
+    }
     if (nextSection === 'payments') setPaymentInitialPurpose('loan')
     setSection(nextSection)
     setSidebarOpen(false)
@@ -3600,9 +3910,6 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
           <span className="staff-topbar-label">{staff ? 'Cooperative management' : 'Member services'}</span>
           <div className="staff-topbar-actions">
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-            <span className="staff-notification-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></svg>
-            </span>
             <span className="staff-role">{user.role}</span>
             <span className="staff-avatar" aria-label={user.full_name}>{initials}</span>
           </div>
@@ -3628,6 +3935,7 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
               paymentInitialPurpose={paymentInitialPurpose}
               onSavingsDeposit={openSavingsDeposit}
               resetPaymentPurpose={() => setPaymentInitialPurpose('loan')}
+              onBlockedLoanAccess={() => setLoanAgeNoticeOpen(true)}
             />
             : section === 'learning'
               ? <LearningCenter key="learning" token={token} user={user} refreshKey={refreshKey} standalone />
@@ -3645,9 +3953,20 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
                     ? <CooperativePortal key="cooperative" token={token} user={user} refreshKey={refreshKey} standalone />
                     : section === 'payments'
                       ? <PaymentPortal key={`payments-${paymentInitialPurpose}`} token={token} user={user} refreshKey={refreshKey} standalone initialPurpose={paymentInitialPurpose} />
-                      : <ReportsPortal key="reports" token={token} refreshKey={refreshKey} standalone />}
+                      : section === 'terms'
+                        ? <TermsAndConditionsDocument />
+                        : <ReportsPortal key="reports" token={token} refreshKey={refreshKey} standalone />}
         </div>
       </div>
+      {loanAgeNoticeOpen && <div className="record-modal-backdrop">
+        <section className="record-modal loan-age-modal" role="dialog" aria-modal="true" aria-labelledby="loan-age-title">
+          <div className="record-modal-heading"><div><span className="eyebrow">Loan access</span><h2 id="loan-age-title">Not yet eligible for loan services</h2></div></div>
+          <p>{user.member?.loan_age === null || user.member?.loan_age === undefined
+            ? 'A valid date of birth is required to check loan eligibility. Please contact cooperative staff to review your member profile.'
+            : 'CoopWise loan applications and document submissions are available only to members aged 20 or older. You can continue using the other cooperative services available to your account.'}</p>
+          <button className="button button-primary" type="button" onClick={() => setLoanAgeNoticeOpen(false)}>Close</button>
+        </section>
+      </div>}
     </div>
   )
 }
@@ -3675,6 +3994,8 @@ function App() {
   const [turnstileToken, setTurnstileToken] = useState('')
   const [turnstileError, setTurnstileError] = useState('')
   const [turnstileResetKey, setTurnstileResetKey] = useState(0)
+  const [acceptingTerms, setAcceptingTerms] = useState(false)
+  const [termsError, setTermsError] = useState('')
 
   useEffect(() => {
     function updateMemberInvestorStatus(event) {
@@ -3887,8 +4208,8 @@ function App() {
     }
   }
 
-  async function signOut() {
-    if (!window.confirm('Are you sure you want to sign out?')) return
+  async function signOut(skipConfirmation = false) {
+    if (!skipConfirmation && !window.confirm('Are you sure you want to sign out?')) return
     const refreshToken = sessionStorage.getItem('coopwise_refresh_token')
     let revokeError = ''
     if (refreshToken) {
@@ -3912,12 +4233,47 @@ function App() {
       : 'You have signed out.')
   }
 
+  async function acceptTerms() {
+    if (acceptingTerms) return
+    setAcceptingTerms(true)
+    setTermsError('')
+    try {
+      const result = await apiRequest('/auth/terms/accept', {
+        token,
+        method: 'POST',
+        body: JSON.stringify({ terms_version: COOPWISE_TERMS_VERSION }),
+      })
+      setUser((current) => current
+        ? { ...current, terms_required: false, terms_accepted_at: new Date().toISOString() }
+        : current)
+      setMessage(result.message)
+    } catch (requestError) {
+      setTermsError(requestError.message)
+    } finally {
+      setAcceptingTerms(false)
+    }
+  }
+
   if (memberCardToken) return <MemberCardVerification verificationToken={memberCardToken} theme={theme} onToggleTheme={toggleTheme} />
 
   return (
-    <main className={`page-shell${user ? ' page-shell-staff' : !memberCardToken ? ' page-shell-auth' : ''}${authenticating && !user ? ' page-shell-auth-loading' : ''}`}>
+    <main
+      className={`page-shell${user ? ' page-shell-staff' : !memberCardToken ? ' page-shell-auth' : ''}${authenticating && !user ? ' page-shell-auth-loading' : ''}`}
+      onKeyDownCapture={enforceNumericKey}
+      onPasteCapture={enforceNumericPaste}
+      onDropCapture={enforceNumericDrop}
+      onBeforeInputCapture={enforceNumericInput}
+    >
       {user ? (
-        <StaffWorkspace token={token} user={user} section={section} setSection={setSection} refreshKey={refreshKey} onSignOut={signOut} theme={theme} onToggleTheme={toggleTheme} />
+        <>
+          <StaffWorkspace token={token} user={user} section={section} setSection={setSection} refreshKey={refreshKey} onSignOut={() => signOut()} theme={theme} onToggleTheme={toggleTheme} />
+          {user.terms_required && <TermsDecisionDialog
+            onAccept={acceptTerms}
+            onDecline={() => signOut(true)}
+            saving={acceptingTerms}
+            error={termsError}
+          />}
+        </>
       ) : (
         <>
       {!authenticating && <header className="topbar">
@@ -3969,10 +4325,10 @@ function App() {
             <form onSubmit={handleSubmit}>
               {mode === 'register' ? (
                 <div className="form-grid">
-                  <label>First name<input name="first_name" autoComplete="given-name" required maxLength="100" />{fieldErrors.first_name && <small>{fieldErrors.first_name}</small>}</label>
-                  <label>Middle name <span className="optional">(optional)</span><input name="middle_name" autoComplete="additional-name" maxLength="100" />{fieldErrors.middle_name && <small>{fieldErrors.middle_name}</small>}</label>
-                  <label>Last name<input name="last_name" autoComplete="family-name" required maxLength="100" />{fieldErrors.last_name && <small>{fieldErrors.last_name}</small>}</label>
-                  <label>Phone number<input name="phone_number" autoComplete="tel" inputMode="numeric" placeholder="09123456789" required pattern="09[0-9]{9}" maxLength="11" />{fieldErrors.phone_number && <small>{fieldErrors.phone_number}</small>}</label>
+                  <label>First name<input name="first_name" autoComplete="given-name" required maxLength="100" onChange={(event) => { event.target.value = event.target.value.replace(/[^\p{L} ]/gu, '').replace(/ {2,}/g, ' ') }} />{fieldErrors.first_name && <small>{fieldErrors.first_name}</small>}</label>
+                  <label>Middle name <span className="optional">(optional)</span><input name="middle_name" autoComplete="additional-name" maxLength="100" onChange={(event) => { event.target.value = event.target.value.replace(/[^\p{L} ]/gu, '').replace(/ {2,}/g, ' ') }} />{fieldErrors.middle_name && <small>{fieldErrors.middle_name}</small>}</label>
+                  <label>Last name<input name="last_name" autoComplete="family-name" required maxLength="100" onChange={(event) => { event.target.value = event.target.value.replace(/[^\p{L} ]/gu, '').replace(/ {2,}/g, ' ') }} />{fieldErrors.last_name && <small>{fieldErrors.last_name}</small>}</label>
+                  <label>Phone number<input name="phone_number" autoComplete="tel" inputMode="numeric" placeholder="09123456789" required pattern="09[0-9]{9}" maxLength="11" onChange={(event) => { event.target.value = event.target.value.replace(/\D/g, '').slice(0, 11) }} />{fieldErrors.phone_number && <small>{fieldErrors.phone_number}</small>}</label>
                   <label className="full">Email address<input name="email" type="email" autoComplete="email" required maxLength="254" />{fieldErrors.email && <small>{fieldErrors.email}</small>}</label>
                   <label>Date of birth<input name="date_of_birth" type="date" autoComplete="bday" required max={TODAY} />{fieldErrors.date_of_birth && <small>{fieldErrors.date_of_birth}</small>}</label>
                   <label>Password<input name="password" type="password" autoComplete="new-password" required minLength="8" maxLength="128" />{fieldErrors.password && <small>{fieldErrors.password}</small>}</label>
@@ -3988,7 +4344,7 @@ function App() {
               ) : (
                 <>
                   <label>Email address<input name="email" type="email" autoComplete="email" value={resetEmail} onChange={(event) => setResetEmail(event.target.value)} required maxLength="254" /></label>
-                  <label>Six-digit code<input name="otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength="6" required /></label>
+                  <label>Six-digit code<input name="otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength="6" required onChange={(event) => { event.target.value = event.target.value.replace(/\D/g, '').slice(0, 6) }} /></label>
                   <label>New password<input name="password" type="password" autoComplete="new-password" required minLength="8" maxLength="128" /></label>
                   <label>Confirm new password<input name="password_confirmation" type="password" autoComplete="new-password" required minLength="8" maxLength="128" /></label>
                   <p className="form-help full">Use 8-128 characters with an uppercase letter, a number, a special character, and no spaces.</p>
