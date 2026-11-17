@@ -311,6 +311,43 @@ small {
 /* These styles control form-help. */
 .form-help { font-size:12px; line-height:1.55; margin-top:16px; }
 
+/* These styles keep completed actions visible at the top-right of the screen. */
+.action-toast-viewport {
+  position:fixed;
+  z-index:2000;
+  top:max(16px, env(safe-area-inset-top));
+  right:16px;
+  width:min(440px, calc(100vw - 32px));
+  pointer-events:none;
+}
+.action-toast {
+  position:relative;
+  display:grid;
+  grid-template-columns:32px minmax(0,1fr) 30px;
+  align-items:center;
+  gap:12px;
+  overflow:hidden;
+  padding:14px 14px 17px;
+  border:1px solid var(--border);
+  border-left:4px solid var(--green);
+  border-radius:14px;
+  background:var(--surface);
+  color:var(--ink);
+  box-shadow:0 12px 34px rgb(18 32 25 / 22%);
+  pointer-events:auto;
+  animation:action-toast-enter .18s ease-out both;
+}
+.action-toast-icon { display:grid; width:30px; height:30px; place-items:center; border-radius:50%; background:var(--green-soft); color:var(--green); }
+.action-toast-icon svg,.action-toast-dismiss svg { display:block; width:18px; height:18px; }
+.action-toast-icon path,.action-toast-dismiss path { stroke:currentColor; stroke-linecap:round; stroke-linejoin:round; stroke-width:2; }
+.action-toast p { min-width:0; margin:0; color:var(--ink); font-size:14px; font-weight:600; line-height:1.45; overflow-wrap:anywhere; }
+.action-toast-dismiss { display:grid; width:30px; height:30px; place-items:center; border:0; border-radius:8px; background:transparent; color:var(--muted); cursor:pointer; }
+.action-toast-dismiss:hover { background:var(--green-soft); color:var(--ink); }
+.action-toast-timer { position:absolute; right:0; bottom:0; left:0; height:3px; background:var(--green); transform-origin:left; animation:action-toast-progress 10s linear forwards; }
+/* These animations show and time the floating action message. */
+@keyframes action-toast-enter { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+@keyframes action-toast-progress { to { transform:scaleX(0); } }
+
 /* These styles control dashboard. */
 .dashboard {
   width: min(1000px,100%);
@@ -661,6 +698,15 @@ small {
 .loan-capital-breakdown .loan-capital-breakdown-total { padding-top:6px; border-top:1px solid var(--border); color:var(--ink); font-weight:700; }
 /* These styles control loan-capital-breakdown-total dd. */
 .loan-capital-breakdown-total dd { font-weight:700; }
+/* These styles highlight lendable money separately from member ownership. */
+.capital-lending-summary { display:grid; gap:10px; margin:0 0 14px; border-left:4px solid var(--green); }
+.capital-lending-summary-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.capital-lending-summary-heading > div { display:grid; gap:5px; }
+.capital-lending-summary-heading > div > span:last-child { color:var(--ink); font-weight:700; }
+.capital-lending-summary-heading > strong { color:var(--ink); font-size:clamp(24px,3vw,34px); font-variant-numeric:tabular-nums; text-align:right; }
+.capital-lending-summary > p { margin:0; font-size:12px; line-height:1.5; }
+.capital-lending-summary-total { padding-top:6px; border-top:1px solid var(--border); color:var(--ink); font-weight:700; }
+.capital-lending-summary-total dd { color:var(--ink); font-weight:700; }
 /* These styles control report-grid strong. */
 .report-grid strong { color:var(--ink); font-size:21px; }
 /* These styles control report-grid small. */
@@ -915,6 +961,12 @@ footer {
 @media(max-width:520px) {
   /* These styles control share-capital-summary. */
   .share-capital-summary { grid-template-columns:1fr; }
+  /* These styles keep action messages within a small screen. */
+  .action-toast-viewport { top:max(10px, env(safe-area-inset-top)); right:10px; width:calc(100vw - 20px); }
+  /* These styles stack lending totals on a small screen. */
+  .capital-lending-summary-heading { align-items:flex-start; flex-direction:column; }
+  /* These styles align lending totals on a small screen. */
+  .capital-lending-summary-heading > strong { text-align:left; }
   /* These styles control share-capital-total-card. */
   .share-capital-total-card { grid-column:auto; }
   /* These styles control terms-actions. */
@@ -1303,6 +1355,9 @@ footer {
 @media (prefers-reduced-motion:reduce) {
   /* These styles control portal-skeleton-bar. */
   .portal-skeleton-bar { animation:none; }
+  /* These styles respect reduced-motion settings for action messages. */
+  .action-toast { animation:none; }
+  .action-toast-timer { display:none; }
 }
 
 /* These styles control staff-account-summary. */
@@ -1850,6 +1905,16 @@ footer {
   /* These styles control body.printing-record .member-card-qr img. */
   body.printing-record .member-card-qr img { width:24mm; height:24mm; }
 }
+
+/* These styles make overdue-interest terms clear and keep the checkbox beside its label. */
+.overdue-interest-notice { display:grid; gap:12px; margin:4px 0 8px; padding:15px; border:1px solid var(--border); border-left:4px solid #c38b35; border-radius:12px; background:var(--surface); }
+.overdue-interest-notice-copy .eyebrow { color:#98651b; }
+.overdue-interest-notice-copy p { margin:5px 0 0; color:var(--muted); font-size:13px; line-height:1.55; }
+.overdue-interest-consent { display:flex !important; align-items:flex-start; gap:11px; margin:0 !important; padding:12px; border:1px solid var(--border); border-radius:10px; background:var(--green-soft); cursor:pointer; }
+.overdue-interest-consent .overdue-interest-checkbox { display:block; flex:0 0 18px; width:18px; height:18px; margin:2px 0 0; accent-color:var(--green); cursor:pointer; }
+.overdue-interest-consent > span { display:grid; gap:3px; min-width:0; color:var(--ink); }
+.overdue-interest-consent strong { font-size:13px; line-height:1.4; }
+.overdue-interest-consent small { margin:0; color:var(--muted); font-size:12px; font-weight:400; line-height:1.4; }
 
 /* These styles control loan-preview. */
 .loan-preview { padding:14px; border:1px solid #dfece5; border-radius:12px; background:#f6faf7; }

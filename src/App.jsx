@@ -466,6 +466,32 @@ function PortalMessage({ children, error = false }) {
   return children ? <div className={error ? 'message message-error' : 'message'} role="status">{children}</div> : null
 }
 
+// This block shows a floating action message that closes after ten seconds.
+function ActionToast({ message, onDismiss }) {
+  useEffect(() => {
+    if (!message) return undefined
+    const timer = window.setTimeout(() => onDismiss(''), 10000)
+    return () => window.clearTimeout(timer)
+  }, [message, onDismiss])
+
+  if (!message) return null
+
+  return (
+    <div className="action-toast-viewport" aria-live="polite" aria-atomic="true">
+      <div className="action-toast" key={message} role="status">
+        <span className="action-toast-icon" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="none"><path d="m5 10 3.2 3.2L15.5 6" /></svg>
+        </span>
+        <p>{message}</p>
+        <button className="action-toast-dismiss" type="button" onClick={() => onDismiss('')} aria-label="Dismiss notification">{/* BUTTON - dismisses the notification. */}
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>
+        </button>
+        <span className="action-toast-timer" aria-hidden="true" />
+      </div>
+    </div>
+  )
+}
+
 // This block shows what to expect when a list has no records.
 function StaffEmptyState({ type, title, description, loading = false }) {
   return (
@@ -836,7 +862,8 @@ function SavingsLedgerDialog({ token, member, onClose }) {
             {emailSending ? 'Emailing PDF…' : member ? "Email PDF to member's registered email" : 'Email PDF to my account'}
           </button>
         </div>
-        <div className="no-print"><PortalMessage error>{emailError}</PortalMessage><PortalMessage>{emailNotice}</PortalMessage></div>
+        <div className="no-print"><PortalMessage error>{emailError}</PortalMessage></div>
+        <ActionToast message={emailNotice} onDismiss={setEmailNotice} />
         {error && <PortalMessage error>{error}</PortalMessage>}
         {loading && <StaffEmptyState type="savings" title="Preparing savings ledger…" description="Loading the selected member’s transactions and balances." loading />}
         {ledger && !loading && <article className="ledger-print-area print-target">
@@ -1393,7 +1420,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       </div>}
       {standalone && <div className="standalone-actions"><button className="button button-outline" type="button" onClick={refreshLoanData} disabled={loading || refreshing} aria-busy={refreshing}>{loading || refreshing ? 'Checking…' : 'Refresh status'}</button></div>}
       <PortalMessage error>{error || actionError}</PortalMessage>
-      <PortalMessage>{notice}</PortalMessage>
+      <ActionToast message={notice} onDismiss={setNotice} />
       {staff && <nav className="loan-subtabs" aria-label="Loan management sections">
         <button className={`loan-subtab${activeStaffLoanTab === 'offers' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'offers' ? 'page' : undefined} onClick={() => setStaffLoanTab('offers')}>{/* BUTTON - loan offers. */}Loan offers</button>
         <button className={`loan-subtab${activeStaffLoanTab === 'documents' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'documents' ? 'page' : undefined} onClick={() => setStaffLoanTab('documents')}>{/* BUTTON - document reviews. */}
@@ -1633,10 +1660,19 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                           setApplicationInputs((current) => ({ ...current, [product.id]: { ...current[product.id], purposeDetail } }))
                         }} /></label>}
                         {Number(product.overdue_interest_rate) > 0 && (
-                          <label className="full">
-                            <span>Overdue interest is calculated simply at {product.overdue_interest_rate}% per year on unpaid installment principal, from the day after the due date. It does not compound.</span>
-                            <span><input name="accept_overdue_terms" type="checkbox" value="1" required /> I have read and accept these overdue-interest terms.</span>
-                          </label>
+                          <div className="full overdue-interest-notice">
+                            <div className="overdue-interest-notice-copy">
+                              <span className="eyebrow">Overdue interest</span>
+                              <p>{product.overdue_interest_rate}% per year applies to unpaid installment principal starting the day after its due date. It does not compound.</p>
+                            </div>
+                            <label className="overdue-interest-consent">
+                              <input className="overdue-interest-checkbox" name="accept_overdue_terms" type="checkbox" value="1" required />
+                              <span>
+                                <strong>I understand these overdue-interest terms.</strong>
+                                <small>A charge may apply if an installment is paid after its due date.</small>
+                              </span>
+                            </label>
+                          </div>
                         )}
                         {applicationInputs[product.id]?.amount && !loanApplicationIsWithinLimits(product, eligibility, applicationInputs[product.id]) && (
                           <p className="full notice">Enter an amount up to {formatPesos(Math.min(Number(product.max_amount), Number(eligibility?.max_eligible_amount || 0)))} and a term from 1 to {product.max_term_months} months. The estimate and submission stay disabled until both are within the offer limits.</p>
@@ -1965,7 +2001,7 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
         <p className="muted">Members pay their daily contribution through Xendit. Once everyone has paid, the next person in the randomized order is ready for the pooled payout. Staff confirm the simulated payout, which is then added to that member’s available balance.</p>
       </>}
       <PortalMessage error>{error || actionError}</PortalMessage>
-      <PortalMessage>{notice}</PortalMessage>
+      <ActionToast message={notice} onDismiss={setNotice} />
 
       {staff && <>
         <section className="cycle-create-card">{/* SECTION - shows cycle-create-card. */}
@@ -2463,7 +2499,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
         {!filteredMembers.length && <p className="muted">No members match that search.</p>}
       </section>}
       <PortalMessage error>{error || actionError}</PortalMessage>
-      <PortalMessage>{notice}</PortalMessage>
+      <ActionToast message={notice} onDismiss={setNotice} />
       {staff && <div className="savings-transaction-tools">
         <h3>Transaction review</h3>
         <div className="savings-filter-row">
@@ -2545,6 +2581,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
     : availableReturnTotal
   const hasOwnInvestorProfile = user.role === 'admin' && Boolean(data?.[1]?.member_profile)
   const summary = capital?.summary || { subscribed_amount: 0, paid_up_amount: 0, unpaid_amount: 0 }
+  const lendingBreakdown = data?.[1]?.loan_capital_breakdown
 
   async function submitMemberContribution(event) {
     event.preventDefault()
@@ -2780,13 +2817,31 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
       {!standalone && <h2>Share capital</h2>}
       <p className="muted">Share capital represents member ownership in the cooperative. It is separate from savings and is not an ordinary savings withdrawal.</p>
       <PortalMessage error>{error || actionError}</PortalMessage>
-      <PortalMessage>{notice}</PortalMessage>
+      <ActionToast message={notice} onDismiss={setNotice} />
       {capital && <article className="portal-card cooperative-share-capital-highlight">
         <span>Cooperative-wide paid-up share capital</span>
         <strong>{capital.cooperative_paid_up_amount === undefined
           ? '—'
           : formatPesos(capital.cooperative_paid_up_amount)}</strong>
-        <small>Combined contributions from all investors, net of recorded reversals.</small>
+        <small>Combined ownership contributions from all investors, net of recorded reversals. Lending does not reduce this ownership total.</small>
+      </article>}
+      {lendingBreakdown && <article className="portal-card capital-lending-summary">
+        <div className="capital-lending-summary-heading">
+          <div><span className="eyebrow">Cooperative lending</span><span>Available to lend</span></div>
+          <strong>{formatPesos(data[1].available_loan_capital)}</strong>
+        </div>
+        <p className="muted">Loaned principal remains owed to the cooperative. Outstanding and pending loan balances reduce the amount available for new loans, not members’ paid-up ownership.</p>
+        <details className="loan-capital-breakdown">
+          <summary>View lending capital calculation</summary>
+          <dl>
+            <div><dt>Paid-up share capital</dt><dd>{formatPesos(lendingBreakdown.paid_up_share_capital)}</dd></div>
+            <div><dt>Collected interest available to lend</dt><dd>+ {formatPesos(lendingBreakdown.lendable_interest)}</dd></div>
+            <div><dt>Outstanding loan principal</dt><dd>− {formatPesos(lendingBreakdown.outstanding_principal)}</dd></div>
+            <div><dt>Pending loan applications</dt><dd>− {formatPesos(lendingBreakdown.pending_principal)}</dd></div>
+            <div className="capital-lending-summary-total"><dt>Available to lend</dt><dd>{formatPesos(data[1].available_loan_capital)}</dd></div>
+          </dl>
+          <small>Loan interest already allocated to investors is excluded from lendable interest.</small>
+        </details>
       </article>}
       {capital && <div className="report-grid share-capital-summary">
         <article className="portal-card"><span>Subscribed share capital</span><strong>{formatPesos(summary.subscribed_amount)}</strong></article>
@@ -2817,11 +2872,12 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
             Available to claim: {formatPesos(loanInterestSummary.available_returns || 0)}
             {' · '}Retained because no eligible investor: {formatPesos(loanInterestSummary.retained_interest || 0)}
           </small>
+          <small>Recorded regular loan interest is shared equally among eligible investors. Overdue penalties are kept separate.</small>
         </article>
         : <article className="portal-card loan-interest-return-summary">
           <span>Your loan-interest returns</span>
           <strong>{formatPesos(memberLoanInterestTotal)}</strong>
-          <small>Available to claim: {formatPesos(availableLoanInterestTotal)}. This is separate from annual approved surplus distributions.</small>
+          <small>Available to claim: {formatPesos(availableLoanInterestTotal)}. Eligible investors receive equal shares of regular loan interest; overdue penalties and annual approved surplus distributions are separate.</small>
           <div className="dividend-action-buttons">
             <button className="button button-outline" type="button" disabled={!availableLoanInterestTotal || Boolean(loanInterestAction) || Boolean(returnAction)} onClick={() => claimLoanInterestReturns('savings')}>{/* BUTTON - add to savings. */}
               {loanInterestAction === 'savings' ? 'Adding…' : 'Add to savings'}
@@ -3078,7 +3134,7 @@ function LearningCenter({ token, user, refreshKey, standalone = false }) {
     <section className="policy-section">{/* SECTION - shows policy-section. */}
       <div className="section-heading"><div><h3>Cooperative policies for this demo</h3><p className="muted">These are this project’s sample rules, not universal cooperative rules or legal advice.</p></div></div>
       <PortalMessage error>{error || actionError}</PortalMessage>
-      <PortalMessage>{notice}</PortalMessage>
+      <ActionToast message={notice} onDismiss={setNotice} />
       {loading && !policies && <p className="muted">Loading current demo policies…</p>}
       {!loading && !policies && !error && <p className="muted">No demo policies have been published.</p>}
       {policies && staff && <form className="portal-card form-grid policy-form" onSubmit={savePolicies}>
@@ -3620,7 +3676,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
         </div>
       </div>}
       <PortalMessage error>{error || actionError}</PortalMessage>
-      <PortalMessage>{notice}</PortalMessage>
+      <ActionToast message={notice} onDismiss={setNotice} />
       {!staff && (
         <div className="payment-available-savings">
           <span>Available savings</span>
