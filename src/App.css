@@ -1,5 +1,8 @@
+/* These styles set the page-wide layout and default text colors. */
 #root { min-height: 100vh; }
 
+/* This file controls how the CoopWise pages look on desktop and mobile. */
+/* These styles control page-shell. */
 .page-shell {
   width: min(1120px, calc(100% - 48px));
   min-height: 100vh;
@@ -7,57 +10,80 @@
   display: flex;
   flex-direction: column;
 }
+/* These styles control terms-modal-backdrop. */
 .terms-modal-backdrop { z-index:1000; }
+/* These styles control terms-modal. */
 .terms-modal { width:min(760px,100%); max-height:calc(100dvh - 40px); display:flex; flex-direction:column; }
+/* These styles control terms-modal > p. */
 .terms-modal > p { margin:0 0 12px; }
+/* These styles control terms-scroll. */
 .terms-scroll { min-height:180px; max-height:min(48dvh,520px); overflow-y:auto; overscroll-behavior:contain; padding:16px; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+/* These styles control terms-document. */
 .terms-document { color:var(--ink); line-height:1.65; }
+/* These styles control terms-document h3. */
 .terms-document h3 { margin:18px 0 5px; font-size:16px; }
+/* These styles control terms-document p. */
 .terms-document p { margin:8px 0; }
+/* These styles control terms-document p. */
 .terms-document p:first-child { font-size:12px; }
+/* These styles control terms-accept-checkbox. */
 .terms-accept-checkbox { display:flex; align-items:flex-start; gap:9px; margin:12px 0; }
+/* These styles control terms-accept-checkbox input. */
 .terms-accept-checkbox input { width:18px; height:18px; flex:none; margin:2px 0 0; }
+/* These styles control terms-actions. */
 .terms-actions { justify-content:space-between; }
+/* These styles control terms-actions .button. */
 .terms-actions .button { white-space:normal; }
+/* These styles control loan-age-modal. */
 .loan-age-modal,.loan-application-confirm-modal { width:min(620px,100%); }
+/* These styles control loan-application-confirm-facts. */
 .loan-application-confirm-facts { margin:16px 0; }
+/* These styles control loan-application-confirm-facts dd. */
 .loan-application-confirm-facts dd { font-weight:700; }
 
+/* These styles control page-shell-auth. */
 .page-shell-auth {
   width: 100%;
   max-width: none;
 }
 
+/* These styles control page-shell-auth > .topbar. */
 .page-shell-auth > .topbar {
   padding-right: clamp(20px, 3vw, 48px);
   padding-left: clamp(20px, 3vw, 48px);
 }
 
+/* These styles control page-shell-auth > footer. */
 .page-shell-auth > footer {
   padding-right: max(24px, calc((100% - 1120px) / 2));
   padding-left: max(24px, calc((100% - 1120px) / 2));
 }
 
+/* These styles control page-shell-auth > .auth-layout. */
 .page-shell-auth > .auth-layout {
   width: min(1120px, calc(100% - 48px));
   margin-right: auto;
   margin-left: auto;
 }
 
+/* These styles control page-shell-auth-loading. */
 .page-shell-auth-loading {
   width: 100%;
   margin: 0;
 }
 
+/* These styles control page-shell-auth-loading .auth-loading. */
 .page-shell-auth-loading .auth-loading {
   width: 100%;
   min-height: 100vh;
 }
 
+/* These styles control page-shell(.page-shell-staff) > .topbar. */
 .page-shell:not(.page-shell-staff) > .topbar {
   width: 100%;
 }
 
+/* These styles control topbar. */
 .topbar {
   min-height: 78px;
   display: flex;
@@ -66,6 +92,7 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* These styles control brand. */
 .brand {
   display: inline-flex;
   align-items: center;
@@ -77,12 +104,18 @@
   text-decoration: none;
 }
 
+/* These styles control brand-mark. */
 .brand-mark { width: 26px; height: 26px; color: var(--green); }
+/* These styles control brand > span. */
 .brand > span { color: var(--ink); }
+/* These styles control brand > span span. */
 .brand > span span { color: var(--green); }
+/* These styles control tagline. */
 .tagline,.muted,.optional,.form-help { color: var(--muted); }
+/* These styles control tagline. */
 .tagline { font-size: 14px; }
 
+/* These styles control auth-layout. */
 .auth-layout {
   position: relative;
   flex: 1;
@@ -94,7 +127,9 @@
   isolation: isolate;
 }
 
+/* These styles control intro. */
 .intro { position: relative; max-width: 500px; padding: 28px 0; }
+/* These styles control intro. */
 .intro::after {
   position: absolute;
   z-index: -1;
@@ -107,6 +142,7 @@
   background: radial-gradient(circle, transparent 47%, rgb(183 230 211 / 28%) 48% 66%, transparent 67%);
   content: "";
 }
+/* These styles control intro h1. */
 .intro h1,.dashboard h1 {
   color: var(--ink);
   font-size: clamp(36px, 5vw, 54px);
@@ -115,6 +151,7 @@
   margin: 14px 0 18px;
 }
 
+/* These styles control intro p. */
 .intro p {
   max-width: 440px;
   color: var(--muted);
@@ -122,6 +159,7 @@
   line-height: 1.7;
 }
 
+/* These styles control eyebrow. */
 .eyebrow {
   color: var(--green);
   font-size: 11px;
@@ -130,6 +168,7 @@
   text-transform: uppercase;
 }
 
+/* These styles control card. */
 .card {
   padding: 30px;
   background: var(--surface);
@@ -138,21 +177,32 @@
   box-shadow: 0 10px 28px rgb(34 55 42 / 5%);
 }
 
+/* These styles control auth-card. */
 .auth-card {
   padding: clamp(24px, 3vw, 36px);
   border-color: #e1ebe6;
   border-radius: 20px;
   box-shadow: 0 16px 44px rgb(23 61 46 / 7%);
 }
+/* These styles control auth-card h2. */
 .auth-card h2 { color: var(--ink); margin: 22px 0 18px; font-size: 23px; letter-spacing: -.4px; }
+/* These styles control auth-card .tabs. */
 .auth-card .tabs { justify-content:flex-end; gap:5px; padding:4px; border:1px solid #e4ece8; border-radius:12px; background:#f5f8f6; }
+/* These styles control auth-card .tab. */
 .auth-card .tab { flex:0 1 124px; min-height:38px; border:0; border-radius:9px; }
+/* These styles control auth-card .tab.active. */
 .auth-card .tab.active { color:#145e42; background:#d9f2e7; }
+/* These styles control auth-card .tab(.active). */
 .auth-card .tab:last-child:not(.active) { color:#176a49; }
+/* These styles control auth-card .tab(.active). */
 .auth-card .tab:last-child:not(.active):hover { background:#e9f5ef; }
+/* These styles control auth-card input. */
 .auth-card input { padding: 12px; border-radius: 9px; }
+/* These styles control auth-card .submit. */
 .auth-card .submit { min-height: 46px; border-radius: 10px; }
+/* These styles control tabs. */
 .tabs { display:flex; gap:8px; border-bottom:1px solid var(--border); }
+/* These styles control tab. */
 .tab {
   padding: 11px 15px;
   background: transparent;
@@ -162,8 +212,10 @@
   font-weight: 650;
   cursor: pointer;
 }
+/* These styles control tab.active. */
 .tab.active { color: var(--green); border-bottom-color: var(--green); }
 
+/* These styles control form label. */
 form label {
   display: block;
   margin: 15px 0;
@@ -172,6 +224,7 @@ form label {
   font-weight: 650;
 }
 
+/* These styles control input. */
 input,select {
   display: block;
   width: 100%;
@@ -184,20 +237,30 @@ input,select {
   font-size: 14px;
 }
 
+/* These styles control input. */
 input:focus,select:focus {
   outline: 3px solid #d8e9dc;
   border-color: var(--green);
 }
 
+/* These styles control input. */
 input[type="file"] { padding: 9px; }
+/* These styles control form-grid. */
 .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 14px; }
+/* These styles control form-grid .full. */
 .form-grid .full { grid-column:1/-1; }
+/* These styles control form-grid label. */
 .form-grid label { margin:9px 0; }
+/* These styles control payment-amount-field. */
 .payment-amount-field { display:flex; align-items:flex-end; gap:8px; min-width:0; }
+/* These styles control payment-amount-field label. */
 .payment-amount-field label { flex:1; min-width:0; }
+/* These styles control payment-amount-field .button. */
 .payment-amount-field .button { margin-bottom:9px; white-space:nowrap; }
+/* These styles control staff-loan-payment-form. */
 .staff-loan-payment-form { margin-top:14px; padding-top:12px; border-top:1px solid var(--border); }
 
+/* These styles control small. */
 small {
   display: block;
   margin-top: 6px;
@@ -207,6 +270,7 @@ small {
   line-height: 1.5;
 }
 
+/* These styles control button. */
 .button {
   padding: 10px 15px;
   border: 1px solid transparent;
@@ -217,13 +281,20 @@ small {
   transition: background-color .15s ease, border-color .15s ease;
 }
 
+/* These styles control button-primary. */
 .button-primary { background: var(--green); color:#fff; }
+/* These styles control button-primary. */
 .button-primary:hover { background: var(--green-dark); }
+/* These styles control button-outline. */
 .button-outline { border-color:#cdd8cf; background:#fff; color:var(--ink); }
+/* These styles control button-outline. */
 .button-outline:hover { background:#f4f7f3; border-color:#aabdaf; }
+/* These styles control button. */
 .button:disabled { opacity:.65; cursor:wait; }
+/* These styles control submit. */
 .submit { width:100%; margin-top:10px; }
 
+/* These styles control message. */
 .message {
   margin: 14px 0;
   padding: 11px 13px;
@@ -235,15 +306,19 @@ small {
   line-height: 1.5;
 }
 
+/* These styles control message-error. */
 .message-error { background:#fbefed; border-color:#e8c9c4; color:var(--danger); }
+/* These styles control form-help. */
 .form-help { font-size:12px; line-height:1.55; margin-top:16px; }
 
+/* These styles control dashboard. */
 .dashboard {
   width: min(1000px,100%);
   margin: 36px auto;
   padding: clamp(22px,4vw,38px);
 }
 
+/* These styles control auth-loading. */
 .auth-loading {
   display: flex;
   flex: 1;
@@ -255,12 +330,17 @@ small {
   color: #597168;
   font-size: 14px;
 }
+/* These styles control auth-loading-mark. */
 .auth-loading-mark { width: 32px; height: 32px; color: var(--green); animation: staff-spin 1.4s linear infinite; }
+/* These styles control auth-loading-mark svg. */
 .auth-loading-mark svg { display: block; width: 100%; height: 100%; }
 
+/* These styles control dashboard h1. */
 .dashboard h1 { font-size:clamp(30px,4vw,42px); margin:10px 0; }
+/* These styles control dashboard > .muted. */
 .dashboard > .muted { margin:0; }
 
+/* These styles control profile-card. */
 .profile-card {
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
@@ -268,6 +348,7 @@ small {
   margin:24px 0 28px;
 }
 
+/* These styles control profile-card div. */
 .profile-card div {
   padding:14px 15px;
   border:1px solid var(--border);
@@ -275,10 +356,14 @@ small {
   background:#fbfcfa;
 }
 
+/* These styles control profile-card span. */
 .profile-card span,.profile-card strong { display:block; }
+/* These styles control profile-card span. */
 .profile-card span { color:var(--muted); font-size:12px; margin-bottom:6px; }
+/* These styles control profile-card strong. */
 .profile-card strong { color:var(--ink); font-size:14px; }
 
+/* These styles control portal-tabs. */
 .portal-tabs {
   display:flex;
   gap:4px;
@@ -287,10 +372,14 @@ small {
   border-bottom:1px solid var(--border);
 }
 
+/* These styles control portal-section h2. */
 .portal-section h2 { color:var(--ink); font-size:25px; margin:4px 0 7px; }
+/* These styles control portal-section h3. */
 .portal-section h3 { color:var(--ink); font-size:18px; margin:24px 0 12px; }
+/* These styles control portal-section p. */
 .portal-section p { line-height:1.55; }
 
+/* These styles control section-heading. */
 .section-heading {
   display:flex;
   justify-content:space-between;
@@ -299,18 +388,30 @@ small {
   margin-bottom:18px;
 }
 
+/* These styles control section-heading > div > .muted. */
 .section-heading > div > .muted { margin:0; }
+/* These styles control section-heading-compact. */
 .section-heading-compact { margin:24px 0 12px; }
+/* These styles control section-heading-compact h3. */
 .section-heading-compact h3 { margin:0 0 4px; }
+/* These styles control filter-control. */
 .filter-control { min-width:190px; margin:0; }
+/* These styles control member-search-layout. */
 .member-search-layout { display:grid; grid-template-columns:minmax(0, 1.3fr) minmax(230px, .9fr); align-items:end; gap:18px; margin:18px 0 22px; }
+/* These styles control member-search-field. */
 .member-search-field { margin:0; }
+/* These styles control member-search-field input. */
 .member-search-field input { min-height:46px; border-radius:10px; }
+/* These styles control member-search-help. */
 .member-search-help { margin:0 0 9px; color:var(--muted); line-height:1.55; }
+/* These styles control member-detail. */
 .member-detail { background:#fbfcfa; }
+/* These styles control member-row-actions. */
 .member-row-actions { display:flex; align-items:center; flex-wrap:wrap; gap:4px 10px; }
+/* These styles control member-row-actions .text-button. */
 .member-row-actions .text-button { margin-left:0; white-space:nowrap; }
 
+/* These styles control portal-card. */
 .portal-card,.offer-card {
   padding:18px;
   margin:14px 0;
@@ -319,14 +420,18 @@ small {
   background:#fff;
 }
 
+/* These styles control portal-card summary. */
 .portal-card summary,.offer-application summary {
   color:var(--ink);
   font-weight:650;
   cursor:pointer;
 }
 
+/* These styles control portal-card form. */
 .portal-card form,.offer-card form { margin-top:14px; }
+/* These styles control portal-card label. */
 .portal-card label,.offer-card label { margin:9px 0; }
+/* These styles control notice. */
 .notice {
   padding:13px 15px;
   border-left:3px solid var(--green);
@@ -338,9 +443,13 @@ small {
   margin:12px 0 16px;
 }
 
+/* These styles control item-heading. */
 .item-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+/* These styles control item-heading strong. */
 .item-heading strong,.item-heading span { display:block; }
+/* These styles control item-heading span(.status). */
 .item-heading span:not(.status) { color:var(--muted); font-size:13px; margin-top:5px; }
+/* These styles control status. */
 .status {
   flex-shrink:0;
   padding:5px 9px;
@@ -351,122 +460,234 @@ small {
   font-weight:650;
   text-transform:capitalize;
 }
+/* These styles control status-active. */
 .status-active,.status-approved,.status-paid,.status-completed { color:#236342; background:#e9f3eb; }
+/* These styles control status-pending. */
 .status-pending,.status-draft,.status-ready { color:#805f2b; background:#f8f1e2; }
+/* These styles control status-rejected. */
 .status-rejected,.status-cancelled { color:#923d36; background:#f8ecea; }
 
+/* These styles control offer-grid. */
 .offer-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
+/* These styles control offer-grid.has-expanded. */
 .offer-grid.has-expanded { grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); align-items:start; }
+/* These styles control offer-grid.has-expanded .offer-card.expanded. */
 .offer-grid.has-expanded .offer-card.expanded { grid-column:1/-1; border-color:#a8cdb8; box-shadow:0 10px 24px rgb(23 61 46 / 8%); }
+/* These styles control offer-grid.has-expanded .offer-card(.expanded). */
 .offer-grid.has-expanded .offer-card:not(.expanded) { opacity:.76; }
+/* These styles control offer-card. */
 .offer-card { margin:0; }
+/* These styles control offer-card-heading. */
 .offer-card-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+/* These styles control offer-card h4. */
 .offer-card h4 { margin:0; color:var(--ink); font-size:17px; }
+/* These styles control offer-card-heading p. */
 .offer-card-heading p { margin:6px 0 0; color:var(--muted); font-size:13px; }
+/* These styles control offer-facts. */
 .offer-facts { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:14px 0; margin:14px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+/* These styles control offer-facts div. */
 .offer-facts div { min-width:0; }
+/* These styles control offer-facts dt. */
 .offer-facts dt { color:var(--muted); font-size:11px; line-height:1.3; }
+/* These styles control offer-facts dd. */
 .offer-facts dd { margin:5px 0 0; color:var(--ink); font-size:13px; font-weight:700; }
+/* These styles control loan-offer-delete. */
 .loan-offer-delete { color:#923d36; border-color:#d9aaa5; }
+/* These styles control loan-offer-delete. */
 .loan-offer-delete:hover { color:#7f2f29; border-color:#c9847d; background:#f8ecea; }
+/* These styles control offer-application summary. */
 .offer-application summary { color:var(--green); }
+/* These styles control member-loan-readiness. */
 .member-loan-readiness { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:start; gap:14px; margin:14px 0 22px; }
 .member-loan-readiness > .portal-card,
+/* These styles control member-loan-readiness > .loan-eligibility-card. */
 .member-loan-readiness > .loan-eligibility-card { min-width:0; height:100%; margin:0; }
+/* These styles control loan-eligibility-card > summary. */
 .loan-eligibility-card > summary { display:flex; align-items:center; gap:10px; list-style:none; }
+/* These styles control loan-eligibility-card > summary. */
 .loan-eligibility-card > summary::-webkit-details-marker { display:none; }
+/* These styles control loan-eligibility-card > summary strong. */
 .loan-eligibility-card > summary strong { margin-left:auto; color:var(--muted); font-size:12px; text-align:right; }
 .loan-eligibility-card > summary::after,
+/* These styles control loan-readiness-card > summary. */
 .loan-readiness-card > summary::after { content:"+"; display:grid; place-items:center; flex:0 0 22px; width:22px; height:22px; border-radius:50%; background:#edf2ee; color:var(--green); font-size:16px; }
 .loan-eligibility-card[open] > summary::after,
+/* These styles control loan-readiness-card > summary. */
 .loan-readiness-card[open] > summary::after { content:"−"; }
+/* These styles control loan-readiness-card > summary. */
 .loan-readiness-card > summary { display:flex; align-items:center; justify-content:space-between; gap:10px; list-style:none; }
+/* These styles control loan-readiness-card > summary. */
 .loan-readiness-card > summary::-webkit-details-marker { display:none; }
+/* These styles control loan-eligibility-details. */
 .loan-eligibility-details { padding-top:10px; }
+/* These styles control loan-eligibility-details .offer-facts. */
 .loan-eligibility-details .offer-facts { grid-template-columns:repeat(2,minmax(0,1fr)); }
+/* These styles control member-share-contribution. */
 .member-share-contribution { margin:18px 0; }
+/* These styles control member-share-contribution > summary. */
 .member-share-contribution > summary { color:var(--green); font-size:16px; }
+/* These styles control member-share-contribution h3. */
 .member-share-contribution h3 { margin-top:0; }
+/* These styles control member-share-contribution > p. */
 .member-share-contribution > p { margin:8px 0; }
+/* These styles control member-share-contribution > .muted. */
 .member-share-contribution > .muted { font-size:13px; }
+/* These styles control contribution-savings-balance. */
 .contribution-savings-balance { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:12px 0; padding:10px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+/* These styles control contribution-savings-balance span. */
 .contribution-savings-balance span { color:var(--muted); font-size:13px; }
+/* These styles control contribution-savings-balance strong. */
 .contribution-savings-balance strong { color:var(--ink); font-size:18px; }
+/* These styles control outstanding-loan-summary. */
 .outstanding-loan-summary { display:grid; gap:10px; margin:14px 0; }
+/* These styles control outstanding-loan-summary > strong. */
 .outstanding-loan-summary > strong { color:var(--ink); font-size:clamp(28px,4vw,38px); line-height:1.15; }
+/* These styles control outstanding-loan-details. */
 .outstanding-loan-details { display:grid; gap:10px; }
+/* These styles control outstanding-loan-details > div. */
 .outstanding-loan-details > div { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px 12px; padding-top:10px; border-top:1px solid var(--border); }
+/* These styles control outstanding-loan-details > div > span. */
 .outstanding-loan-details > div > span { min-width:0; color:var(--muted); font-size:13px; overflow-wrap:anywhere; }
+/* These styles control payment-facts. */
 .payment-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:16px 0; padding:13px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+/* These styles control payment-facts div. */
 .payment-facts div { min-width:0; }
+/* These styles control payment-facts dt. */
 .payment-facts dt { color:var(--muted); font-size:12px; }
+/* These styles control payment-facts dd. */
 .payment-facts dd { margin:5px 0 0; color:var(--ink); font-size:14px; font-weight:650; overflow-wrap:anywhere; }
 
+/* These styles control button-row. */
 .button-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+/* These styles control pagination-controls. */
 .pagination-controls { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:12px; margin:14px 0 24px; color:var(--muted); font-size:13px; }
+/* These styles control load-more-row. */
 .load-more-row { display:flex; justify-content:center; margin:16px 0 24px; }
+/* These styles control inline-form. */
 .inline-form { display:flex; flex-wrap:wrap; align-items:center; gap:8px; flex:1 1 100%; }
+/* These styles control inline-form input. */
 .inline-form input,.inline-form select { flex:1 1 150px; width:auto; margin:0; }
+/* These styles control payout-callout. */
 .payout-callout { display:flex; flex-wrap:wrap; align-items:center; gap:12px; background:#f0f5f0; border-radius:7px; padding:14px; margin:16px 0; }
+/* These styles control payout-callout span. */
 .payout-callout span { color:#3e5b49; }
+/* These styles control member-order. */
 .member-order { color:#35473e; line-height:1.8; }
+/* These styles control text-button. */
 .text-button { border:0; background:none; color:var(--green); text-decoration:underline; cursor:pointer; margin-left:10px; }
+/* These styles control payment-instructions ol. */
 .payment-instructions ol { color:#35473e; line-height:1.75; padding-left:22px; }
+/* These styles control payment-qr. */
 .payment-qr { display:block; width:min(340px,100%); height:auto; margin:16px auto; border:1px solid var(--border); border-radius:8px; }
+/* These styles control document-list. */
 .document-list { padding-left:20px; color:#35473e; }
+/* These styles control document-list li. */
 .document-list li { margin:8px 0; }
+/* These styles control search-results. */
 .search-results { margin-top:16px; }
+/* These styles control search-results p. */
 .search-results p { color:#35473e; }
+/* These styles control savings-balance. */
 .savings-balance { display:flex; flex-direction:column; gap:8px; background:#f0f5f0; }
+/* These styles control savings-member-overview. */
 .savings-member-overview { display:grid; grid-template-columns:minmax(0, 1fr) auto auto; align-items:center; gap:14px; margin:14px 0; }
+/* These styles control savings-member-overview .portal-card. */
 .savings-member-overview .portal-card { margin:0; }
+/* These styles control savings-member-overview > .button. */
 .savings-member-overview > .button { min-height:44px; }
+/* These styles control savings-member-actions. */
 .savings-member-actions { display:grid; gap:8px; }
+/* These styles control savings-balance span. */
 .savings-balance span,.report-grid span { color:var(--muted); font-size:13px; }
+/* These styles control savings-balance strong. */
 .savings-balance strong { color:var(--ink); font-size:26px; }
+/* These styles control payment-available-savings. */
 .payment-available-savings { display:flex; flex-direction:column; gap:5px; margin:14px 0 20px; }
+/* These styles control payment-available-savings span. */
 .payment-available-savings span { color:var(--muted); font-size:13px; }
+/* These styles control payment-available-savings strong. */
 .payment-available-savings strong { color:var(--ink); font-size:30px; line-height:1.2; }
+/* These styles control report-grid. */
 .report-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; }
+/* These styles control share-capital-summary. */
 .share-capital-summary { grid-template-columns:repeat(3,minmax(0,1fr)); align-items:stretch; }
+/* These styles control cooperative-share-capital-highlight. */
 .cooperative-share-capital-highlight { display:grid; gap:8px; margin:0 0 14px; padding:clamp(20px,3vw,30px); border-left:5px solid var(--green); background:var(--green-soft); }
+/* These styles control cooperative-share-capital-highlight > span. */
 .cooperative-share-capital-highlight > span { color:var(--muted); font-size:14px; font-weight:650; }
+/* These styles control cooperative-share-capital-highlight > strong. */
 .cooperative-share-capital-highlight > strong { color:var(--ink); font-size:clamp(34px,5vw,52px); line-height:1.08; letter-spacing:-1px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+/* These styles control cooperative-share-capital-highlight > small. */
 .cooperative-share-capital-highlight > small { color:var(--muted); line-height:1.5; }
+/* These styles control share-capital-total-card. */
 .share-capital-total-card { grid-column:span 1; justify-content:center; padding:24px; border-color:var(--green); background:var(--surface); }
+/* These styles control share-capital-total-card strong. */
 .share-capital-total-card strong { font-size:clamp(28px,3vw,42px); line-height:1.15; letter-spacing:-.7px; }
+/* These styles control share-capital-total-card small. */
 .share-capital-total-card small { color:var(--muted); }
+/* These styles control report-grid .portal-card. */
 .report-grid .portal-card { display:flex; flex-direction:column; gap:9px; margin:0; }
+/* These styles control dividend-action-buttons. */
 .dividend-action-buttons { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-top:auto; padding-top:5px; }
+/* These styles control dividend-action-buttons .button. */
 .dividend-action-buttons .button { min-width:0; padding:8px 5px; font-size:11px; line-height:1.25; white-space:normal; }
+/* These styles control loan-interest-return-summary. */
 .loan-interest-return-summary { display:grid; gap:8px; margin:14px 0; }
+/* These styles control loan-interest-return-summary > span. */
 .loan-interest-return-summary > span { color:var(--muted); font-size:13px; }
+/* These styles control loan-interest-return-summary > strong. */
 .loan-interest-return-summary > strong { color:var(--ink); font-size:26px; font-variant-numeric:tabular-nums; }
+/* These styles control loan-interest-return-summary > small. */
 .loan-interest-return-summary > small { color:var(--muted); line-height:1.5; }
+/* These styles control loan-capital-summary. */
 .loan-capital-summary { display:flex; flex-direction:column; gap:7px; margin:14px 0; }
+/* These styles control loan-capital-summary strong. */
 .loan-capital-summary strong { font-size:23px; }
+/* These styles control loan-capital-summary small. */
 .loan-capital-summary small { color:var(--muted); line-height:1.5; }
+/* These styles control loan-capital-breakdown. */
 .loan-capital-breakdown { margin-top:5px; padding-top:8px; border-top:1px solid var(--border); }
+/* These styles control loan-capital-breakdown summary. */
 .loan-capital-breakdown summary { cursor:pointer; color:var(--ink); font-size:13px; font-weight:650; }
+/* These styles control loan-capital-breakdown dl. */
 .loan-capital-breakdown dl { display:grid; gap:5px; margin:10px 0; }
+/* These styles control loan-capital-breakdown dl > div. */
 .loan-capital-breakdown dl > div { display:flex; justify-content:space-between; gap:14px; color:var(--muted); font-size:12px; }
+/* These styles control loan-capital-breakdown dt. */
 .loan-capital-breakdown dt,.loan-capital-breakdown dd { margin:0; }
+/* These styles control loan-capital-breakdown dd. */
 .loan-capital-breakdown dd { color:var(--ink); font-variant-numeric:tabular-nums; text-align:right; }
+/* These styles control loan-capital-breakdown .loan-capital-breakdown-total. */
 .loan-capital-breakdown .loan-capital-breakdown-total { padding-top:6px; border-top:1px solid var(--border); color:var(--ink); font-weight:700; }
+/* These styles control loan-capital-breakdown-total dd. */
 .loan-capital-breakdown-total dd { font-weight:700; }
+/* These styles control report-grid strong. */
 .report-grid strong { color:var(--ink); font-size:21px; }
+/* These styles control report-grid small. */
 .report-grid small { color:var(--muted); }
+/* These styles control report-chart-grid. */
 .report-chart-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr)); gap:14px; margin:12px 0 24px; }
+/* These styles control report-chart-card. */
 .report-chart-card { min-width:0; margin:0; padding:16px; }
+/* These styles control report-chart-card h4. */
 .report-chart-card h4 { margin:0; color:var(--ink); }
+/* These styles control google-report-chart. */
 .google-report-chart { width:100%; min-height:300px; }
+/* These styles control auth-security-check. */
 .auth-security-check { display:grid; justify-items:center; gap:8px; padding:14px 0; }
+/* These styles control turnstile-widget. */
 .turnstile-widget { min-height:65px; }
+/* These styles control google-signin-section. */
 .google-signin-section { display:grid; justify-items:center; gap:12px; margin-top:18px; }
+/* These styles control google-signin-divider. */
 .google-signin-divider { display:flex; align-items:center; gap:12px; width:100%; color:var(--muted); font-size:12px; }
+/* These styles control google-signin-divider. */
 .google-signin-divider::before,.google-signin-divider::after { height:1px; flex:1; background:var(--border); content:""; }
+/* These styles control google-signin-button. */
 .google-signin-button { min-height:42px; }
+/* These styles control topbar-actions. */
 .topbar-actions { display:flex; align-items:center; gap:22px; }
+/* These styles control theme-toggle. */
 .theme-toggle {
   display:inline-flex;
   align-items:center;
@@ -484,90 +705,171 @@ small {
   cursor:pointer;
   transition:background-color .18s ease,border-color .18s ease,transform .18s ease;
 }
+/* These styles control theme-toggle. */
 .theme-toggle:hover { border-color:var(--green); background:var(--green-soft); transform:translateY(-1px); }
+/* These styles control theme-toggle. */
 .theme-toggle:focus-visible { outline:3px solid color-mix(in srgb,var(--green) 35%,transparent); outline-offset:2px; }
+/* These styles control theme-toggle svg. */
 .theme-toggle svg { width:17px; height:17px; }
+/* These styles control staff-topbar-actions .theme-toggle. */
 .staff-topbar-actions .theme-toggle { min-height:36px; }
+/* These styles control savings-admin-overview. */
 .savings-admin-overview,.savings-transaction-tools,.policy-section { margin:22px 0; }
 
+/* These styles control savings-admin-overview h3. */
 .savings-admin-overview h3,.savings-transaction-tools h3 { margin-bottom:8px; }
+/* These styles control savings-search. */
 .savings-search { display:block; max-width:380px; margin:16px 0 8px; }
+/* These styles control savings-filter-row. */
 .savings-filter-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); align-items:end; gap:10px; padding:14px; border:1px solid var(--border); border-radius:12px; background:#fff; }
+/* These styles control savings-filter-row label. */
 .savings-filter-row label { margin:0; color:#486256; font-size:12px; font-weight:650; }
+/* These styles control savings-filter-row input. */
 .savings-filter-row input,.savings-filter-row select { margin-top:6px; }
+/* These styles control savings-filter-row .button. */
 .savings-filter-row .button { min-height:42px; }
+/* These styles control learning-grid. */
 .learning-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:20px 0; }
+/* These styles control learning-grid .portal-card. */
 .learning-grid .portal-card { margin:0; }
+/* These styles control learning-grid h3. */
 .learning-grid h3 { margin:7px 0; color:var(--ink); }
+/* These styles control learning-grid p. */
 .learning-grid p,.policy-grid p { color:var(--muted); font-size:13px; line-height:1.65; }
+/* These styles control policy-form textarea. */
 .policy-form textarea { min-height:110px; resize:vertical; }
+/* These styles control policy-grid. */
 .policy-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; }
+/* These styles control policy-grid .portal-card. */
 .policy-grid .portal-card { margin:0; }
+/* These styles control policy-grid h4. */
 .policy-grid h4 { margin:0; color:var(--ink); }
+/* These styles control policy-grid p. */
 .policy-grid p { white-space:pre-wrap; }
+/* These styles control demo-scenario. */
 .demo-scenario { border:1px solid #cfe5da; background:linear-gradient(135deg,#f3faf6,#fff); }
+/* These styles control demo-scenario-flow. */
 .demo-scenario-flow { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:16px 0; }
+/* These styles control demo-scenario-flow span. */
 .demo-scenario-flow span { display:grid; gap:5px; padding:12px; border:1px solid var(--border); border-radius:10px; background:#fff; color:var(--muted); font-size:12px; }
+/* These styles control demo-scenario-flow strong. */
 .demo-scenario-flow strong { color:var(--ink); font-size:14px; }
+/* These styles control demo-scenario-flow > b. */
 .demo-scenario-flow > b { color:var(--green); }
+/* These styles control demo-step-list. */
 .demo-step-list { display:grid; gap:10px; margin:14px 0; padding:0; list-style:none; }
+/* These styles control demo-step. */
 .demo-step { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:14px; margin:0; }
+/* These styles control demo-step-number. */
 .demo-step-number { display:grid; width:34px; height:34px; place-items:center; border-radius:50%; color:#fff; background:var(--green); font-weight:800; }
+/* These styles control demo-step h3. */
 .demo-step h3 { margin:0 0 5px; color:var(--ink); font-size:15px; }
+/* These styles control demo-step p. */
 .demo-step p { margin:0; color:var(--muted); font-size:12px; line-height:1.5; }
+/* These styles control withdrawal-page. */
 .withdrawal-page { max-width:900px; margin-inline:auto; }
+/* These styles control withdrawal-back-link. */
 .withdrawal-back-link { margin:0 0 18px; }
+/* These styles control withdrawal-page-heading. */
 .withdrawal-page-heading { display:flex; align-items:center; gap:14px; margin:8px 0 24px; }
+/* These styles control withdrawal-page-heading h2. */
 .withdrawal-page-heading h2 { margin:3px 0; color:var(--ink); }
+/* These styles control withdrawal-page-heading p. */
 .withdrawal-page-heading p { margin:0; color:var(--muted); }
+/* These styles control withdrawal-page-icon. */
 .withdrawal-page-icon { display:grid; width:54px; height:54px; place-items:center; border-radius:16px; color:var(--green); background:#e9f5ef; }
+/* These styles control withdrawal-page-icon .staff-nav-icon. */
 .withdrawal-page-icon .staff-nav-icon { width:27px; height:27px; }
+/* These styles control withdrawal-stepper. */
 .withdrawal-stepper { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:0; margin:0 0 18px; list-style:none; }
+/* These styles control withdrawal-stepper li. */
 .withdrawal-stepper li { display:flex; align-items:center; gap:8px; padding:10px; border-bottom:3px solid var(--border); color:var(--muted); font-size:13px; font-weight:650; }
+/* These styles control withdrawal-stepper li span. */
 .withdrawal-stepper li span { display:grid; width:24px; height:24px; place-items:center; border-radius:50%; background:#edf1ee; }
+/* These styles control withdrawal-stepper li.active. */
 .withdrawal-stepper li.active { border-color:var(--green); color:var(--ink); }
+/* These styles control withdrawal-stepper li.active span. */
 .withdrawal-stepper li.active span,.withdrawal-stepper li.complete span { color:#fff; background:var(--green); }
+/* These styles control withdrawal-step-card. */
 .withdrawal-step-card { padding:24px; }
+/* These styles control withdrawal-step-card h3. */
 .withdrawal-step-card h3 { margin:6px 0 10px; color:var(--ink); }
+/* These styles control withdrawal-step-card .item-heading. */
 .withdrawal-step-card .item-heading { align-items:flex-start; }
+/* These styles control withdrawal-available. */
 .withdrawal-available { color:var(--green); font-size:13px; font-weight:700; }
+/* These styles control withdrawal-amount-field. */
 .withdrawal-amount-field { display:block; max-width:500px; margin:24px 0 12px; color:#486256; font-size:13px; font-weight:700; }
+/* These styles control withdrawal-currency-input. */
 .withdrawal-currency-input { display:flex; align-items:center; margin-top:7px; border:1px solid #cbd9d1; border-radius:12px; background:#fff; }
+/* These styles control withdrawal-currency-input. */
 .withdrawal-currency-input:focus-within { outline:2px solid #a7d6bf; }
+/* These styles control withdrawal-currency-input span. */
 .withdrawal-currency-input span { padding:0 0 0 14px; color:var(--muted); font-size:13px; }
+/* These styles control withdrawal-currency-input input. */
 .withdrawal-currency-input input { min-width:0; margin:0; border:0; outline:0; box-shadow:none; font-size:24px; font-weight:700; }
+/* These styles control withdrawal-quick-amounts. */
 .withdrawal-quick-amounts { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 22px; }
+/* These styles control withdrawal-next. */
 .withdrawal-next { min-width:210px; }
+/* These styles control withdrawal-destination-grid. */
 .withdrawal-destination-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:10px; margin:20px 0; }
+/* These styles control withdrawal-destination. */
 .withdrawal-destination { display:grid; justify-items:start; gap:7px; min-height:120px; padding:14px; border:1px solid var(--border); border-radius:12px; background:#fff; color:var(--ink); cursor:pointer; text-align:left; }
+/* These styles control withdrawal-destination. */
 .withdrawal-destination:hover,.withdrawal-destination.selected { border-color:var(--green); background:#f0f8f4; box-shadow:0 0 0 2px rgb(30 125 86 / 10%); }
+/* These styles control withdrawal-destination-icon. */
 .withdrawal-destination-icon { display:grid; width:32px; height:32px; place-items:center; border-radius:10px; color:var(--green); background:#e5f3ec; font-weight:800; }
+/* These styles control withdrawal-destination small. */
 .withdrawal-destination small { color:var(--muted); }
+/* These styles control withdrawal-demo-note. */
 .withdrawal-demo-note { padding:11px 13px; border-left:3px solid #d7a752; border-radius:5px; color:#775c2b; background:#fff9ed; font-size:12px; line-height:1.55; }
+/* These styles control withdrawal-review. */
 .withdrawal-review { display:grid; gap:0; margin:18px 0; border-top:1px solid var(--border); }
+/* These styles control withdrawal-review div. */
 .withdrawal-review div { display:flex; justify-content:space-between; gap:12px; padding:13px 0; border-bottom:1px solid var(--border); }
+/* These styles control withdrawal-review dt. */
 .withdrawal-review dt { color:var(--muted); }
+/* These styles control withdrawal-review dd. */
 .withdrawal-review dd { margin:0; color:var(--ink); font-weight:750; text-align:right; }
 
+/* These styles control table-wrap. */
 .table-wrap { width:100%; overflow:auto; margin:12px 0; }
+/* These styles control table. */
 table { width:100%; border-collapse:collapse; text-align:left; font-size:13px; font-variant-numeric:tabular-nums; }
+/* These styles control th. */
 th,td { padding:10px 12px; border-bottom:1px solid var(--border); white-space:nowrap; }
+/* These styles control th. */
 th { color:#53645a; background:#f5f7f4; font-weight:650; }
+/* These styles control recent-activity-table. */
 .recent-activity-table { min-width:720px; table-layout:fixed; }
 .recent-activity-table th,
+/* These styles control recent-activity-table td. */
 .recent-activity-table td { white-space:normal; overflow-wrap:anywhere; vertical-align:top; }
+/* These styles control recent-activity-table th(1). */
 .recent-activity-table th:nth-child(1) { width:18%; }
+/* These styles control recent-activity-table th(2). */
 .recent-activity-table th:nth-child(2) { width:16%; }
+/* These styles control recent-activity-table th(3). */
 .recent-activity-table th:nth-child(3) { width:10%; }
+/* These styles control recent-activity-table th(4). */
 .recent-activity-table th:nth-child(4) { width:20%; }
+/* These styles control recent-activity-table th(5). */
 .recent-activity-table th:nth-child(5) { width:36%; }
+/* These styles control activity-details-list. */
 .activity-details-list { display:grid; gap:5px; margin:0; }
+/* These styles control activity-details-list > div. */
 .activity-details-list > div { display:grid; grid-template-columns:minmax(72px, max-content) minmax(0, 1fr); gap:8px; }
+/* These styles control activity-details-list dt. */
 .activity-details-list dt { color:var(--muted); text-transform:capitalize; }
+/* These styles control activity-details-list dd. */
 .activity-details-list dd { min-width:0; margin:0; overflow-wrap:anywhere; }
+/* These styles control activity-details-text. */
 .activity-details-text { overflow-wrap:anywhere; }
+/* These styles control sign-out. */
 .sign-out { margin-top:24px; }
 
+/* These styles control footer. */
 footer {
   margin-top:auto;
   padding:20px 0;
@@ -577,48 +879,85 @@ footer {
   font-size:12px;
 }
 
+/* This block adjusts the layout for different screen sizes. */
 @media(max-width:850px) {
+  /* These styles control auth-layout. */
   .auth-layout { grid-template-columns:1fr minmax(330px,430px); gap:32px; padding:44px 0; }
+  /* These styles control share-capital-summary. */
   .share-capital-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  /* These styles control member-loan-readiness. */
   .member-loan-readiness { grid-template-columns:1fr; }
+  /* These styles control outstanding-loan-details > div. */
   .outstanding-loan-details > div { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  /* These styles control savings-member-overview. */
   .savings-member-overview { grid-template-columns:minmax(0,1fr) auto; }
+  /* These styles control savings-member-actions. */
   .savings-member-actions { grid-column:2; grid-row:1 / span 2; }
+  /* These styles control savings-member-overview > .button. */
   .savings-member-overview > .button { grid-column:1; }
 }
 
+/* This block adjusts the layout for different screen sizes. */
 @media(max-width:680px) {
+  /* These styles control page-shell. */
   .page-shell { width:calc(100% - 28px); }
+  /* These styles control auth-layout. */
   .auth-layout { grid-template-columns:1fr; gap:24px; padding:32px 0; }
+  /* These styles control intro h1. */
   .intro h1 { font-size:36px; }
+  /* These styles control auth-card. */
   .auth-card { width:100%; }
+  /* These styles control dashboard. */
   .dashboard { margin:22px auto; }
 }
 
+/* This block adjusts the layout for different screen sizes. */
 @media(max-width:520px) {
+  /* These styles control share-capital-summary. */
   .share-capital-summary { grid-template-columns:1fr; }
+  /* These styles control share-capital-total-card. */
   .share-capital-total-card { grid-column:auto; }
+  /* These styles control terms-actions. */
   .terms-actions { flex-direction:column-reverse; }
+  /* These styles control terms-actions .button. */
   .terms-actions .button { width:100%; }
+  /* These styles control dividend-action-buttons .button. */
   .dividend-action-buttons .button { font-size:12px; }
+  /* These styles control tagline. */
   .tagline { display:none; }
+  /* These styles control card. */
   .card { padding:20px; }
+  /* These styles control form-grid. */
   .form-grid { grid-template-columns:1fr; }
+  /* These styles control form-grid .full. */
   .form-grid .full { grid-column:auto; }
+  /* These styles control dashboard. */
   .dashboard { margin:18px auto; }
+  /* These styles control portal-tabs. */
   .portal-tabs { margin-bottom:22px; }
+  /* These styles control tab. */
   .tab { white-space:nowrap; padding:10px 12px; }
+  /* These styles control item-heading. */
   .item-heading,.section-heading { align-items:flex-start; flex-direction:column; }
+  /* These styles control offer-facts. */
   .offer-facts { grid-template-columns:1fr; }
+  /* These styles control payment-facts. */
   .payment-facts { grid-template-columns:1fr; }
+  /* These styles control outstanding-loan-details > div. */
   .outstanding-loan-details > div { grid-template-columns:1fr; }
+  /* These styles control savings-member-overview. */
   .savings-member-overview { grid-template-columns:1fr; }
+  /* These styles control savings-member-actions. */
   .savings-member-actions { grid-column:auto; grid-row:auto; }
+  /* These styles control savings-member-overview > .button. */
   .savings-member-overview > .button { width:100%; }
+  /* These styles control member-search-layout. */
   .member-search-layout { grid-template-columns:1fr; gap:0; }
+  /* These styles control member-search-help. */
   .member-search-help { margin:0; }
 }
 
+/* These styles control page-shell-staff. */
 .page-shell-staff {
   width: 100%;
   max-width: none;
@@ -628,12 +967,14 @@ footer {
   background: #f5f8f8;
 }
 
+/* These styles control staff-layout. */
 .staff-layout {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   min-height: 100vh;
 }
 
+/* These styles control staff-sidebar. */
 .staff-sidebar {
   position: sticky;
   top: 0;
@@ -646,6 +987,7 @@ footer {
   z-index: 3;
 }
 
+/* These styles control staff-brand. */
 .staff-brand {
   display: flex;
   align-items: center;
@@ -658,10 +1000,14 @@ footer {
   text-decoration: none;
 }
 
+/* These styles control staff-brand > span > span. */
 .staff-brand > span:last-child > span { color: #267958; }
+/* These styles control staff-brand-mark. */
 .staff-brand-mark { width: 25px; height: 25px; flex: 0 0 25px; color: #16835d; }
+/* These styles control staff-nav. */
 .staff-nav { display: grid; gap: 6px; }
 
+/* These styles control staff-nav-item. */
 .staff-nav-item {
   display: flex;
   align-items: center;
@@ -680,11 +1026,16 @@ footer {
   transition: color .15s ease, background-color .15s ease, transform .15s ease;
 }
 
+/* These styles control staff-nav-item. */
 .staff-nav-item:hover { background: #f1f8f5; color: #126848; }
+/* These styles control staff-nav-item.active. */
 .staff-nav-item.active { background: #d9f2e7; color: #116747; }
+/* These styles control staff-nav-icon. */
 .staff-nav-icon { width: 18px; height: 18px; flex: 0 0 18px; }
+/* These styles control staff-nav-item.active .staff-nav-icon. */
 .staff-nav-item.active .staff-nav-icon { stroke-width: 2.2; }
 
+/* These styles control staff-sign-out. */
 .staff-sign-out {
   display: flex;
   align-items: center;
@@ -702,10 +1053,14 @@ footer {
   cursor: pointer;
 }
 
+/* These styles control staff-sign-out. */
 .staff-sign-out:hover { background: #d9efe4; }
+/* These styles control staff-sign-out svg. */
 .staff-sign-out svg { width: 17px; height: 17px; }
 
+/* These styles control staff-main. */
 .staff-main { min-width: 0; }
+/* These styles control staff-topbar. */
 .staff-topbar {
   display: flex;
   align-items: center;
@@ -716,9 +1071,13 @@ footer {
   background: rgb(255 255 255 / 84%);
 }
 
+/* These styles control staff-topbar-label. */
 .staff-topbar-label { color: #71817b; font-size: 13px; font-weight: 550; }
+/* These styles control staff-topbar-actions. */
 .staff-topbar-actions { display: flex; align-items: center; gap: 12px; }
+/* These styles control staff-role. */
 .staff-role { color: #647a70; font-size: 12px; text-transform: capitalize; }
+/* These styles control staff-avatar. */
 .staff-avatar {
   display: grid;
   place-items: center;
@@ -731,7 +1090,9 @@ footer {
   font-weight: 800;
 }
 
+/* These styles control staff-menu-toggle. */
 .staff-menu-toggle { display: none; }
+/* These styles control staff-page-banner. */
 .staff-page-banner {
   position: relative;
   display: flex;
@@ -748,8 +1109,11 @@ footer {
     linear-gradient(110deg, #fff 5%, #f7fbfa 62%, #eef8f4);
 }
 
+/* These styles control staff-page-banner(.staff-page-banner-module). */
 .staff-page-banner:not(.staff-page-banner-module) { min-height: 126px; }
+/* These styles control staff-page-banner-module. */
 .staff-page-banner-module { min-height: 108px; gap: 16px; }
+/* These styles control staff-page-icon. */
 .staff-page-icon {
   position: relative;
   z-index: 1;
@@ -765,12 +1129,19 @@ footer {
   box-shadow: 0 3px 12px rgb(23 61 46 / 5%);
 }
 
+/* These styles control staff-page-icon .staff-nav-icon. */
 .staff-page-icon .staff-nav-icon { width: 27px; height: 27px; stroke-width: 2; }
+/* These styles control staff-banner-copy. */
 .staff-banner-copy { position: relative; z-index: 1; }
+/* These styles control staff-banner-copy .eyebrow. */
 .staff-banner-copy .eyebrow { margin: 0 0 8px; }
+/* These styles control staff-banner-copy h1. */
 .staff-banner-copy h1 { margin: 0; color: #15392f; font-size: clamp(26px, 3vw, 35px); letter-spacing: -1.1px; }
+/* These styles control staff-page-banner-module .staff-banner-copy h1. */
 .staff-page-banner-module .staff-banner-copy h1 { font-size: clamp(23px, 2.5vw, 30px); }
+/* These styles control staff-banner-copy > p. */
 .staff-banner-copy > p:last-child { margin: 8px 0 0; color: #647a71; font-size: 14px; }
+/* These styles control staff-banner-art. */
 .staff-banner-art {
   position: absolute;
   right: 7%;
@@ -782,6 +1153,7 @@ footer {
   background: radial-gradient(circle, rgb(255 255 255 / 0%) 48%, rgb(181 228 209 / 24%) 49% 66%, transparent 67%);
 }
 
+/* These styles control staff-banner-art. */
 .staff-banner-art::after {
   position: absolute;
   right: -40px;
@@ -794,24 +1166,42 @@ footer {
   transform: rotate(-17deg);
 }
 
+/* These styles control staff-content. */
 .staff-content { width: min(1320px, 100%); margin: 0 auto; padding: 25px clamp(22px, 4vw, 52px) 38px; }
+/* These styles control staff-content .portal-section. */
 .staff-content .portal-section { padding: clamp(18px, 2.5vw, 27px); border: 1px solid #e5ecea; border-radius: 17px; background: #fff; box-shadow: 0 9px 28px rgb(23 61 46 / 3%); }
+/* These styles control staff-content .section-heading. */
 .staff-content .section-heading { align-items: center; }
+/* These styles control staff-content .portal-section h2. */
 .staff-content .portal-section h2 { font-size: 25px; letter-spacing: -.5px; }
+/* These styles control staff-content .portal-card. */
 .staff-content .portal-card,.staff-content .offer-card { border-color: #e4ece9; border-radius: 13px; }
+/* These styles control staff-content .offer-card. */
 .staff-content .offer-card { box-shadow: 0 3px 12px rgb(23 61 46 / 3%); }
+/* These styles control staff-content .button. */
 .staff-content .button { border-radius: 9px; }
+/* These styles control staff-content .button-primary. */
 .staff-content .button-primary { background: #137653; }
+/* These styles control staff-content .button-primary. */
 .staff-content .button-primary:hover { background: #0e6143; }
+/* These styles control staff-content .table-wrap. */
 .staff-content .table-wrap { border: 1px solid #e5ece9; border-radius: 12px; }
+/* These styles control staff-content th. */
 .staff-content th { background: #f4f8f6; }
+/* These styles control staff-subsection-title. */
 .staff-subsection-title { display: flex; align-items: center; gap: 10px; margin: 18px 0 10px; padding: 10px 12px; border: 1px solid #e5ece9; border-radius: 12px; }
+/* These styles control staff-subsection-title .staff-nav-icon. */
 .staff-subsection-title .staff-nav-icon { width: 18px; height: 18px; color: #26815d; }
+/* These styles control staff-subsection-title h3. */
 .staff-subsection-title h3 { margin: 0; font-size: 15px; }
+/* These styles control staff-content .portal-section > .section-heading. */
 .staff-content .portal-section > .section-heading:last-of-type { margin-bottom: 12px; }
+/* These styles control standalone-actions. */
 .standalone-actions { display: flex; justify-content: flex-end; margin: -4px 0 12px; }
+/* These styles control staff-footer. */
 .staff-footer { padding: 14px 24px 23px; color: #85948e; text-align: center; font-size: 11px; }
 
+/* These styles control staff-empty-state. */
 .staff-empty-state {
   display: flex;
   min-height: 215px;
@@ -823,10 +1213,15 @@ footer {
   text-align: center;
 }
 
+/* These styles control staff-empty-art. */
 .staff-empty-art { width: 154px; height: 112px; margin-bottom: 8px; overflow: visible; }
+/* These styles control staff-empty-state strong. */
 .staff-empty-state strong { color: #1d342e; font-size: 16px; }
+/* These styles control staff-empty-state p. */
 .staff-empty-state p { max-width: 430px; margin: 6px 0 0; color: #647a71; font-size: 13px; }
+/* These styles control staff-empty-state.is-loading strong. */
 .staff-empty-state.is-loading strong { font-weight: 700; }
+/* These styles control staff-empty-spinner. */
 .staff-empty-spinner {
   width: 30px;
   height: 30px;
@@ -837,10 +1232,14 @@ footer {
   animation: staff-spin .8s linear infinite;
 }
 
+/* This block defines the staff-spin animation. */
 @keyframes staff-spin { to { transform: rotate(360deg); } }
 
+/* These styles control portal-skeleton. */
 .portal-skeleton { margin:16px 0 24px; }
+/* These styles control portal-skeleton-content. */
 .portal-skeleton-content { display:grid; gap:12px; }
+/* These styles control portal-skeleton-bar. */
 .portal-skeleton-bar {
   display:block;
   width:72%;
@@ -850,6 +1249,7 @@ footer {
   background-size:200% 100%;
   animation:portal-skeleton-shimmer 1.35s ease-in-out infinite;
 }
+/* These styles control portal-skeleton-card. */
 .portal-skeleton-card {
   display:grid;
   gap:14px;
@@ -859,31 +1259,55 @@ footer {
   border-radius:13px;
   background:var(--surface);
 }
+/* These styles control portal-skeleton-card-heading. */
 .portal-skeleton-card-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+/* These styles control portal-skeleton-card-heading .portal-skeleton-bar. */
 .portal-skeleton-card-heading .portal-skeleton-bar:first-child { width:36%; height:15px; }
+/* These styles control portal-skeleton-card-heading .portal-skeleton-bar. */
 .portal-skeleton-card-heading .portal-skeleton-bar:last-child { width:16%; }
+/* These styles control portal-skeleton-bar-wide. */
 .portal-skeleton-bar-wide { width:88%; }
+/* These styles control portal-skeleton-card-lines. */
 .portal-skeleton-card-lines { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px 16px; padding:12px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+/* These styles control portal-skeleton-card-lines .portal-skeleton-bar. */
 .portal-skeleton-card-lines .portal-skeleton-bar { width:78%; height:10px; }
+/* These styles control portal-skeleton-card-lines .portal-skeleton-bar(even). */
 .portal-skeleton-card-lines .portal-skeleton-bar:nth-child(even) { width:58%; }
+/* These styles control portal-skeleton-bar-action. */
 .portal-skeleton-bar-action { width:112px; height:34px; border-radius:8px; }
+/* These styles control portal-skeleton-metrics. */
 .portal-skeleton-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+/* These styles control portal-skeleton-metrics .portal-skeleton-card. */
 .portal-skeleton-metrics .portal-skeleton-card { min-height:118px; align-content:center; }
+/* These styles control portal-skeleton-metrics .portal-skeleton-bar. */
 .portal-skeleton-metrics .portal-skeleton-bar { width:52%; }
+/* These styles control portal-skeleton-metrics .portal-skeleton-bar-value. */
 .portal-skeleton-metrics .portal-skeleton-bar-value { width:68%; height:24px; }
+/* These styles control portal-skeleton-metrics .portal-skeleton-bar-short. */
 .portal-skeleton-metrics .portal-skeleton-bar-short { width:38%; height:9px; }
+/* These styles control portal-skeleton-table.table-wrap. */
 .portal-skeleton-table.table-wrap { margin:0; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+/* These styles control portal-skeleton-table table. */
 .portal-skeleton-table table { table-layout:fixed; }
+/* These styles control portal-skeleton-table th. */
 .portal-skeleton-table th,.portal-skeleton-table td { height:44px; padding:10px 12px; }
+/* These styles control portal-skeleton-table th .portal-skeleton-bar. */
 .portal-skeleton-table th .portal-skeleton-bar { width:75%; height:9px; }
+/* These styles control portal-skeleton-table td .portal-skeleton-bar. */
 .portal-skeleton-table td .portal-skeleton-bar { width:86%; height:10px; }
+/* These styles control portal-skeleton-table td(3n) .portal-skeleton-bar. */
 .portal-skeleton-table td:nth-child(3n) .portal-skeleton-bar { width:58%; }
+/* This block defines the portal-skeleton-shimmer animation. */
 @keyframes portal-skeleton-shimmer { to { background-position-x:-200%; } }
+/* This block adjusts the layout for different screen sizes. */
 @media (prefers-reduced-motion:reduce) {
+  /* These styles control portal-skeleton-bar. */
   .portal-skeleton-bar { animation:none; }
 }
 
+/* These styles control staff-account-summary. */
 .staff-account-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 18px; }
+/* These styles control staff-account-card. */
 .staff-account-card {
   display: flex;
   align-items: center;
@@ -895,6 +1319,7 @@ footer {
   background: #fff;
 }
 
+/* These styles control staff-account-icon. */
 .staff-account-icon {
   display: grid;
   place-items: center;
@@ -906,11 +1331,16 @@ footer {
   color: #197957;
 }
 
+/* These styles control staff-account-icon svg. */
 .staff-account-icon svg { width: 19px; height: 19px; }
+/* These styles control staff-account-card small. */
 .staff-account-card small,.staff-account-card strong { display: block; }
+/* These styles control staff-account-card small. */
 .staff-account-card small { margin-bottom: 3px; color: #71817b; font-size: 11px; }
+/* These styles control staff-account-card strong. */
 .staff-account-card strong { color: #193b30; font-size: 13px; overflow-wrap: anywhere; }
 
+/* These styles control staff-service-tabs. */
 .staff-service-tabs {
   display: flex;
   gap: 4px;
@@ -923,6 +1353,7 @@ footer {
   scrollbar-width: thin;
 }
 
+/* These styles control staff-service-tab. */
 .staff-service-tab {
   flex: 1 0 auto;
   padding: 10px 15px;
@@ -937,15 +1368,25 @@ footer {
   transition: color .15s ease, background-color .15s ease, box-shadow .15s ease;
 }
 
+/* These styles control staff-service-tab. */
 .staff-service-tab:hover { color: #126848; background: #eaf5ef; }
+/* These styles control staff-service-tab.active. */
 .staff-service-tab.active { background: #137653; color: #fff; box-shadow: 0 2px 6px rgb(19 118 83 / 18%); }
+/* These styles control staff-service-tab. */
 .staff-service-tab:focus-visible { outline: 3px solid #9ed5bb; outline-offset: 2px; }
+/* These styles control staff-nav-item. */
 .staff-nav-item:focus-visible,.staff-sign-out:focus-visible,.staff-menu-toggle:focus-visible { outline: 3px solid #9ed5bb; outline-offset: 2px; }
+/* These styles control staff-sidebar-backdrop. */
 .staff-sidebar-backdrop { display: none; }
+/* These styles control staff-content .member-search-layout. */
 .staff-content .member-search-layout { margin-top: 20px; }
+/* These styles control staff-content .member-search-help. */
 .staff-content .member-search-help { max-width: 430px; }
+/* These styles control staff-content .portal-card summary. */
 .staff-content .portal-card summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; list-style: none; }
+/* These styles control staff-content .portal-card summary. */
 .staff-content .portal-card summary::-webkit-details-marker { display: none; }
+/* These styles control staff-content .portal-card summary. */
 .staff-content .portal-card summary::after {
   display: grid;
   place-items: center;
@@ -965,28 +1406,50 @@ footer {
   line-height: 1;
   text-align: center;
 }
+/* These styles control staff-content .portal-card summary. */
 .staff-content .portal-card[open] summary::after { content: "−"; }
+/* These styles control staff-content .portal-section > .muted. */
 .staff-content .portal-section > .muted:first-of-type { margin-top: 12px; }
+/* These styles control member-dashboard-actions. */
 .member-dashboard-actions { display:flex; justify-content:flex-end; margin:-5px 0 18px; }
+/* These styles control member-dashboard-actions .button. */
 .member-dashboard-actions .button { border-radius:10px; }
+/* These styles control operational-overview-list. */
 .operational-overview-list { display:grid; gap:0; max-width:760px; margin:10px 0 24px; padding:0; list-style:none; }
+/* These styles control operational-overview-list li. */
 .operational-overview-list li { display:flex; align-items:center; justify-content:space-between; gap:18px; min-height:42px; padding:8px 12px; border-bottom:1px solid var(--border); }
+/* These styles control operational-overview-list li span. */
 .operational-overview-list li span { color:var(--ink); font-weight:650; }
+/* These styles control operational-overview-list li span small. */
 .operational-overview-list li span small { display:block; margin-top:3px; color:var(--muted); font-weight:400; }
+/* These styles control operational-overview-list li strong. */
 .operational-overview-list li strong { min-width:30px; color:var(--ink); font-size:17px; text-align:right; }
+/* These styles control loan-fund-summary. */
 .loan-fund-summary { display:grid; gap:6px; max-width:420px; margin:12px 0 20px; }
+/* These styles control loan-fund-summary span. */
 .loan-fund-summary span { color:var(--muted); font-size:12px; }
+/* These styles control loan-fund-summary strong. */
 .loan-fund-summary strong { color:var(--ink); font-size:23px; }
+/* These styles control cycle-create-card. */
 .cycle-create-card { display:grid; gap:16px; margin:16px 0 22px; padding:20px; border:1px solid #aacdb9; border-left:5px solid #25825c; border-radius:14px; background:#f1f8f4; }
+/* These styles control cycle-create-card h3. */
 .cycle-create-card h3 { margin:5px 0; color:#194c38; font-size:19px; }
+/* These styles control cycle-create-card p. */
 .cycle-create-card p { margin:0; color:#52685d; font-size:13px; line-height:1.55; }
+/* These styles control cycle-create-card .form-grid. */
 .cycle-create-card .form-grid { margin:0; }
+/* These styles control cycle-create-button. */
 .cycle-create-button { min-height:48px; min-width:min(100%,280px); font-weight:750; }
+/* These styles control cycle-confirm-modal. */
 .cycle-confirm-modal { width:min(680px,100%); }
+/* These styles control cycle-confirm-modal .record-modal-heading h2. */
 .cycle-confirm-modal .record-modal-heading h2 { color:#17392f; }
+/* These styles control cycle-review-members. */
 .cycle-review-members { max-height:240px; }
+/* These styles control cycle-review-members table. */
 .cycle-review-members table { min-width:360px; }
 
+/* These styles control record-modal-backdrop. */
 .record-modal-backdrop {
   position:fixed;
   z-index:20;
@@ -998,6 +1461,7 @@ footer {
   overflow-y:auto;
   background:rgb(17 42 32 / 48%);
 }
+/* These styles control record-modal. */
 .record-modal {
   width:min(960px,100%);
   max-height:calc(100dvh - 44px);
@@ -1008,27 +1472,49 @@ footer {
   background:#f8faf9;
   box-shadow:0 24px 80px rgb(11 34 24 / 25%);
 }
+/* These styles control record-modal-heading. */
 .record-modal-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:18px; }
+/* These styles control record-modal-heading h2. */
 .record-modal-heading h2 { margin:5px 0 0; color:#17392f; font-size:25px; letter-spacing:-.5px; }
+/* These styles control modal-close. */
 .modal-close { display:grid; place-items:center; width:38px; height:38px; padding:0; border:1px solid #dce7e1; border-radius:50%; background:#fff; color:#34544a; cursor:pointer; }
+/* These styles control modal-close svg. */
 .modal-close svg { display:block; width:16px; height:16px; }
+/* These styles control modal-close svg path. */
 .modal-close svg path { fill:none; stroke:currentColor; stroke-linecap:round; stroke-width:1.8; }
+/* These styles control ledger-controls. */
 .ledger-controls { display:flex; align-items:flex-end; flex-wrap:wrap; gap:10px; margin:0 0 18px; padding:14px; border:1px solid #e1e9e5; border-radius:13px; background:#fff; }
+/* These styles control ledger-controls label. */
 .ledger-controls label { flex:1 1 150px; margin:0; color:#3e5a50; font-size:12px; font-weight:650; }
+/* These styles control ledger-controls select. */
 .ledger-controls select,.ledger-controls input { min-height:42px; margin-top:6px; border-radius:9px; }
+/* These styles control ledger-controls > .button. */
 .ledger-controls > .button { min-height:42px; white-space:nowrap; }
+/* These styles control ledger-controls > .button-outline. */
 .ledger-controls > .button-outline { border-color:#cfe0d7; color:#176a49; background:#fff; }
+/* These styles control loan-subtabs. */
 .loan-subtabs { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0; border-bottom:1px solid var(--border); }
+/* These styles control loan-subtab. */
 .loan-subtab { display:inline-flex; align-items:center; gap:8px; min-height:42px; padding:9px 14px; border:0; border-bottom:3px solid transparent; background:transparent; color:var(--muted); font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
+/* These styles control loan-subtab.active. */
 .loan-subtab.active { border-bottom-color:var(--green); color:var(--green); }
+/* These styles control loan-subtab. */
 .loan-subtab:focus-visible { outline:3px solid #9ed5bb; outline-offset:2px; }
+/* These styles control loan-status-count. */
 .loan-status-count { display:inline-grid; min-width:20px; height:20px; place-items:center; padding:0 5px; border:1px solid var(--border); border-radius:999px; color:var(--ink); font-size:11px; }
+/* These styles control loan-review-badge. */
 .loan-review-badge { display:inline-grid; min-width:19px; height:19px; place-items:center; padding:0 5px; border-radius:999px; background:#c83232; color:#fff; font-size:11px; font-weight:800; line-height:1; }
+/* These styles control ledger-print-area. */
 .ledger-print-area { padding:30px; border:1px solid #e1e8e4; border-radius:14px; background:#fff; color:#1e352c; }
+/* These styles control ledger-document-header. */
 .ledger-document-header { display:flex; align-items:center; justify-content:space-between; gap:20px; padding-bottom:18px; border-bottom:2px solid #1c7957; }
+/* These styles control ledger-brand. */
 .ledger-brand { display:flex; align-items:center; gap:10px; color:#173b30; font-size:18px; font-weight:800; }
+/* These styles control ledger-brand > span. */
 .ledger-brand > span:last-child { display:grid; gap:2px; }
+/* These styles control ledger-brand small. */
 .ledger-brand small { margin:0; color:#71847c; font-size:9px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; }
+/* These styles control ledger-brand-mark. */
 .ledger-brand-mark,.member-card-brand-mark {
   display:grid;
   place-items:center;
@@ -1040,71 +1526,132 @@ footer {
   font-size:19px;
   font-weight:850;
 }
+/* These styles control ledger-document-title. */
 .ledger-document-title { display:grid; gap:4px; color:#6d8178; text-align:right; font-size:10px; letter-spacing:.14em; }
+/* These styles control ledger-document-title strong. */
 .ledger-document-title strong { color:#1a4939; font-size:12px; letter-spacing:.07em; }
+/* These styles control ledger-member-details. */
 .ledger-member-details { display:grid; grid-template-columns:1.2fr 1fr .8fr 1.4fr; gap:14px; padding:17px 0; border-bottom:1px solid #e4ebe7; }
+/* These styles control ledger-member-details div. */
 .ledger-member-details div,.ledger-summary div { display:grid; gap:5px; min-width:0; }
+/* These styles control ledger-member-details span. */
 .ledger-member-details span,.ledger-summary span { color:#71837b; font-size:10px; }
+/* These styles control ledger-member-details strong. */
 .ledger-member-details strong { overflow-wrap:anywhere; color:#243c32; font-size:12px; }
+/* These styles control ledger-status. */
 .ledger-status { text-transform:capitalize; }
+/* These styles control ledger-summary. */
 .ledger-summary { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:17px 0; padding:14px; border:1px solid #dfece5; border-radius:11px; background:#f5faf7; }
+/* These styles control ledger-summary strong. */
 .ledger-summary strong { color:#174f39; font-size:15px; }
+/* These styles control ledger-table-wrap. */
 .ledger-table-wrap { width:100%; overflow-x:auto; }
+/* These styles control ledger-table. */
 .ledger-table { min-width:690px; font-size:11px; }
+/* These styles control ledger-table th. */
 .ledger-table th,.ledger-table td { padding:9px 10px; white-space:normal; }
+/* These styles control ledger-table thead th. */
 .ledger-table thead th { color:#36574a; background:#eef6f1; }
+/* These styles control ledger-table td. */
 .ledger-table td:first-child { min-width:150px; font-variant-numeric:tabular-nums; }
+/* These styles control ledger-table td small. */
 .ledger-table td:first-child small { margin-top:3px; overflow-wrap:anywhere; font-size:9px; }
+/* These styles control ledger-table td(3). */
 .ledger-table td:nth-child(3),.ledger-table td:nth-child(4),.ledger-table td:last-child,.ledger-table tfoot th { text-align:right; font-variant-numeric:tabular-nums; }
+/* These styles control ledger-table .ledger-opening-row. */
 .ledger-table .ledger-opening-row { color:#425d51; background:#f8faf9; font-weight:650; }
+/* These styles control ledger-table .ledger-no-transactions. */
 .ledger-table .ledger-no-transactions { padding:24px; color:#78867f; text-align:center; }
+/* These styles control ledger-table tfoot th. */
 .ledger-table tfoot th { border-top:1px solid #cbd9d1; background:#f5f8f6; }
+/* These styles control ledger-document-footer. */
 .ledger-document-footer { display:flex; justify-content:space-between; gap:18px; margin-top:18px; padding-top:11px; border-top:1px solid #e4ebe7; color:#7b8982; font-size:9px; line-height:1.5; }
+/* These styles control ledger-document-footer span. */
 .ledger-document-footer span:last-child { max-width:65%; text-align:right; }
 
+/* These styles control member-card-modal. */
 .member-card-modal { width:min(700px,100%); }
+/* These styles control member-card-print-area. */
 .member-card-print-area { display:grid; place-items:center; padding:18px; border:1px solid #e1e9e5; border-radius:14px; background:#edf3f0; }
+/* These styles control member-card-design. */
 .member-card-design { width:min(100%,520px); padding:22px; overflow:hidden; border:1px solid #d7e7de; border-radius:18px; background:radial-gradient(ellipse at 98% 0%, #dcf4e8 0 16%, transparent 16.5%),linear-gradient(135deg,#fff 8%,#f6fbf8 70%,#eaf6ef); box-shadow:0 10px 24px rgb(23 61 46 / 8%); }
+/* These styles control member-card-header. */
 .member-card-header { display:flex; align-items:center; gap:10px; padding-bottom:15px; border-bottom:1px solid #dcebe2; color:#174232; }
+/* These styles control member-card-header > span(2). */
 .member-card-header > span:nth-child(2) { display:grid; gap:3px; }
+/* These styles control member-card-header strong. */
 .member-card-header strong { font-size:17px; }
+/* These styles control member-card-header small. */
 .member-card-header small { margin:0; color:#71877c; font-size:8px; font-weight:700; letter-spacing:.1em; }
+/* These styles control member-card-pill. */
 .member-card-pill { margin-left:auto; padding:6px 9px; border-radius:999px; background:#e2f3e9; color:#1b6d4a; font-size:9px; font-weight:800; letter-spacing:.08em; }
+/* These styles control member-card-content. */
 .member-card-content { display:grid; grid-template-columns:1fr 132px; align-items:center; gap:14px; padding:19px 0 14px; }
+/* These styles control member-card-person. */
 .member-card-person { display:flex; flex-direction:column; align-items:flex-start; }
+/* These styles control member-card-avatar. */
 .member-card-avatar { display:grid; place-items:center; width:42px; height:42px; margin-bottom:10px; border:1px solid #d3e8dc; border-radius:50%; background:#e7f5ed; color:#176847; font-size:12px; font-weight:800; }
+/* These styles control member-card-name. */
 .member-card-name { max-width:100%; color:#163b2f; font-size:20px; font-weight:800; overflow-wrap:anywhere; }
+/* These styles control member-card-number-label. */
 .member-card-number-label { margin-top:15px; color:#78877f; font-size:8px; font-weight:750; letter-spacing:.12em; }
+/* These styles control member-card-number. */
 .member-card-number { margin-top:4px; color:#1c5d42; font-size:17px; letter-spacing:.06em; }
+/* These styles control member-card-status. */
 .member-card-status { margin-top:11px; padding:5px 8px; border-radius:999px; font-size:10px; font-weight:750; text-transform:capitalize; }
+/* These styles control member-card-qr. */
 .member-card-qr { display:grid; justify-items:center; gap:5px; padding:8px; border:1px solid #e0eae4; border-radius:12px; background:#fff; }
+/* These styles control member-card-qr img. */
 .member-card-qr img { display:block; width:110px; height:110px; }
+/* These styles control member-card-qr span. */
 .member-card-qr span { color:#60766a; font-size:8px; text-align:center; }
+/* These styles control member-card-footer. */
 .member-card-footer { padding-top:10px; border-top:1px solid #dcebe2; color:#6d8178; font-size:9px; line-height:1.45; }
+/* These styles control member-card-actions. */
 .member-card-actions { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-top:15px; }
+/* These styles control member-card-actions p. */
 .member-card-actions p { max-width:430px; margin:0; color:#657a70; font-size:11px; line-height:1.5; }
 
+/* These styles control member-verification-shell. */
 .member-verification-shell { width:min(680px, calc(100% - 32px)); align-items:stretch; }
+/* These styles control member-verification-shell > .brand. */
 .member-verification-shell > .brand { min-height:76px; }
+/* These styles control member-verification-card. */
 .member-verification-card { display:flex; flex:1; flex-direction:column; align-items:center; justify-content:center; margin:30px 0; padding:clamp(24px,6vw,48px); border:1px solid #e1ebe6; border-radius:22px; background:#fff; box-shadow:0 16px 44px rgb(23 61 46 / 7%); text-align:center; }
+/* These styles control verification-mark. */
 .verification-mark { display:grid; place-items:center; width:56px; height:56px; margin-bottom:18px; border:1px solid #c8e8d6; border-radius:50%; background:#e4f5ec; color:#137653; font-size:26px; font-weight:800; }
+/* These styles control verification-invalid. */
 .verification-invalid { border-color:#edd0cc; background:#fbefed; color:#a63d37; }
+/* These styles control member-verification-card h1. */
 .member-verification-card h1 { margin:10px 0; color:#17392f; font-size:clamp(25px,5vw,34px); }
+/* These styles control member-verification-card > p. */
 .member-verification-card > p { max-width:430px; color:#687b72; font-size:13px; line-height:1.6; }
+/* These styles control verification-member. */
 .verification-member { display:grid; grid-template-columns:1fr 1.2fr; gap:11px 20px; width:min(100%,420px); margin:20px 0 4px; padding:18px; border:1px solid #e2ebe6; border-radius:13px; background:#f8fbf9; text-align:left; }
+/* These styles control verification-member span. */
 .verification-member span { color:#73847c; font-size:12px; }
+/* These styles control verification-member strong. */
 .verification-member strong { color:#264237; font-size:13px; }
+/* These styles control verification-note. */
 .verification-note { margin:18px 0; }
+/* These styles control member-verification-card .button. */
 .member-verification-card .button { margin-top:14px; text-decoration:none; }
+/* These styles control member-verification-shell > footer. */
 .member-verification-shell > footer { width:100%; }
 
+/* This block adjusts the layout for different screen sizes. */
 @media(max-width:1000px) {
+  /* These styles control staff-layout. */
   .staff-layout { grid-template-columns: 218px minmax(0, 1fr); }
+  /* These styles control staff-sidebar. */
   .staff-sidebar { padding-right: 13px; padding-left: 13px; }
 }
 
+/* This block adjusts the layout for different screen sizes. */
 @media(max-width:740px) {
+  /* These styles control staff-layout. */
   .staff-layout { display: block; }
+  /* These styles control staff-sidebar. */
   .staff-sidebar {
     position: fixed;
     inset: 0 auto 0 0;
@@ -1114,165 +1661,293 @@ footer {
     transition: transform .2s ease;
     box-shadow: 10px 0 35px rgb(16 47 35 / 12%);
   }
+  /* These styles control sidebar-open .staff-sidebar. */
   .sidebar-open .staff-sidebar { transform: translateX(0); }
+  /* These styles control staff-sidebar-backdrop. */
   .staff-sidebar-backdrop { position: fixed; inset: 0; display: block; width: 100%; height: 100%; border: 0; background: rgb(19 41 33 / 28%); z-index: 2; }
+  /* These styles control staff-menu-toggle. */
   .staff-menu-toggle { display: grid; place-items: center; width: 38px; height: 38px; padding: 8px; border: 1px solid #e0eae5; border-radius: 10px; background: #fff; color: #286b50; cursor: pointer; }
+  /* These styles control staff-menu-toggle svg. */
   .staff-menu-toggle svg { width: 19px; height: 19px; }
+  /* These styles control staff-topbar. */
   .staff-topbar { justify-content: flex-start; gap: 13px; }
+  /* These styles control staff-topbar-actions. */
   .staff-topbar-actions { margin-left: auto; }
+  /* These styles control staff-page-banner. */
   .staff-page-banner { min-height: 140px; }
+  /* These styles control staff-banner-art. */
   .staff-banner-art { right: -50px; opacity: .7; }
 }
 
+/* This block adjusts the layout for different screen sizes. */
 @media(max-width:560px) {
+  /* These styles control staff-topbar. */
   .staff-topbar { min-height: 60px; padding: 0 16px; }
+  /* These styles control staff-topbar-label. */
   .staff-topbar-label { font-size: 12px; }
+  /* These styles control staff-role. */
   .staff-role { display: none; }
+  /* These styles control staff-page-banner. */
   .staff-page-banner { min-height: 132px; margin: 14px 14px 0; padding: 21px 19px; border-radius: 15px; }
+  /* These styles control staff-page-banner(.staff-page-banner-module). */
   .staff-page-banner:not(.staff-page-banner-module) { min-height: 132px; }
+  /* These styles control staff-page-banner-module. */
   .staff-page-banner-module { min-height: 108px; gap: 12px; }
+  /* These styles control staff-page-icon. */
   .staff-page-icon { width: 44px; height: 44px; flex-basis: 44px; border-radius: 13px; }
+  /* These styles control staff-page-icon .staff-nav-icon. */
   .staff-page-icon .staff-nav-icon { width: 23px; height: 23px; }
+  /* These styles control staff-banner-copy h1. */
   .staff-banner-copy h1 { font-size: 26px; }
+  /* These styles control staff-page-banner-module .staff-banner-copy h1. */
   .staff-page-banner-module .staff-banner-copy h1 { font-size: 23px; }
+  /* These styles control staff-banner-copy > p. */
   .staff-banner-copy > p:last-child { max-width: 260px; font-size: 12px; }
+  /* These styles control staff-content. */
   .staff-content { padding: 18px 14px 26px; }
+  /* These styles control staff-account-summary. */
   .staff-account-summary { gap: 9px; }
+  /* These styles control staff-account-summary. */
   .staff-account-summary { grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); }
+  /* These styles control staff-account-card. */
   .staff-account-card { gap: 8px; padding: 11px 9px; }
+  /* These styles control staff-account-card strong. */
   .staff-account-card strong { font-size: 11px; }
+  /* These styles control staff-service-tab. */
   .staff-service-tab { padding: 9px 12px; }
+  /* These styles control staff-content .portal-section. */
   .staff-content .portal-section { padding: 16px; }
+  /* These styles control staff-content .section-heading. */
   .staff-content .section-heading { gap: 10px; }
+  /* These styles control staff-empty-state. */
   .staff-empty-state { min-height: 200px; padding: 20px 8px; }
+  /* These styles control staff-empty-art. */
   .staff-empty-art { width: 136px; height: 100px; }
 }
 
+/* This block adjusts the layout for different screen sizes. */
 @media(max-width:680px) {
+  /* These styles control savings-member-overview. */
   .savings-member-overview { grid-template-columns:1fr; }
+  /* These styles control savings-member-overview > .button. */
   .savings-member-overview > .button { width:100%; }
+  /* These styles control demo-step. */
   .demo-step { grid-template-columns:auto minmax(0,1fr); }
+  /* These styles control demo-step .button. */
   .demo-step .button { grid-column:2; justify-self:start; }
+  /* These styles control withdrawal-step-card. */
   .withdrawal-step-card { padding:17px; }
+  /* These styles control withdrawal-step-card .item-heading. */
   .withdrawal-step-card .item-heading { flex-direction:column; }
+  /* These styles control withdrawal-review div. */
   .withdrawal-review div { align-items:flex-start; flex-direction:column; }
+  /* These styles control withdrawal-review dd. */
   .withdrawal-review dd { text-align:left; }
+  /* These styles control withdrawal-step-card .button-row .button. */
   .withdrawal-step-card .button-row .button { flex:1 1 100%; }
+  /* These styles control ledger-member-details. */
   .ledger-member-details { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  /* These styles control ledger-summary. */
   .ledger-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  /* These styles control ledger-document-header. */
   .ledger-document-header { align-items:flex-start; flex-direction:column; }
+  /* These styles control ledger-document-title. */
   .ledger-document-title { text-align:left; }
+  /* These styles control ledger-document-footer. */
   .ledger-document-footer { flex-direction:column; }
+  /* These styles control ledger-document-footer span. */
   .ledger-document-footer span:last-child { max-width:none; text-align:left; }
+  /* These styles control member-card-actions. */
   .member-card-actions { align-items:stretch; flex-direction:column; }
+  /* These styles control member-card-actions .button. */
   .member-card-actions .button { width:100%; }
 }
 
+/* This block adjusts the layout for different screen sizes. */
 @media(max-width:520px) {
+  /* These styles control member-row-actions. */
   .member-row-actions { gap:8px; }
+  /* These styles control member-row-actions .text-button. */
   .member-row-actions .text-button { padding:5px 0; font-size:11px; }
+  /* These styles control record-modal-backdrop. */
   .record-modal-backdrop { align-items:flex-start; padding:10px; }
+  /* These styles control record-modal. */
   .record-modal { max-height:calc(100dvh - 20px); padding:16px; border-radius:14px; }
+  /* These styles control ledger-controls. */
   .ledger-controls { align-items:stretch; flex-direction:column; }
+  /* These styles control ledger-controls label. */
   .ledger-controls label,.ledger-controls > .button { width:100%; }
+  /* These styles control ledger-print-area. */
   .ledger-print-area { padding:17px 13px; }
+  /* These styles control ledger-summary. */
   .ledger-summary { gap:10px 6px; padding:11px 9px; }
+  /* These styles control ledger-summary strong. */
   .ledger-summary strong { font-size:13px; }
+  /* These styles control member-card-print-area. */
   .member-card-print-area { padding:10px; }
+  /* These styles control member-card-design. */
   .member-card-design { padding:17px; }
+  /* These styles control member-card-content. */
   .member-card-content { grid-template-columns:minmax(0,1fr) 108px; gap:8px; }
+  /* These styles control member-card-qr. */
   .member-card-qr { padding:5px; }
+  /* These styles control member-card-qr img. */
   .member-card-qr img { width:92px; height:92px; }
+  /* These styles control member-card-name. */
   .member-card-name { font-size:17px; }
 }
 
+/* This block sets related page styles. */
 @page {
   size: A4 landscape;
   margin: 12mm;
 }
 
+/* This block adjusts the layout for different screen sizes. */
 @media print {
   body.printing-record,
+  /* These styles control body.printing-record #root. */
   body.printing-record #root { min-height:0; background:#fff !important; }
+  /* These styles control body.printing-record .page-shell-staff. */
   body.printing-record .page-shell-staff { width:100%; min-height:0; }
   body.printing-record .staff-layout,
   body.printing-record .staff-main,
   body.printing-record .staff-content,
+  /* These styles control body.printing-record .portal-section. */
   body.printing-record .portal-section { display:contents !important; }
   body.printing-record .staff-sidebar,
   body.printing-record .staff-topbar,
   body.printing-record .staff-page-banner,
+  /* These styles control body.printing-record .staff-footer. */
   body.printing-record .staff-footer { display:none !important; }
+  /* These styles control body.printing-record *. */
   body.printing-record * { visibility:hidden !important; }
   body.printing-record .record-modal-backdrop,
+  /* These styles control body.printing-record .record-modal. */
   body.printing-record .record-modal { position:static !important; max-height:none !important; overflow:visible !important; padding:0 !important; border:0 !important; background:#fff !important; box-shadow:none !important; }
   body.printing-record .print-target,
+  /* These styles control body.printing-record .print-target *. */
   body.printing-record .print-target * { visibility:visible !important; }
+  /* These styles control body.printing-record .print-target. */
   body.printing-record .print-target { position:absolute !important; inset:0 auto auto 0 !important; width:100% !important; margin:0 !important; padding:0 !important; overflow:visible !important; border:0 !important; border-radius:0 !important; background:#fff !important; box-shadow:none !important; }
+  /* These styles control body.printing-record .no-print. */
   body.printing-record .no-print { display:none !important; }
+  /* These styles control body.printing-record .ledger-document-header. */
   body.printing-record .ledger-document-header { padding-bottom:12px; }
+  /* These styles control body.printing-record .ledger-member-details. */
   body.printing-record .ledger-member-details { padding:11px 0; }
+  /* These styles control body.printing-record .ledger-summary. */
   body.printing-record .ledger-summary { margin:11px 0; padding:10px 12px; }
+  /* These styles control body.printing-record .ledger-table. */
   body.printing-record .ledger-table { min-width:0; font-size:9px; }
   body.printing-record .ledger-table th,
+  /* These styles control body.printing-record .ledger-table td. */
   body.printing-record .ledger-table td { padding:6px 7px; }
+  /* These styles control body.printing-record .member-card-print-area. */
   body.printing-record .member-card-print-area { display:block; padding:0; border:0; background:#fff; }
+  /* These styles control body.printing-record .member-card-design. */
   body.printing-record .member-card-design { width:85.6mm; min-height:54mm; margin:25mm auto 0; padding:5mm; border:1px solid #d7e7de; border-radius:4mm; box-shadow:none; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+  /* These styles control body.printing-record .member-card-qr img. */
   body.printing-record .member-card-qr img { width:24mm; height:24mm; }
 }
 
+/* These styles control loan-preview. */
 .loan-preview { padding:14px; border:1px solid #dfece5; border-radius:12px; background:#f6faf7; }
+/* These styles control loan-preview > strong. */
 .loan-preview > strong { color:#174f39; }
+/* These styles control loan-preview p. */
 .loan-preview p,.loan-preview small { color:#647970; font-size:12px; line-height:1.55; }
+/* These styles control loan-preview .table-wrap. */
 .loan-preview .table-wrap { margin:10px 0; }
+/* These styles control loan-preview table. */
 .loan-preview table { min-width:720px; font-size:11px; }
+/* These styles control loan-schedule-modal. */
 .loan-schedule-modal { width:min(1200px,100%); }
+/* These styles control loan-schedule-print-area. */
 .loan-schedule-print-area { padding:28px; border:1px solid #e1e8e4; border-radius:14px; background:#fff; color:#1e352c; }
+/* These styles control loan-schedule-summary. */
 .loan-schedule-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:17px 0; padding:14px; border:1px solid #dfece5; border-radius:11px; background:#f5faf7; }
+/* These styles control loan-schedule-summary div. */
 .loan-schedule-summary div { display:grid; gap:5px; min-width:0; }
+/* These styles control loan-schedule-summary span. */
 .loan-schedule-summary span { color:#71837b; font-size:10px; }
+/* These styles control loan-schedule-summary strong. */
 .loan-schedule-summary strong { color:#174f39; font-size:12px; overflow-wrap:anywhere; }
+/* These styles control loan-schedule-explanation. */
 .loan-schedule-explanation { color:#647970; font-size:11px; line-height:1.6; }
+/* These styles control loan-schedule-table. */
 .loan-schedule-table { min-width:880px; font-size:10px; }
+/* These styles control loan-schedule-table th. */
 .loan-schedule-table th,.loan-schedule-table td { padding:8px; }
+/* These styles control loan-schedule-table thead th. */
 .loan-schedule-table thead th { color:#36574a; background:#eef6f1; }
+/* These styles control loan-schedule-table td(n+3)(-n+7). */
 .loan-schedule-table td:nth-child(n+3):nth-child(-n+7),.loan-schedule-table tfoot th { text-align:right; font-variant-numeric:tabular-nums; }
+/* These styles control loan-schedule-table tfoot th. */
 .loan-schedule-table tfoot th { border-top:1px solid #cbd9d1; background:#f5f8f6; }
+/* These styles control autopay-card. */
 .autopay-card { margin:18px 0; }
+/* These styles control autopay-heading. */
 .autopay-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+/* These styles control autopay-heading h3. */
 .autopay-heading h3 { margin:4px 0 0; color:#17392f; }
+/* These styles control autopay-card > p. */
 .autopay-card > p { color:#647970; font-size:13px; line-height:1.6; }
+/* These styles control autopay-option. */
 .autopay-option { display:flex; align-items:flex-start; gap:11px; margin:12px 0; padding:13px; border:1px solid #e1e9e5; border-radius:11px; background:#fff; cursor:pointer; }
+/* These styles control autopay-option input. */
 .autopay-option input { width:18px; height:18px; margin:2px 0 0; accent-color:#137653; }
+/* These styles control autopay-option span. */
 .autopay-option span { display:grid; gap:4px; }
+/* These styles control autopay-option strong. */
 .autopay-option strong { color:#25483a; font-size:13px; }
+/* These styles control autopay-option small. */
 .autopay-option small { color:#6f8178; font-size:12px; line-height:1.5; }
+/* These styles control autopay-card .autopay-caveat. */
 .autopay-card .autopay-caveat { margin-bottom:0; color:#846228; font-size:11px; }
+/* These styles control withdrawal-section. */
 .withdrawal-section { margin:24px 0; }
+/* These styles control withdrawal-section .staff-subsection-title. */
 .withdrawal-section .staff-subsection-title { margin-bottom:12px; }
+/* These styles control withdrawal-section .staff-subsection-title .muted. */
 .withdrawal-section .staff-subsection-title .muted { margin:4px 0 0; }
+/* These styles control withdrawal-form .full. */
 .withdrawal-form .full { grid-column:1 / -1; }
+/* These styles control withdrawal-disclaimer. */
 .withdrawal-disclaimer { margin:0; color:#71837b; font-size:11px; line-height:1.5; }
 
+/* This block adjusts the layout for different screen sizes. */
 @media (max-width:720px) {
+  /* These styles control autopay-heading. */
   .autopay-heading { align-items:flex-start; flex-direction:column; }
+  /* These styles control autopay-heading .button. */
   .autopay-heading .button { width:100%; }
+  /* These styles control loan-schedule-summary. */
   .loan-schedule-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  /* These styles control loan-schedule-print-area. */
   .loan-schedule-print-area { padding:16px; }
+  /* These styles control loan-schedule-print-area .ledger-document-header. */
   .loan-schedule-print-area .ledger-document-header { align-items:flex-start; }
+  /* These styles control loan-schedule-print-area .ledger-document-title strong. */
   .loan-schedule-print-area .ledger-document-title strong { max-width:145px; line-height:1.4; }
 }
 
+/* This block adjusts the layout for different screen sizes. */
 @media print {
+  /* These styles control body.printing-record .loan-schedule-print-area. */
   body.printing-record .loan-schedule-print-area { padding:8mm; }
+  /* These styles control body.printing-record .loan-schedule-summary. */
   body.printing-record .loan-schedule-summary { margin:8px 0; padding:9px; }
+  /* These styles control body.printing-record .loan-schedule-table. */
   body.printing-record .loan-schedule-table { min-width:0; font-size:8px; }
   body.printing-record .loan-schedule-table th,
+  /* These styles control body.printing-record .loan-schedule-table td. */
   body.printing-record .loan-schedule-table td { padding:5px 4px; }
 }
 
 html[data-theme="dark"] body,
 html[data-theme="dark"] .page-shell,
+/* These styles control html .page-shell-staff. */
 html[data-theme="dark"] .page-shell-staff {
   color:var(--ink);
   background:var(--canvas);
@@ -1280,6 +1955,7 @@ html[data-theme="dark"] .page-shell-staff {
 
 html[data-theme="dark"] .topbar,
 html[data-theme="dark"] footer,
+/* These styles control html .staff-topbar. */
 html[data-theme="dark"] .staff-topbar {
   border-color:var(--border);
   background:var(--surface);
@@ -1291,6 +1967,7 @@ html[data-theme="dark"] .staff-role,
 html[data-theme="dark"] .intro p,
 html[data-theme="dark"] .muted,
 html[data-theme="dark"] .form-help,
+/* These styles control html small. */
 html[data-theme="dark"] small {
   color:var(--muted);
 }
@@ -1301,6 +1978,7 @@ html[data-theme="dark"] .dashboard h1,
 html[data-theme="dark"] .portal-section h2,
 html[data-theme="dark"] .portal-section h3,
 html[data-theme="dark"] .staff-banner-copy h1,
+/* These styles control html .member-verification-card h1. */
 html[data-theme="dark"] .member-verification-card h1 {
   color:var(--ink);
 }
@@ -1315,12 +1993,14 @@ html[data-theme="dark"] .staff-sidebar,
 html[data-theme="dark"] .record-modal,
 html[data-theme="dark"] .ledger-controls,
 html[data-theme="dark"] .member-verification-card,
+/* These styles control html .member-card-modal .modal-content. */
 html[data-theme="dark"] .member-card-modal .modal-content {
   border-color:var(--border);
   background:var(--surface);
   color:var(--ink);
 }
 
+/* These styles control html .staff-page-banner. */
 html[data-theme="dark"] .staff-page-banner {
   border-color:var(--border);
   background:
@@ -1329,26 +2009,41 @@ html[data-theme="dark"] .staff-page-banner {
     linear-gradient(110deg,#202833 5%,#202c35 62%,#21352f);
 }
 
+/* These styles control html .staff-sidebar. */
 html[data-theme="dark"] .staff-sidebar { border-right-color:var(--border); }
+/* These styles control html .staff-nav-item. */
 html[data-theme="dark"] .staff-nav-item { color:#b5c8be; }
+/* These styles control html .staff-nav-item. */
 html[data-theme="dark"] .staff-nav-item:hover { background:#293742; color:#9cdbc4; }
+/* These styles control html .staff-nav-item.active. */
 html[data-theme="dark"] .staff-nav-item.active { background:#2a3d3a; color:#a5e3c9; }
+/* These styles control html .staff-sign-out. */
 html[data-theme="dark"] .staff-sign-out { background:#293a38; color:#a5e3c9; }
+/* These styles control html .staff-sign-out. */
 html[data-theme="dark"] .staff-sign-out:hover { background:#344943; }
+/* These styles control html .staff-avatar. */
 html[data-theme="dark"] .staff-avatar { background:#344b49; color:#d0f0e2; }
+/* These styles control html .staff-page-icon. */
 html[data-theme="dark"] .staff-page-icon { border-color:var(--border); background:#29353d; color:#8fd7b8; }
 html[data-theme="dark"] .staff-banner-copy > p:last-child,
+/* These styles control html .staff-footer. */
 html[data-theme="dark"] .staff-footer { color:var(--muted); }
 
+/* These styles control html .auth-card .tabs. */
 html[data-theme="dark"] .auth-card .tabs { border-color:var(--border); background:#202d26; }
+/* These styles control html .auth-card .tab. */
 html[data-theme="dark"] .auth-card .tab { color:var(--muted); }
+/* These styles control html .auth-card .tab.active. */
 html[data-theme="dark"] .auth-card .tab.active { color:#a0e8c2; background:#2c4b3b; }
+/* These styles control html .auth-card .tab(.active). */
 html[data-theme="dark"] .auth-card .tab:last-child:not(.active) { color:#8eddb5; }
+/* These styles control html .auth-card .tab(.active). */
 html[data-theme="dark"] .auth-card .tab:last-child:not(.active):hover { background:#263e32; }
 
 html[data-theme="dark"] form label,
 html[data-theme="dark"] .staff-content label,
 html[data-theme="dark"] .ledger-controls label,
+/* These styles control html .savings-filter-row label. */
 html[data-theme="dark"] .savings-filter-row label {
   color:#c4d4cb;
 }
@@ -1356,6 +2051,7 @@ html[data-theme="dark"] .savings-filter-row label {
 html[data-theme="dark"] input,
 html[data-theme="dark"] select,
 html[data-theme="dark"] textarea,
+/* These styles control html .withdrawal-currency-input. */
 html[data-theme="dark"] .withdrawal-currency-input {
   border-color:#465c50;
   background:#111c16;
@@ -1363,33 +2059,42 @@ html[data-theme="dark"] .withdrawal-currency-input {
 }
 
 html[data-theme="dark"] input::placeholder,
+/* These styles control html textarea. */
 html[data-theme="dark"] textarea::placeholder { color:#84998e; }
 html[data-theme="dark"] input:focus,
 html[data-theme="dark"] select:focus,
+/* These styles control html textarea. */
 html[data-theme="dark"] textarea:focus { outline-color:#315844; }
+/* These styles control html input. */
 html[data-theme="dark"] input:-webkit-autofill { -webkit-text-fill-color:var(--ink); box-shadow:0 0 0 1000px #1d3026 inset; }
 
 html[data-theme="dark"] .button-outline,
+/* These styles control html .modal-close. */
 html[data-theme="dark"] .modal-close {
   border-color:#465c50;
   background:#202d26;
   color:#d5e4db;
 }
 html[data-theme="dark"] .button-outline:hover,
+/* These styles control html .modal-close. */
 html[data-theme="dark"] .modal-close:hover { background:#2a3d32; }
 html[data-theme="dark"] .button-primary,
+/* These styles control html .staff-content .button-primary. */
 html[data-theme="dark"] .staff-content .button-primary { background:#3f7565; color:#fff; }
 html[data-theme="dark"] .button-primary:hover,
+/* These styles control html .staff-content .button-primary. */
 html[data-theme="dark"] .staff-content .button-primary:hover { background:#4d8976; }
 
 html[data-theme="dark"] .staff-content :is(h1,h2,h3,h4,p,label,summary,dt,dd,strong,span,li,td,th),
 html[data-theme="dark"] .portal-section :is(h1,h2,h3,h4,p,label,summary,dt,dd,strong,span,li,td,th),
+/* These styles control html .record-modal (h1. */
 html[data-theme="dark"] .record-modal :is(h1,h2,h3,h4,p,label,summary,dt,dd,strong,span,li,td,th) {
   color:var(--ink);
 }
 
 html[data-theme="dark"] .staff-content :is(.muted,.optional,.form-help,small,.staff-footer),
 html[data-theme="dark"] .portal-section :is(.muted,.optional,.form-help,small),
+/* These styles control html .record-modal (.muted. */
 html[data-theme="dark"] .record-modal :is(.muted,small) { color:var(--muted); }
 
 html[data-theme="dark"] .staff-content .portal-card,
@@ -1403,32 +2108,41 @@ html[data-theme="dark"] .member-detail,
 html[data-theme="dark"] .savings-filter-row,
 html[data-theme="dark"] .autopay-option,
 html[data-theme="dark"] .withdrawal-destination,
+/* These styles control html .ledger-controls. */
 html[data-theme="dark"] .ledger-controls {
   border-color:var(--border);
   background:#1b2922;
   color:var(--ink);
 }
+/* These styles control html .demo-scenario. */
 html[data-theme="dark"] .demo-scenario {
   border-color:var(--border);
   background:linear-gradient(135deg,#202833,#26352f);
 }
 
 html[data-theme="dark"] .staff-account-card small,
+/* These styles control html .staff-account-card strong. */
 html[data-theme="dark"] .staff-account-card strong {
   color:var(--ink);
 }
+/* These styles control html .staff-account-card small. */
 html[data-theme="dark"] .staff-account-card small { color:#c1ccd4; }
+/* These styles control html .staff-account-icon. */
 html[data-theme="dark"] .staff-account-icon {
   background:#35434c;
   color:#a6e2ca;
 }
 
+/* These styles control html .staff-service-tabs. */
 html[data-theme="dark"] .staff-service-tabs {
   border-color:#3a4654;
   background:#202833;
 }
+/* These styles control html .staff-service-tab. */
 html[data-theme="dark"] .staff-service-tab { color:#c3cdd5; }
+/* These styles control html .staff-service-tab. */
 html[data-theme="dark"] .staff-service-tab:hover { background:#303b45; color:#dce7e1; }
+/* These styles control html .staff-service-tab.active. */
 html[data-theme="dark"] .staff-service-tab.active {
   background:#426c60;
   color:#fff;
@@ -1441,21 +2155,25 @@ html[data-theme="dark"] .payout-callout,
 html[data-theme="dark"] .withdrawal-destination.selected,
 html[data-theme="dark"] .ledger-summary,
 html[data-theme="dark"] .loan-schedule-summary,
+/* These styles control html .loan-preview. */
 html[data-theme="dark"] .loan-preview {
   border-color:#385445;
   background:#20372b;
   color:#cce5d7;
 }
 
+/* These styles control html .message. */
 html[data-theme="dark"] .message {
   border-color:#685634;
   background:#382f1e;
   color:#f0d69e;
 }
+/* These styles control html .message-error. */
 html[data-theme="dark"] .message-error { border-color:#71403c; background:#3a2523; color:#f3aaa2; }
 
 html[data-theme="dark"] table,
 html[data-theme="dark"] .table-wrap,
+/* These styles control html .staff-content .table-wrap. */
 html[data-theme="dark"] .staff-content .table-wrap {
   border-color:var(--border);
   color:var(--ink);
@@ -1465,37 +2183,50 @@ html[data-theme="dark"] .staff-content th,
 html[data-theme="dark"] .ledger-table thead th,
 html[data-theme="dark"] .loan-schedule-table thead th,
 html[data-theme="dark"] .ledger-table tfoot th,
+/* These styles control html .loan-schedule-table tfoot th. */
 html[data-theme="dark"] .loan-schedule-table tfoot th {
   border-color:var(--border);
   background:#24352b;
   color:#c8d9cf;
 }
 html[data-theme="dark"] td,
+/* These styles control html th. */
 html[data-theme="dark"] th { border-color:var(--border); }
 
+/* These styles control html .status. */
 html[data-theme="dark"] .status { background:#29372f; color:#d2dfd7; }
 html[data-theme="dark"] .status-active,
 html[data-theme="dark"] .status-approved,
 html[data-theme="dark"] .status-paid,
+/* These styles control html .status-completed. */
 html[data-theme="dark"] .status-completed { background:#234534; color:#a4e4bd; }
 html[data-theme="dark"] .status-pending,
 html[data-theme="dark"] .status-draft,
+/* These styles control html .status-ready. */
 html[data-theme="dark"] .status-ready { background:#473a22; color:#f0d18a; }
 html[data-theme="dark"] .status-rejected,
+/* These styles control html .status-cancelled. */
 html[data-theme="dark"] .status-cancelled { background:#472b29; color:#f0aaa2; }
+/* These styles control html .loan-review-badge. */
 html[data-theme="dark"] .loan-review-badge { background:#c83232; color:#fff; }
 
 html[data-theme="dark"] .text-button,
 html[data-theme="dark"] .portal-card summary,
 html[data-theme="dark"] .offer-application summary,
+/* These styles control html .loan-subtab.active. */
 html[data-theme="dark"] .loan-subtab.active { color:#80d9ac; }
+/* These styles control html .staff-content .portal-card summary. */
 html[data-theme="dark"] .staff-content .portal-card summary::after { background:#294535; color:#8fe0b5; }
+/* These styles control html .loan-subtab. */
 html[data-theme="dark"] .loan-subtab { color:var(--muted); }
+/* These styles control html .loan-subtab.active. */
 html[data-theme="dark"] .loan-subtab.active { border-bottom-color:var(--green); }
 
 html[data-theme="dark"] .member-verification-card h1,
+/* These styles control html .verification-member strong. */
 html[data-theme="dark"] .verification-member strong { color:var(--ink); }
 html[data-theme="dark"] .verification-member,
+/* These styles control html .member-card-print-area. */
 html[data-theme="dark"] .member-card-print-area {
   border-color:var(--border);
   background:#1b2922;
@@ -1511,87 +2242,128 @@ html[data-theme="dark"] .loan-schedule-summary strong,
 html[data-theme="dark"] .autopay-heading h3,
 html[data-theme="dark"] .autopay-option strong,
 html[data-theme="dark"] .loan-preview > strong,
+/* These styles control html .loan-schedule-print-area. */
 html[data-theme="dark"] .loan-schedule-print-area {
   color:var(--ink);
 }
 
 html[data-theme="dark"] .ledger-print-area,
+/* These styles control html .loan-schedule-print-area. */
 html[data-theme="dark"] .loan-schedule-print-area {
   border-color:var(--border);
   background:#18241e;
 }
 
+/* These styles control html .ledger-table .ledger-opening-row. */
 html[data-theme="dark"] .ledger-table .ledger-opening-row { background:#202f26; color:#c4d7cb; }
+/* These styles control html .report-chart-card h4. */
 html[data-theme="dark"] .report-chart-card h4 { color:var(--ink); }
+/* These styles control html .google-report-chart. */
 html[data-theme="dark"] .google-report-chart { color-scheme:dark; }
 
+/* These styles control html .auth-card .tab.active. */
 html[data-theme="dark"] .auth-card .tab.active { color:#c4e8d8; background:#35463f; }
+/* These styles control html .auth-card .tab(.active). */
 html[data-theme="dark"] .auth-card .tab:last-child:not(.active) { color:#a6d9c3; }
+/* These styles control html .auth-card .tab(.active). */
 html[data-theme="dark"] .auth-card .tab:last-child:not(.active):hover { background:#303d39; }
+/* These styles control html .intro. */
 html[data-theme="dark"] .intro::after {
   border-color:rgb(145 184 167 / 20%);
   background:radial-gradient(circle,transparent 47%,rgb(113 157 137 / 18%) 48% 66%,transparent 67%);
 }
+/* These styles control html .auth-loading. */
 html[data-theme="dark"] .auth-loading { color:#c0cdc6; }
 html[data-theme="dark"] .staff-empty-state,
 html[data-theme="dark"] .staff-empty-state strong,
+/* These styles control html .staff-empty-state p. */
 html[data-theme="dark"] .staff-empty-state p { color:var(--ink); }
+/* These styles control html .staff-empty-state p. */
 html[data-theme="dark"] .staff-empty-state p { color:var(--muted); }
+/* These styles control html .staff-empty-spinner. */
 html[data-theme="dark"] .staff-empty-spinner { border-color:#394650; border-top-color:#71c5a3; }
+/* These styles control html .staff-subsection-title. */
 html[data-theme="dark"] .staff-subsection-title {
   border-color:var(--border);
   background:#202833;
 }
+/* These styles control html .staff-subsection-title .staff-nav-icon. */
 html[data-theme="dark"] .staff-subsection-title .staff-nav-icon { color:#8ecfb3; }
+/* These styles control html .staff-content .portal-card summary. */
 html[data-theme="dark"] .staff-content .portal-card summary::after { background:#35434c; color:#b5ddca; }
+/* These styles control html .operational-overview-list li span. */
 html[data-theme="dark"] .operational-overview-list li span { color:var(--ink); }
+/* These styles control html .cycle-create-card. */
 html[data-theme="dark"] .cycle-create-card { border-color:#456d59; border-left-color:#58a981; background:#1b3027; }
+/* These styles control html .cycle-create-card h3. */
 html[data-theme="dark"] .cycle-create-card h3 { color:#b8e4cc; }
+/* These styles control html .cycle-create-card p. */
 html[data-theme="dark"] .cycle-create-card p { color:#bdcec4; }
+/* These styles control html .withdrawal-destination-icon. */
 html[data-theme="dark"] .withdrawal-destination-icon { background:#35434c; color:#a5debf; }
 html[data-theme="dark"] .withdrawal-demo-note,
+/* These styles control html .autopay-card .autopay-caveat. */
 html[data-theme="dark"] .autopay-card .autopay-caveat {
   border-left-color:#a98c53;
   background:#362f22;
   color:#ecd8a8;
 }
 html[data-theme="dark"] .loan-preview,
+/* These styles control html .loan-schedule-summary. */
 html[data-theme="dark"] .loan-schedule-summary { background:#24332f; }
+/* These styles control html .member-card-print-area. */
 html[data-theme="dark"] .member-card-print-area { background:#202833; }
+/* These styles control html .member-card-design. */
 html[data-theme="dark"] .member-card-design {
   border-color:#41534c;
   background:radial-gradient(ellipse at 98% 0%,#34463e 0 16%,transparent 16.5%),linear-gradient(135deg,#202833 8%,#26352f 70%,#2a3c35);
 }
 html[data-theme="dark"] .member-card-header,
 html[data-theme="dark"] .member-card-name,
+/* These styles control html .member-card-number. */
 html[data-theme="dark"] .member-card-number { color:#e4eee8; }
 html[data-theme="dark"] .member-card-header,
+/* These styles control html .member-card-footer. */
 html[data-theme="dark"] .member-card-footer { border-color:#41534c; }
 html[data-theme="dark"] .member-card-header small,
 html[data-theme="dark"] .member-card-number-label,
 html[data-theme="dark"] .member-card-footer,
+/* These styles control html .member-card-actions p. */
 html[data-theme="dark"] .member-card-actions p { color:#b5c2ba; }
+/* These styles control html .member-card-pill. */
 html[data-theme="dark"] .member-card-pill { background:#35463f; color:#c4e8d8; }
+/* These styles control html .member-card-avatar. */
 html[data-theme="dark"] .member-card-avatar { border-color:#456358; background:#2c4138; color:#c0ead6; }
+/* These styles control html .member-card-qr. */
 html[data-theme="dark"] .member-card-qr { border-color:var(--border); background:#f7f8f7; }
+/* These styles control html .staff-menu-toggle. */
 html[data-theme="dark"] .staff-menu-toggle { border-color:var(--border); background:#202833; color:#c5d3cb; }
+/* These styles control html .staff-menu-toggle. */
 html[data-theme="dark"] .staff-menu-toggle:hover { background:#2b3842; }
 
+/* This block adjusts the layout for different screen sizes. */
 @media print {
   html[data-theme="dark"] body.printing-record,
   html[data-theme="dark"] body.printing-record #root,
   html[data-theme="dark"] body.printing-record .print-target,
   html[data-theme="dark"] body.printing-record .ledger-print-area,
+  /* These styles control html body.printing-record .loan-schedule-print-area. */
   html[data-theme="dark"] body.printing-record .loan-schedule-print-area {
     background:#fff !important;
     color:#1e352c !important;
   }
 }
 
+/* This block adjusts the layout for different screen sizes. */
 @media(max-width:520px) {
+  /* These styles control topbar-actions. */
   .topbar-actions { gap:8px; }
+  /* These styles control theme-toggle. */
   .theme-toggle { min-height:36px; padding:0 10px; }
+  /* These styles control theme-toggle span. */
   .theme-toggle span { display:none; }
+  /* These styles control auth-card .tabs. */
   .auth-card .tabs { width:100%; }
+  /* These styles control auth-card .tab. */
   .auth-card .tab { flex-basis:50%; }
 }

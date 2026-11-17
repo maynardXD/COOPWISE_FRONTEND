@@ -1,3 +1,5 @@
+/* This file sets the base styles used across the frontend. */
+/* This block sets the shared colors, spacing, and design values. */
 :root {
   font-family: Inter, "Segoe UI", Arial, sans-serif;
   color: #17362c;
@@ -19,6 +21,7 @@
   --skeleton-highlight: #f7fbf8;
 }
 
+/* These styles control this page section. */
 :root[data-theme="dark"] {
   color-scheme: dark;
   color: #edf1f4;
@@ -37,8 +40,10 @@
   --skeleton-highlight: #3a4b55;
 }
 
+/* This block sets the basic sizing used across the page. */
 * { box-sizing: border-box; }
 
+/* This block sets the page-wide base styles. */
 body {
   margin: 0;
   min-width: 320px;
@@ -46,7 +51,10 @@ body {
   background: var(--canvas);
 }
 
+/* These styles control button. */
 button, input, select { font: inherit; }
+/* These styles control button. */
 button { color: inherit; }
 
+/* These styles control this page section. */
 ::selection { color: var(--ink); background: #d9e8dc; }

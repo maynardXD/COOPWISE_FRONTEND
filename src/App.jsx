@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 
+/* This is the main screen of CoopWise. It shows the pages and connects them to the backend. */
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost/COOPWISE/LavaLust-COOPWISE/api').replace(/\/+$/, '')
 const TODAY = new Date().toISOString().slice(0, 10)
 const LOAN_ENDPOINTS = ['/loan-products', '/loans', '/payments', '/loan-readiness', '/loans/eligibility']
@@ -16,6 +17,7 @@ let googleChartsPromise = null
 let googleIdentityPromise = null
 let turnstilePromise = null
 
+// This block lets the user switch between light and dark mode.
 function ThemeToggle({ theme, onToggle }) {
   const dark = theme === 'dark'
   return (
@@ -26,7 +28,7 @@ function ThemeToggle({ theme, onToggle }) {
       aria-label={`Switch to ${dark ? 'day' : 'night'} mode`}
       title={`Switch to ${dark ? 'day' : 'night'} mode`}
       aria-pressed={dark}
-    >
+    >{/* BUTTON - switch to day or night mode. */}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         {dark
           ? <><circle cx="12" cy="12" r="3.5" /><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" /></>
@@ -37,6 +39,7 @@ function ThemeToggle({ theme, onToggle }) {
   )
 }
 
+// These helpers load outside services only when a page needs them.
 function loadExternalScript(src, ready) {
   if (ready()) return Promise.resolve()
   const existing = document.querySelector(`script[src="${src}"]`)
@@ -58,6 +61,7 @@ function loadExternalScript(src, ready) {
   })
 }
 
+// This block loads the chart library for report graphs.
 function loadGoogleCharts() {
   if (!googleChartsPromise) {
     googleChartsPromise = loadExternalScript(
@@ -74,6 +78,7 @@ function loadGoogleCharts() {
   return googleChartsPromise
 }
 
+// This block loads Google's sign-in helper.
 function loadGoogleIdentity() {
   if (!googleIdentityPromise) {
     googleIdentityPromise = loadExternalScript(
@@ -87,6 +92,7 @@ function loadGoogleIdentity() {
   return googleIdentityPromise
 }
 
+// This block loads the sign-in security check.
 function loadTurnstile() {
   if (!turnstilePromise) {
     turnstilePromise = loadExternalScript(
@@ -100,15 +106,18 @@ function loadTurnstile() {
   return turnstilePromise
 }
 
+// This block clears saved page data after a change.
 function invalidatePortalDataCache() {
   portalCacheRevision += 1
   portalDataCache.clear()
 }
 
+// This key keeps each account's saved page data separate.
 function portalCacheKey(token, endpoint) {
   return `${token || 'anonymous'}:${endpoint}`
 }
 
+// This block checks whether saved page data is still fresh.
 function readPortalCache(token, endpoints) {
   const cached = endpoints.map((endpoint) => portalDataCache.get(portalCacheKey(token, endpoint)))
   if (!cached.some(Boolean)) return null
@@ -118,6 +127,7 @@ function readPortalCache(token, endpoints) {
   }
 }
 
+// This block combines page request errors into a readable message.
 function summarizePortalErrors(results) {
   const groupedErrors = new Map()
   results.forEach(({ error }) => {
@@ -137,6 +147,7 @@ function summarizePortalErrors(results) {
     .join(' · ')
 }
 
+// This helper sends one request to the backend and reports any error.
 async function apiRequest(path, { token, ...options } = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -181,6 +192,7 @@ async function apiRequest(path, { token, ...options } = {}) {
   return body
 }
 
+// These checks stop letters and invalid pasted values in fields that need numbers.
 function enforceNumericKey(event) {
   const input = event.target
   if (!(input instanceof HTMLInputElement) || input.type !== 'number') return
@@ -191,6 +203,7 @@ function enforceNumericKey(event) {
   }
 }
 
+// This block stops invalid text from being pasted into number-only fields.
 function enforceNumericPaste(event) {
   const input = event.target
   if (!(input instanceof HTMLInputElement) || input.type !== 'number') return
@@ -201,6 +214,7 @@ function enforceNumericPaste(event) {
   }
 }
 
+// This block stops invalid text from being dropped into number-only fields.
 function enforceNumericDrop(event) {
   const input = event.target
   if (!(input instanceof HTMLInputElement) || input.type !== 'number') return
@@ -211,6 +225,7 @@ function enforceNumericDrop(event) {
   }
 }
 
+// This block keeps number-only fields from accepting invalid values.
 function enforceNumericInput(event) {
   const input = event.target
   if (!(input instanceof HTMLInputElement) || input.type !== 'number') return
@@ -224,12 +239,14 @@ function enforceNumericInput(event) {
 
 let refreshRequest = null
 
+// These helpers keep the member signed in safely and refresh the session when needed.
 function expireSession() {
   sessionStorage.removeItem('coopwise_access_token')
   sessionStorage.removeItem('coopwise_refresh_token')
   window.dispatchEvent(new Event('coopwise:session-expired'))
 }
 
+// This block gets a fresh access token for the signed-in user.
 function refreshSession(refreshToken) {
   if (!refreshRequest) {
     refreshRequest = fetch(`${API_BASE}/auth/refresh`, {
@@ -258,6 +275,7 @@ function refreshSession(refreshToken) {
   return refreshRequest
 }
 
+// This block shows the sign-in security check.
 function TurnstileWidget({ siteKey, action, resetKey, onToken, onLoadError }) {
   const containerRef = useRef(null)
   const tokenCallback = useRef(onToken)
@@ -298,6 +316,7 @@ function TurnstileWidget({ siteKey, action, resetKey, onToken, onLoadError }) {
   return <div ref={containerRef} className="turnstile-widget" />
 }
 
+// This block shows the Google sign-in button.
 function GoogleSignInButton({ clientId, disabled, onCredential, onLoadError }) {
   const containerRef = useRef(null)
   const credentialCallback = useRef(onCredential)
@@ -370,6 +389,7 @@ async function openProtectedImage(token, path) {
   }
 }
 
+// This hook loads data for a page and shows loading or error information to the screen.
 function usePortalData(token, refreshKey, endpoints) {
   const [data, setData] = useState(() => readPortalCache(token, endpoints)?.data || null)
   const [error, setError] = useState('')
@@ -441,10 +461,12 @@ function usePortalData(token, refreshKey, endpoints) {
   return { data, error, loading, refreshEndpoint }
 }
 
+// This block shows a message or error on a portal page.
 function PortalMessage({ children, error = false }) {
   return children ? <div className={error ? 'message message-error' : 'message'} role="status">{children}</div> : null
 }
 
+// This block shows what to expect when a list has no records.
 function StaffEmptyState({ type, title, description, loading = false }) {
   return (
     <div className={`staff-empty-state${loading ? ' is-loading' : ''}`} role={loading ? 'status' : 'group'} aria-live={loading ? 'polite' : undefined}>
@@ -481,6 +503,7 @@ function StaffEmptyState({ type, title, description, loading = false }) {
   )
 }
 
+// This block shows a placeholder while page records are loading.
 function PortalSkeleton({ kind = 'table', rows = 4, columns = 5, label = 'Loading records' }) {
   const rowIndexes = Array.from({ length: rows }, (_, index) => index)
   const columnIndexes = Array.from({ length: columns }, (_, index) => index)
@@ -521,11 +544,13 @@ function PortalSkeleton({ kind = 'table', rows = 4, columns = 5, label = 'Loadin
   )
 }
 
+// This block formats an amount as Philippine pesos.
 function formatPesos(value) {
   const amount = Number(value || 0)
   return `PHP ${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
+// This block makes a ledger description easier to read.
 function formatLedgerDescription(description) {
   const formalDescriptions = {
     'Xendit Test Mode deposit confirmed by provider': 'Online savings deposit confirmed by payment provider.',
@@ -546,6 +571,7 @@ async function createSavingsLedgerPdf(ledger) {
     margin + columnWidths.slice(0, index).reduce((total, width) => total + width, 0)
   )
 
+  // This block shows the heading and actions for a portal page.
   function drawPageHeader() {
     pdf.setTextColor(25, 68, 51)
     pdf.setFont('helvetica', 'bold')
@@ -632,6 +658,7 @@ async function createSavingsLedgerPdf(ledger) {
   return dataUri.slice(dataUri.indexOf(',') + 1)
 }
 
+// This block formats a date using the local calendar date.
 function localDateString(date) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -639,6 +666,7 @@ function localDateString(date) {
   return `${year}-${month}-${day}`
 }
 
+// This block builds an estimated loan repayment schedule.
 function buildLoanSchedulePreview(amount, term, monthlyRate) {
   const principalCents = Math.round(Number(amount) * 100)
   const months = Number(term)
@@ -671,6 +699,7 @@ function buildLoanSchedulePreview(amount, term, monthlyRate) {
   })
 }
 
+// This block checks a loan request against its offer limits.
 function loanApplicationIsWithinLimits(product, eligibility, inputs) {
   const amount = Number(inputs?.amount)
   const term = Number(inputs?.term)
@@ -679,6 +708,7 @@ function loanApplicationIsWithinLimits(product, eligibility, inputs) {
     && Number.isInteger(term) && term >= 1 && term <= Number(product.max_term_months)
 }
 
+// This opens a simple print view for a record.
 function printRecord() {
   const cleanUp = () => document.body.classList.remove('printing-record')
   window.addEventListener('afterprint', cleanUp, { once: true })
@@ -686,6 +716,7 @@ function printRecord() {
   window.print()
 }
 
+// These dialogs show a savings ledger or member card on top of the current page.
 function SavingsLedgerDialog({ token, member, onClose }) {
   const [range, setRange] = useState({ preset: 'all', from: '', to: '' })
   const [ledger, setLedger] = useState(null)
@@ -721,6 +752,7 @@ function SavingsLedgerDialog({ token, member, onClose }) {
   }, [endpoint, range, token])
 
   useEffect(() => {
+    // This block closes the open dialog when Escape is pressed.
     function closeOnEscape(event) {
       if (event.key === 'Escape') onClose()
     }
@@ -728,6 +760,7 @@ function SavingsLedgerDialog({ token, member, onClose }) {
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [onClose])
 
+  // This block changes the date range shown in a report.
   function changeRange(nextRange) {
     setRange(nextRange)
     setLedger(null)
@@ -739,6 +772,7 @@ function SavingsLedgerDialog({ token, member, onClose }) {
     setLoading(nextRange.preset !== 'custom' || Boolean(nextRange.from && nextRange.to && nextRange.from <= nextRange.to))
   }
 
+  // This block selects a saved report date range.
   function choosePreset(preset) {
     const now = new Date()
     const today = localDateString(now)
@@ -777,10 +811,10 @@ function SavingsLedgerDialog({ token, member, onClose }) {
 
   return (
     <div className="record-modal-backdrop">
-      <section className="record-modal ledger-modal" role="dialog" aria-modal="true" aria-labelledby="ledger-title">
+      <section className="record-modal ledger-modal" role="dialog" aria-modal="true" aria-labelledby="ledger-title">{/* SECTION - shows record-modal. */}
         <div className="record-modal-heading no-print">
           <div><span className="eyebrow">Savings record</span><h2 id="ledger-title">Savings ledger</h2></div>
-          <button className="modal-close" type="button" onClick={onClose} aria-label="Close savings ledger">
+          <button className="modal-close" type="button" onClick={onClose} aria-label="Close savings ledger">{/* BUTTON - close savings ledger. */}
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>
           </button>
         </div>
@@ -797,8 +831,8 @@ function SavingsLedgerDialog({ token, member, onClose }) {
             <label>From<input type="date" value={range.from} max={range.to || undefined} onChange={(event) => changeRange({ ...range, from: event.target.value })} /></label>
             <label>Through<input type="date" value={range.to} min={range.from || undefined} max={TODAY} onChange={(event) => changeRange({ ...range, to: event.target.value })} /></label>
           </>}
-          <button className="button button-primary" type="button" onClick={printRecord} disabled={!ledger || loading}>Print / Save PDF</button>
-          <button className="button button-outline" type="button" onClick={emailLedgerPdf} disabled={!ledger || loading || emailSending}>
+          <button className="button button-primary" type="button" onClick={printRecord} disabled={!ledger || loading}>{/* BUTTON - print / save pdf. */}Print / Save PDF</button>
+          <button className="button button-outline" type="button" onClick={emailLedgerPdf} disabled={!ledger || loading || emailSending}>{/* BUTTON - email pdf to member. */}
             {emailSending ? 'Emailing PDF…' : member ? "Email PDF to member's registered email" : 'Email PDF to my account'}
           </button>
         </div>
@@ -851,6 +885,7 @@ function SavingsLedgerDialog({ token, member, onClose }) {
   )
 }
 
+// This block shows a member ID card.
 function MemberIdCardDialog({ token, memberId, onClose }) {
   const [card, setCard] = useState(null)
   const [qrImage, setQrImage] = useState('')
@@ -888,6 +923,7 @@ function MemberIdCardDialog({ token, memberId, onClose }) {
   }, [endpoint, token])
 
   useEffect(() => {
+    // This block closes the open dialog when Escape is pressed.
     function closeOnEscape(event) {
       if (event.key === 'Escape') onClose()
     }
@@ -897,10 +933,10 @@ function MemberIdCardDialog({ token, memberId, onClose }) {
 
   return (
     <div className="record-modal-backdrop">
-      <section className="record-modal member-card-modal" role="dialog" aria-modal="true" aria-labelledby="member-card-title">
+      <section className="record-modal member-card-modal" role="dialog" aria-modal="true" aria-labelledby="member-card-title">{/* SECTION - shows record-modal. */}
         <div className="record-modal-heading no-print">
           <div><span className="eyebrow">CoopWise member services</span><h2 id="member-card-title">Member ID card</h2></div>
-          <button className="modal-close" type="button" onClick={onClose} aria-label="Close member ID card">×</button>
+          <button className="modal-close" type="button" onClick={onClose} aria-label="Close member ID card">{/* BUTTON - close member id card. */}×</button>
         </div>
         {error && <PortalMessage error>{error}</PortalMessage>}
         {loading && <StaffEmptyState type="members" title="Preparing member card…" description="Creating a secure member verification QR code." loading />}
@@ -929,13 +965,14 @@ function MemberIdCardDialog({ token, memberId, onClose }) {
         </div>}
         {card && <div className="member-card-actions no-print">
           <p>The QR code contains a signed member identifier only. Scanning it verifies the current membership status; it does not display savings or contact details.</p>
-          <button className="button button-primary" type="button" onClick={printRecord}>Print / Save PDF</button>
+          <button className="button button-primary" type="button" onClick={printRecord}>{/* BUTTON - print / save pdf. */}Print / Save PDF</button>
         </div>}
       </section>
     </div>
   )
 }
 
+// This block checks and displays a member ID card.
 function MemberCardVerification({ verificationToken, theme, onToggleTheme }) {
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
@@ -965,7 +1002,7 @@ function MemberCardVerification({ verificationToken, theme, onToggleTheme }) {
         </a>
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </header>
-      <section className="member-verification-card" aria-live="polite">
+      <section className="member-verification-card" aria-live="polite">{/* SECTION - shows member-verification-card. */}
         <span className={`verification-mark${error ? ' verification-invalid' : ''}`} aria-hidden="true">{loading ? '…' : error ? '!' : '✓'}</span>
         <div className="eyebrow">CoopWise member verification</div>
         <h1>{loading ? 'Checking member card…' : error ? 'Card could not be verified' : 'Member card verified'}</h1>
@@ -986,6 +1023,7 @@ function MemberCardVerification({ verificationToken, theme, onToggleTheme }) {
   )
 }
 
+// This page handles loan eligibility, applications, repayments, and staff loan reviews.
 function LoanPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const [loansPage, setLoansPage] = useState(1)
@@ -1343,13 +1381,13 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   }
 
   return (
-    <section className="portal-section">
+    <section className="portal-section">{/* SECTION - shows portal-section. */}
       {!standalone && <div className="section-heading">
         <div>
           <h2>Loans</h2>
           <p className="muted">Review your document status and explore available loan offers.</p>
         </div>
-        <button className="button button-outline" type="button" onClick={refreshLoanData} disabled={loading || refreshing} aria-busy={refreshing}>
+        <button className="button button-outline" type="button" onClick={refreshLoanData} disabled={loading || refreshing} aria-busy={refreshing}>{/* BUTTON - refresh status. */}
           {loading || refreshing ? 'Checking…' : 'Refresh status'}
         </button>
       </div>}
@@ -1357,8 +1395,8 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
       {staff && <nav className="loan-subtabs" aria-label="Loan management sections">
-        <button className={`loan-subtab${activeStaffLoanTab === 'offers' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'offers' ? 'page' : undefined} onClick={() => setStaffLoanTab('offers')}>Loan offers</button>
-        <button className={`loan-subtab${activeStaffLoanTab === 'documents' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'documents' ? 'page' : undefined} onClick={() => setStaffLoanTab('documents')}>
+        <button className={`loan-subtab${activeStaffLoanTab === 'offers' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'offers' ? 'page' : undefined} onClick={() => setStaffLoanTab('offers')}>{/* BUTTON - loan offers. */}Loan offers</button>
+        <button className={`loan-subtab${activeStaffLoanTab === 'documents' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'documents' ? 'page' : undefined} onClick={() => setStaffLoanTab('documents')}>{/* BUTTON - document reviews. */}
           Document reviews
           {readinessSubmissions.length > 0 && <span className="loan-review-badge" aria-label={`${readinessSubmissions.length} pending document reviews`}>{readinessSubmissions.length}</span>}
         </button>
@@ -1368,7 +1406,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
             ? defaultStaffApplicationStatus
             : current)
           setLoansPage(1)
-        }}>
+        }}>{/* BUTTON - applications. */}
           Applications
           {pendingLoanCount > 0 && <span className="loan-review-badge" aria-label={`${pendingLoanCount} loan applications awaiting review`}>{pendingLoanCount}</span>}
         </button>
@@ -1377,7 +1415,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       {loading && <PortalSkeleton kind="cards" rows={3} label="Loading loan information" />}
 
       {!loading && staff && activeStaffLoanTab === 'documents' && (
-        <section>
+        <section>{/* SECTION - shows loan document review requests. */}
           <h3>Loan document reviews</h3>
           {data && readinessSubmissions.length === 0 && <p className="muted">No loan documents are waiting for review.</p>}
           {readinessSubmissions.map((submission) => (
@@ -1391,12 +1429,12 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                   <span>{document.original_name} · {Math.ceil(document.file_size / 1024)} KB</span>
                   <button className="text-button" type="button" onClick={async () => {
                     try { await openProtectedImage(token, `/loan-documents/${document.id}`) } catch (requestError) { setActionError(requestError.message) }
-                  }}>Open image</button>
+                  }}>{/* BUTTON - open image. */}Open image</button>
                 </li>
               ))}</ul>
               <div className="button-row">
-                <button className="button button-primary" type="button" onClick={() => reviewReadiness(submission.id, 'approve')}>Approve documents</button>
-                <button className="button button-outline" type="button" onClick={() => reviewReadiness(submission.id, 'reject')}>Request corrections</button>
+                <button className="button button-primary" type="button" onClick={() => reviewReadiness(submission.id, 'approve')}>{/* BUTTON - approve documents. */}Approve documents</button>
+                <button className="button button-outline" type="button" onClick={() => reviewReadiness(submission.id, 'reject')}>{/* BUTTON - request corrections. */}Request corrections</button>
               </div>
             </article>
           ))}
@@ -1404,7 +1442,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       )}
       {!loading && staff && activeStaffLoanTab === 'offers' && (
         <>
-          <section className="offers-section">
+          <section className="offers-section">{/* SECTION - shows offers-section. */}
             <h3>Loan offers</h3>
             {products.length === 0
               ? <p className="notice">No loan offers are configured yet. Create an active offer below so approved members can view it.</p>
@@ -1421,10 +1459,10 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                     <div><dt>Maximum term</dt><dd>{product.max_term_months} months</dd></div>
                   </dl>
                   <div className="button-row">
-                    <button className="button button-outline" type="button" onClick={() => toggleProduct(product)}>
+                    <button className="button button-outline" type="button" onClick={() => toggleProduct(product)}>{/* BUTTON - make available. */}
                       {product.status === 'active' ? 'Pause offer' : 'Make available'}
                     </button>
-                    <button className="button button-outline loan-offer-delete" type="button" onClick={() => deleteProduct(product)} disabled={deletingOfferId === product.id}>
+                    <button className="button button-outline loan-offer-delete" type="button" onClick={() => deleteProduct(product)} disabled={deletingOfferId === product.id}>{/* BUTTON - delete offer. */}
                       {deletingOfferId === product.id ? 'Deleting…' : 'Delete offer'}
                     </button>
                   </div>
@@ -1433,14 +1471,14 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           </section>
           <details className="portal-card">
             <summary>Create loan offer</summary>
-            <form className="form-grid" onSubmit={(event) => submit(event, '/loan-products', 'POST', 'Loan offer created.')}>
+            <form className="form-grid" onSubmit={(event) => submit(event, '/loan-products', 'POST', 'Loan offer created.')}>{/* FORM - saves a loan offer. */}
               <label>Product name<input name="name" required maxLength="100" /></label>
               <label>Monthly interest rate (%)<input name="interest_rate" type="number" min="0" max="99.99" step="0.01" required /></label>
               <label>Overdue interest (% per year)<input name="overdue_interest_rate" type="number" min="0" max="99.99" step="0.01" defaultValue="6.00" required /></label>
               <label>Maximum amount (PHP)<input name="max_amount" type="number" min="0.01" step="0.01" required /></label>
               <label>Maximum term (months)<input name="max_term_months" type="number" min="1" max="120" required /></label>
               <label className="full">Description<input name="description" maxLength="255" /></label>
-              <button className="button button-primary" type="submit">Create active offer</button>
+              <button className="button button-primary" type="submit">{/* BUTTON - create active offer. */}Create active offer</button>
             </form>
           </details>
         </>
@@ -1490,12 +1528,12 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                 {readiness?.status === 'approved' && <p className="notice">Your loan documents have been approved. You can now view the available loan offers below.</p>}
                 {readiness?.status === 'rejected' && <p className="message message-error">Your loan documents need corrections. Staff note: {readiness.review_note || 'Please upload a corrected document set.'}</p>}
                 {!error && readiness?.status !== 'pending' && readiness?.status !== 'approved' && (
-                  <form className="form-grid" onSubmit={submitReadiness}>
+                  <form className="form-grid" onSubmit={submitReadiness}>{/* FORM - submits loan documents for review. */}
                     <label className="full">Supporting document images
                       <input name="documents[]" type="file" accept="image/jpeg,image/png,image/webp" multiple required />
                       <small>Attach up to five images, 5 MB each and 7 MB combined. Follow the checklist given by your cooperative; requirements vary by product. Common examples may include a valid ID and proof of income or livelihood.</small>
                     </label>
-                    <button className="button button-primary" type="submit">Submit documents for review</button>
+                    <button className="button button-primary" type="submit">{/* BUTTON - submit documents for review. */}Submit documents for review</button>
                   </form>
                 )}
                 {readiness && data?.[3]?.documents?.length > 0 && (
@@ -1504,7 +1542,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                       <span>{document.original_name} · {Math.ceil(document.file_size / 1024)} KB</span>
                       <button className="text-button" type="button" onClick={async () => {
                         try { await openProtectedImage(token, `/loan-documents/${document.id}`) } catch (requestError) { setActionError(requestError.message) }
-                      }}>Open image</button>
+                      }}>{/* BUTTON - open image. */}Open image</button>
                     </li>
                   ))}</ul>
                 )}
@@ -1512,7 +1550,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
             )}
           </div>
           {readiness?.status === 'approved' && (
-            <section className="offers-section">
+            <section className="offers-section">{/* SECTION - shows offers-section. */}
               <div className="section-heading section-heading-compact">
                 <div><h3>Available loan offers</h3><p className="muted">Choose an offer to see its application form.</p></div>
               </div>
@@ -1561,7 +1599,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                     >
                       <summary>Apply for this offer</summary>
                       {!eligibility?.eligible && <p className="notice">You cannot submit an application yet. Review the eligibility reasons above.</p>}
-                      <form className="form-grid" onSubmit={(event) => submit(event, '/loans', 'POST', 'Loan application submitted.')}>
+                      <form className="form-grid" onSubmit={(event) => submit(event, '/loans', 'POST', 'Loan application submitted.')}>{/* FORM - submits a loan application. */}
                         <input type="hidden" name="loan_type_id" value={product.id} />
                         <label>Amount (PHP)<input name="amount" type="number" min="0.01" max={Math.min(Number(product.max_amount), Number(eligibility?.max_eligible_amount || 0))} step="0.01" required disabled={!eligibility?.eligible} value={applicationInputs[product.id]?.amount ?? ''} onChange={(event) => {
                           const rawAmount = event.target.value
@@ -1615,7 +1653,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                             <small>This is an estimate, not approval. The final schedule is generated after staff approval.</small>
                           </div>
                         )}
-                        <button className="button button-primary" type="submit" disabled={!eligibility?.eligible || !loanApplicationIsWithinLimits(product, eligibility, applicationInputs[product.id])}>Submit application for staff review</button>
+                        <button className="button button-primary" type="submit" disabled={!eligibility?.eligible || !loanApplicationIsWithinLimits(product, eligibility, applicationInputs[product.id])}>{/* BUTTON - submit application for staff review. */}Submit application for staff review</button>
                       </form>
                     </details>
                   </article>
@@ -1638,7 +1676,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
               setStaffApplicationStatus(status)
               setLoansPage(1)
             }}
-          >
+          >{/* BUTTON - filters loan applications by status. */}
             {label}<span className="loan-status-count">{loanStatusCounts[status] || 0}</span>
           </button>
         ))}
@@ -1680,7 +1718,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
               <button className="button button-outline" type="button" onClick={() => {
                 setRecordingLoanId(recordingLoanId === loan.id ? null : loan.id)
                 setRecordPaymentAmount('')
-              }}>
+              }}>{/* BUTTON - close payment form. */}
                 {recordingLoanId === loan.id ? 'Close payment form' : 'Record payment'}
               </button>
             )}
@@ -1691,17 +1729,17 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
                 onClick={() => emailLoanPaymentDetails(loan.id)}
                 disabled={sendingLoanEmailId === loan.id}
                 aria-busy={sendingLoanEmailId === loan.id}
-              >
+              >{/* BUTTON - email payment details. */}
                 {sendingLoanEmailId === loan.id ? 'Sending…' : 'Email payment details'}
               </button>
             )}
             {staff && loan.status === 'pending' && <>
-              <button className="button button-primary" type="button" onClick={() => reviewLoan(loan.id, 'approve')}>Approve</button>
-              <button className="button button-outline" type="button" onClick={() => reviewLoan(loan.id, 'reject')}>Reject</button>
+              <button className="button button-primary" type="button" onClick={() => reviewLoan(loan.id, 'approve')}>{/* BUTTON - approve. */}Approve</button>
+              <button className="button button-outline" type="button" onClick={() => reviewLoan(loan.id, 'reject')}>{/* BUTTON - reject. */}Reject</button>
             </>}
           </div>
           {staff && recordingLoanId === loan.id && (
-            <form className="form-grid staff-loan-payment-form" onSubmit={(event) => recordLoanPayment(event, loan)}>
+            <form className="form-grid staff-loan-payment-form" onSubmit={(event) => recordLoanPayment(event, loan)}>{/* FORM - records a loan payment. */}
               <p className="full notice">Record only a payment already received by the cooperative. Amounts reserved by a pending online checkout are unavailable. Recordable now: {formatPesos(loan.available_repayment_amount ?? loan.current_balance)}.</p>
               <label>Amount received (PHP)<input
                 name="amount"
@@ -1724,27 +1762,27 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
               /></label>
               <button className="button button-outline" type="button" onClick={() => {
                 setRecordPaymentAmount(Number(loan.available_repayment_amount ?? loan.current_balance).toFixed(2))
-              }}>Full balance</button>
+              }}>{/* BUTTON - full balance. */}Full balance</button>
               <label>Received via<select name="payment_method" defaultValue="cash" required>
                 <option value="cash">Cash</option>
                 <option value="bank">Bank transfer</option>
                 <option value="gcash">GCash</option>
                 <option value="check">Check</option>
               </select></label>
-              <button className="button button-primary" type="submit">Confirm received payment</button>
+              <button className="button button-primary" type="submit">{/* BUTTON - confirm received payment. */}Confirm received payment</button>
             </form>
           )}
         </article>
       ))}
       {staff && data?.[1]?.pagination && <div className="pagination-controls" aria-label="Loan history pages">
-        <button className="button button-outline" type="button" disabled={loansPage <= 1 || loading} onClick={() => setLoansPage((page) => page - 1)}>Previous</button>
+        <button className="button button-outline" type="button" disabled={loansPage <= 1 || loading} onClick={() => setLoansPage((page) => page - 1)}>{/* BUTTON - previous. */}Previous</button>
         <span>Page {loansPage}</span>
-        <button className="button button-outline" type="button" disabled={!data[1].pagination.has_more || loading} onClick={() => setLoansPage((page) => page + 1)}>Next</button>
+        <button className="button button-outline" type="button" disabled={!data[1].pagination.has_more || loading} onClick={() => setLoansPage((page) => page + 1)}>{/* BUTTON - next. */}Next</button>
       </div>}
       {!staff && (memberLoanHistory?.key === memberLoanHistoryKey
         ? memberLoanHistory.hasMore
         : Boolean(data?.[1]?.pagination?.has_more)) && <div className="load-more-row">
-        <button className="button button-outline" type="button" onClick={loadMoreLoans} disabled={loadingMoreLoans || loading}>
+        <button className="button button-outline" type="button" onClick={loadMoreLoans} disabled={loadingMoreLoans || loading}>{/* BUTTON - load more loans. */}
           {loadingMoreLoans ? 'Loading…' : 'Load more loans'}
         </button>
       </div>}
@@ -1753,15 +1791,15 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           <tbody>{payments.map((payment) => <tr key={payment.id}><td>{payment.loan_code}</td><td>{payment.first_name} {payment.last_name}</td><td>{formatPesos(payment.amount_paid)}</td><td>{payment.breakdown_recorded ? formatPesos(payment.principal_paid) : 'Legacy — not split'}</td><td>{payment.breakdown_recorded ? formatPesos(payment.interest_paid) : 'Legacy — not split'}</td><td>{payment.breakdown_recorded ? formatPesos(payment.overdue_interest_paid) : '—'}</td><td>{payment.payment_method}</td><td>{payment.payment_date}</td></tr>)}</tbody>
         </table></div> : <p className="muted">No payments recorded.</p>}
         {data?.[2]?.pagination && <div className="pagination-controls" aria-label="Loan payment pages">
-          <button className="button button-outline" type="button" disabled={paymentsPage <= 1 || loading} onClick={() => setPaymentsPage((page) => page - 1)}>Previous</button>
+          <button className="button button-outline" type="button" disabled={paymentsPage <= 1 || loading} onClick={() => setPaymentsPage((page) => page - 1)}>{/* BUTTON - previous. */}Previous</button>
           <span>Page {paymentsPage}</span>
-          <button className="button button-outline" type="button" disabled={!data[2].pagination.has_more || loading} onClick={() => setPaymentsPage((page) => page + 1)}>Next</button>
+          <button className="button button-outline" type="button" disabled={!data[2].pagination.has_more || loading} onClick={() => setPaymentsPage((page) => page + 1)}>{/* BUTTON - next. */}Next</button>
         </div>}
       </details>}
       </>}
       {schedule && (
         <div className="record-modal-backdrop">
-          <section className="record-modal loan-schedule-modal" role="dialog" aria-modal="true" aria-labelledby="loan-schedule-title">
+          <section className="record-modal loan-schedule-modal" role="dialog" aria-modal="true" aria-labelledby="loan-schedule-title">{/* SECTION - shows record-modal. */}
             <div className="record-modal-heading no-print">
               <div><span className="eyebrow">Credit services</span><h2 id="loan-schedule-title">{schedule.loan.loan_code} repayment schedule</h2></div>
               <div className="button-row"><button className="button button-primary" type="button" onClick={printRecord}>Print / Save PDF</button><button className="modal-close" type="button" onClick={() => setSchedule(null)} aria-label="Close repayment schedule">×</button></div>
@@ -1786,7 +1824,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
         </div>
       )}
       {pendingLoanApplication && <div className="record-modal-backdrop">
-        <section className="record-modal loan-application-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="loan-application-confirm-title">
+        <section className="record-modal loan-application-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="loan-application-confirm-title">{/* SECTION - shows record-modal. */}
           <div className="record-modal-heading">
             <div><span className="eyebrow">Review before submission</span><h2 id="loan-application-confirm-title">Confirm your loan application</h2></div>
           </div>
@@ -1802,8 +1840,8 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
           </dl>
           <p className="muted">The estimate is not an approval. Cooperative staff will review your application and confirm the final schedule.</p>
           <div className="button-row">
-            <button className="button button-outline" type="button" disabled={confirmingLoanApplication} onClick={() => setPendingLoanApplication(null)}>Go back and edit</button>
-            <button className="button button-primary" type="button" disabled={confirmingLoanApplication} onClick={confirmLoanApplication}>
+            <button className="button button-outline" type="button" disabled={confirmingLoanApplication} onClick={() => setPendingLoanApplication(null)}>{/* BUTTON - go back and edit. */}Go back and edit</button>
+            <button className="button button-primary" type="button" disabled={confirmingLoanApplication} onClick={confirmLoanApplication}>{/* BUTTON - confirm and submit application. */}
               {confirmingLoanApplication ? 'Submitting…' : 'Confirm and submit application'}
             </button>
           </div>
@@ -1813,6 +1851,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
   )
 }
 
+// This block shows daily cooperative contribution cycles and payouts.
 function CooperativePortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const [contributionPage, setContributionPage] = useState(1)
@@ -1831,6 +1870,7 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
   const cycles = cyclesData?.cycles || []
   const members = cyclesData?.members || []
 
+  // This block checks the details before creating a cooperative cycle.
   function reviewNewCycle(event) {
     event.preventDefault()
     const form = event.currentTarget
@@ -1919,7 +1959,7 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
   }
 
   return (
-    <section className="portal-section">
+    <section className="portal-section">{/* SECTION - shows portal-section. */}
       {!standalone && <>
         <h2>Daily rotating savings (Paluwagan)</h2>
         <p className="muted">Members pay their daily contribution through Xendit. Once everyone has paid, the next person in the randomized order is ready for the pooled payout. Staff confirm the simulated payout, which is then added to that member’s available balance.</p>
@@ -1928,25 +1968,25 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
       <PortalMessage>{notice}</PortalMessage>
 
       {staff && <>
-        <section className="cycle-create-card">
+        <section className="cycle-create-card">{/* SECTION - shows cycle-create-card. */}
           <div>
             <span className="eyebrow">Staff action</span>
             <h3>Create a daily cycle</h3>
           </div>
-          <form ref={createCycleForm} className="form-grid" onSubmit={reviewNewCycle}>
+          <form ref={createCycleForm} className="form-grid" onSubmit={reviewNewCycle}>{/* FORM - checks the cooperative cycle details before creation. */}
             <label>Cycle name<input name="name" required maxLength="120" /></label>
             <label>Daily contribution (PHP)<input name="daily_contribution" type="number" min="0.01" step="0.01" required /></label>
             <label>Start date<input name="start_date" type="date" min={TODAY} defaultValue={TODAY} required /></label>
             <label className="full">Members<select name="member_ids" multiple required size={Math.min(Math.max(members.length, 3), 8)}>
               {members.map((member) => <option key={member.id} value={member.id}>{member.member_number} · {member.first_name} {member.last_name}</option>)}
             </select><small>Select at least two active members. Hold Ctrl (Windows) or Command (Mac) to choose more than one.</small></label>
-            <button className="button button-primary cycle-create-button" type="submit">Review cycle details</button>
+            <button className="button button-primary cycle-create-button" type="submit">{/* BUTTON - review cycle details. */}Review cycle details</button>
           </form>
         </section>
         {cycles.some((cycle) => cycle.status === 'draft') && (
           <details className="portal-card">
             <summary>Add members to an existing draft</summary>
-            <form className="form-grid" onSubmit={enrollMembers}>
+            <form className="form-grid" onSubmit={enrollMembers}>{/* FORM - adds selected members to the cycle. */}
               <label>Draft cycle<select name="cycle_id" required value={draftCycleId} onChange={(event) => setDraftCycleId(event.target.value)}>
                 <option value="">Select a cycle</option>
                 {cycles.filter((cycle) => cycle.status === 'draft').map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}
@@ -1954,7 +1994,7 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
               <label className="full">Members<select name="member_ids" multiple required size={Math.min(Math.max(members.length, 3), 8)}>
                 {members.filter((member) => !cycles.find((cycle) => String(cycle.id) === draftCycleId)?.members.some((enrolled) => Number(enrolled.member_id) === Number(member.id))).map((member) => <option key={member.id} value={member.id}>{member.member_number} · {member.first_name} {member.last_name}</option>)}
               </select><small>The server assigns a randomized payout order.</small></label>
-              <button className="button button-outline" type="submit">Add selected members</button>
+              <button className="button button-outline" type="submit">{/* BUTTON - add selected members. */}Add selected members</button>
             </form>
           </details>
         )}
@@ -1970,14 +2010,14 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
           </div>
           <p>{cycle.today_contributions} of {cycle.member_count} contributions recorded today.</p>
           {staff && cycle.status === 'draft' && <div className="button-row">
-            <button className="button button-primary" type="button" onClick={() => changeCycle('/cooperative/cycles/activate', { cycle_id: cycle.id }, 'Cycle activated.')}>Activate cycle</button>
+            <button className="button button-primary" type="button" onClick={() => changeCycle('/cooperative/cycles/activate', { cycle_id: cycle.id }, 'Cycle activated.')}>{/* BUTTON - activate cycle. */}Activate cycle</button>
             <button
               className="button button-outline"
               type="button"
               disabled={cycle.can_remove === false}
               title={cycle.can_remove === false ? 'This draft has transaction history and cannot be removed.' : undefined}
               onClick={() => removeCycle(cycle)}
-            >Remove draft</button>
+            >{/* BUTTON - remove draft. */}Remove draft</button>
           </div>}
           {cycle.ready_payout && (
             <div className="payout-callout">
@@ -2001,27 +2041,27 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
           <tbody>{cyclesData.contributions.map((item) => <tr key={item.id}><td>{item.cycle_name}</td><td>{item.first_name} {item.last_name}</td><td>{item.contribution_date}</td><td>PHP {item.amount}</td></tr>)}</tbody>
         </table></div> : <p className="muted">No contributions recorded.</p>}
         {cyclesData.contributions_pagination && <div className="pagination-controls" aria-label="Paluwagan contribution pages">
-          <button className="button button-outline" type="button" disabled={contributionPage <= 1 || loading} onClick={() => setContributionPage((page) => page - 1)}>Previous</button>
+          <button className="button button-outline" type="button" disabled={contributionPage <= 1 || loading} onClick={() => setContributionPage((page) => page - 1)}>{/* BUTTON - previous. */}Previous</button>
           <span>Page {contributionPage}</span>
-          <button className="button button-outline" type="button" disabled={!cyclesData.contributions_pagination.has_more || loading} onClick={() => setContributionPage((page) => page + 1)}>Next</button>
+          <button className="button button-outline" type="button" disabled={!cyclesData.contributions_pagination.has_more || loading} onClick={() => setContributionPage((page) => page + 1)}>{/* BUTTON - next. */}Next</button>
         </div>}
         <h3>Payout history</h3>
         {cyclesData.payouts.length ? <div className="table-wrap"><table><thead><tr><th>Cycle</th><th>Recipient</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead>
           <tbody>{cyclesData.payouts.map((item) => <tr key={item.id}><td>{item.cycle_name}</td><td>{item.first_name} {item.last_name}</td><td>{item.payout_date}</td><td>PHP {item.amount}</td><td>{item.status}</td></tr>)}</tbody>
         </table></div> : <p className="muted">No payouts are recorded.</p>}
         {cyclesData.payouts_pagination && <div className="pagination-controls" aria-label="Paluwagan payout pages">
-          <button className="button button-outline" type="button" disabled={payoutPage <= 1 || loading} onClick={() => setPayoutPage((page) => page - 1)}>Previous</button>
+          <button className="button button-outline" type="button" disabled={payoutPage <= 1 || loading} onClick={() => setPayoutPage((page) => page - 1)}>{/* BUTTON - previous. */}Previous</button>
           <span>Page {payoutPage}</span>
-          <button className="button button-outline" type="button" disabled={!cyclesData.payouts_pagination.has_more || loading} onClick={() => setPayoutPage((page) => page + 1)}>Next</button>
+          <button className="button button-outline" type="button" disabled={!cyclesData.payouts_pagination.has_more || loading} onClick={() => setPayoutPage((page) => page + 1)}>{/* BUTTON - next. */}Next</button>
         </div>}
       </>}
       {cyclePreview && <div className="record-modal-backdrop" onMouseDown={(event) => {
         if (event.target === event.currentTarget && !creatingCycle) setCyclePreview(null)
       }}>
-        <section className="record-modal cycle-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="cycle-confirm-title">
+        <section className="record-modal cycle-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="cycle-confirm-title">{/* SECTION - shows record-modal. */}
           <div className="record-modal-heading">
             <div><span className="eyebrow">Review before creating</span><h2 id="cycle-confirm-title">Confirm daily cycle</h2></div>
-            <button className="modal-close" type="button" onClick={() => setCyclePreview(null)} disabled={creatingCycle} aria-label="Close cycle confirmation">×</button>
+            <button className="modal-close" type="button" onClick={() => setCyclePreview(null)} disabled={creatingCycle} aria-label="Close cycle confirmation">{/* BUTTON - close cycle confirmation. */}×</button>
           </div>
           <PortalMessage error>{actionError}</PortalMessage>
           <dl className="offer-facts">
@@ -2040,8 +2080,8 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
           </table></div>
           <p className="muted">Confirm that the cycle details and member list are correct. CoopWise will create a draft and randomize payout order; you can review it before activating.</p>
           <div className="button-row">
-            <button className="button button-outline" type="button" onClick={() => setCyclePreview(null)} disabled={creatingCycle}>Go back</button>
-            <button className="button button-primary" type="button" onClick={confirmNewCycle} disabled={creatingCycle}>
+            <button className="button button-outline" type="button" onClick={() => setCyclePreview(null)} disabled={creatingCycle}>{/* BUTTON - go back. */}Go back</button>
+            <button className="button button-primary" type="button" onClick={confirmNewCycle} disabled={creatingCycle}>{/* BUTTON - confirm and create cycle. */}
               {creatingCycle ? 'Creating…' : 'Confirm and create cycle'}
             </button>
           </div>
@@ -2051,6 +2091,7 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
   )
 }
 
+// This block shows member records and staff member actions.
 function MembersPortal({ token, standalone = false }) {
   const [query, setQuery] = useState('')
   const [members, setMembers] = useState([])
@@ -2083,7 +2124,7 @@ function MembersPortal({ token, standalone = false }) {
   }, [token, query])
 
   return (
-    <section className="portal-section">
+    <section className="portal-section">{/* SECTION - shows portal-section. */}
       <div className="section-heading members-heading">
         {!standalone && <h2>Members</h2>}
         <span className="status" aria-live="polite">{members.length} shown</span>
@@ -2107,9 +2148,9 @@ function MembersPortal({ token, standalone = false }) {
           <td>{member.account_role}</td>
           <td><span className={`status status-${member.status}`}>{member.status}</span></td>
           <td><div className="member-row-actions">
-            <button className="text-button" type="button" onClick={() => setLedgerMember(member)}>Savings ledger</button>
-            <button className="text-button" type="button" onClick={() => setCardMemberId(member.id)}>ID card</button>
-            <button className="text-button" type="button" onClick={() => setSelectedMember(selectedMember === member.id ? null : member.id)}>
+            <button className="text-button" type="button" onClick={() => setLedgerMember(member)}>{/* BUTTON - savings ledger. */}Savings ledger</button>
+            <button className="text-button" type="button" onClick={() => setCardMemberId(member.id)}>{/* BUTTON - id card. */}ID card</button>
+            <button className="text-button" type="button" onClick={() => setSelectedMember(selectedMember === member.id ? null : member.id)}>{/* BUTTON - details. */}
               {selectedMember === member.id ? 'Close' : 'Details'}
             </button>
           </div></td>
@@ -2129,6 +2170,7 @@ function MembersPortal({ token, standalone = false }) {
   )
 }
 
+// This block shows savings balances, payments, and the ledger.
 function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const [loadedTransactionHistory, setLoadedTransactionHistory] = useState(null)
@@ -2334,7 +2376,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
     ]
     const selectedDestination = destinations.find((destination) => destination.id === withdrawalChannel)
     return <section className="portal-section withdrawal-page">
-      <button className="text-button withdrawal-back-link" type="button" onClick={() => { setWithdrawalMode(false); setActionError('') }}>← Back to Savings</button>
+      <button className="text-button withdrawal-back-link" type="button" onClick={() => { setWithdrawalMode(false); setActionError('') }}>{/* BUTTON - ← back to savings. */}← Back to Savings</button>
       <div className="withdrawal-page-heading">
         <span className="withdrawal-page-icon"><StaffIcon name="savings" /></span>
         <div><span className="eyebrow">Savings</span><h2>Withdraw</h2><p>Choose an amount and destination. This records a withdrawal in CoopWise; it does not send money externally.</p></div>
@@ -2350,7 +2392,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
             <div className="withdrawal-currency-input"><span>PHP</span><input autoFocus type="number" min="0.01" max={((balance || 0) / 100).toFixed(2)} step="0.01" value={withdrawalAmount} onChange={(event) => { setWithdrawalAmount(event.target.value); setWithdrawalRequestKey(null) }} placeholder="0.00" /></div>
           </label>
           <div className="withdrawal-quick-amounts">{[100, 500, 1000].filter((amount) => amount <= (balance || 0) / 100).map((amount) => <button type="button" className="button button-outline" key={amount} onClick={() => { setWithdrawalAmount(String(amount)); setWithdrawalRequestKey(null) }}>PHP {amount}</button>)}</div>
-          <button className="button button-primary withdrawal-next" type="button" disabled={!Number(withdrawalAmount) || Number(withdrawalAmount) <= 0 || Math.round(Number(withdrawalAmount) * 100) > (balance || 0)} onClick={() => { setActionError(''); setWithdrawalStep(2) }}>Choose destination</button>
+          <button className="button button-primary withdrawal-next" type="button" disabled={!Number(withdrawalAmount) || Number(withdrawalAmount) <= 0 || Math.round(Number(withdrawalAmount) * 100) > (balance || 0)} onClick={() => { setActionError(''); setWithdrawalStep(2) }}>{/* BUTTON - choose destination. */}Choose destination</button>
         </>}
         {withdrawalStep === 2 && <>
           <span className="eyebrow">Step 2 of 3</span><h3>Where should the withdrawal go?</h3>
@@ -2376,15 +2418,15 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
   }
 
   return (
-    <section className="portal-section">
+    <section className="portal-section">{/* SECTION - shows portal-section. */}
       {!standalone && <h2>Savings</h2>}
       {!staff && <div className="savings-member-overview">
         <div className="portal-card savings-balance"><span>Available savings</span><strong>{loading && !data ? 'Loading…' : formatPesos((balance || 0) / 100)}</strong></div>
         <div className="savings-member-actions">
-          <button className="button button-outline" type="button" disabled={loading || !(balance > 0)} onClick={() => { setWithdrawalMode(true); setWithdrawalStep(1); setActionError('') }}>Withdraw</button>
-          <button className="button button-primary" type="button" onClick={onDeposit}>Deposit to savings</button>
+          <button className="button button-outline" type="button" disabled={loading || !(balance > 0)} onClick={() => { setWithdrawalMode(true); setWithdrawalStep(1); setActionError('') }}>{/* BUTTON - withdraw. */}Withdraw</button>
+          <button className="button button-primary" type="button" onClick={onDeposit}>{/* BUTTON - deposit to savings. */}Deposit to savings</button>
         </div>
-        <button className="button button-primary" type="button" onClick={() => { setSelectedSavingsMember(null); setLedgerOpen(true) }}>View / print my savings ledger</button>
+        <button className="button button-primary" type="button" onClick={() => { setSelectedSavingsMember(null); setLedgerOpen(true) }}>{/* BUTTON - view / print my savings ledger. */}View / print my savings ledger</button>
       </div>}
       {!staff && data?.[0]?.balance_breakdown && <div className="report-grid savings-balance-breakdown">
         <article className="portal-card"><span>Loan proceeds credited</span><strong>{formatPesos(data[0].balance_breakdown.loan_credits)}</strong></article>
@@ -2393,7 +2435,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
         <article className="portal-card"><span>Total withdrawals recorded</span><strong>{formatPesos(data[0].balance_breakdown.withdrawals)}</strong></article>
       </div>}
       {!staff && data && (
-        <form className="portal-card autopay-card" onSubmit={saveAutoPay}>
+        <form className="portal-card autopay-card" onSubmit={saveAutoPay}>{/* FORM - saves the savings auto-payment settings. */}
           <div className="autopay-heading"><div><span className="eyebrow">Optional convenience</span><h3>Automatic payments from savings</h3></div><button className="button button-primary" type="submit" disabled={autoPaySaving}>{autoPaySaving ? 'Saving…' : 'Save choices'}</button></div>
           <p>These choices are off until you opt in. When enabled, the daily payment job pays due amounts only when funds are available and records each savings withdrawal and matching payment. You can turn either option off at any time.</p>
           <label className="autopay-option"><input type="checkbox" checked={autoPaySettings.loan} onChange={(event) => setAutoPayDraft({ ...autoPaySettings, loan: event.target.checked })} /><span><strong>Loan installments</strong><small>Pay due loan installments from savings. If funds are short, an available partial amount may be applied to the earliest due installment.</small></span></label>
@@ -2429,7 +2471,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
           <label>Type<select value={transactionFilters.type} onChange={(event) => setTransactionFilters({ ...transactionFilters, type: event.target.value })}><option value="all">All activity</option><option value="deposit">Credits</option><option value="withdrawal">Withdrawals</option></select></label>
           <label>From<input type="date" value={transactionFilters.from} onChange={(event) => setTransactionFilters({ ...transactionFilters, from: event.target.value })} /></label>
           <label>To<input type="date" value={transactionFilters.to} onChange={(event) => setTransactionFilters({ ...transactionFilters, to: event.target.value })} /></label>
-          <button className="button button-outline" type="button" onClick={exportSavingsTransactions} disabled={!filteredTransactions.length || exportingTransactions}>{exportingTransactions ? 'Preparing export…' : 'Export filtered CSV'}</button>
+          <button className="button button-outline" type="button" onClick={exportSavingsTransactions} disabled={!filteredTransactions.length || exportingTransactions}>{/* BUTTON - export filtered csv. */}{exportingTransactions ? 'Preparing export…' : 'Export filtered CSV'}</button>
         </div>
       </div>}
       <div className="staff-subsection-title"><StaffIcon name="savings" /><h3>Transaction history</h3></div>
@@ -2443,7 +2485,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
         <td>{entry.type}</td><td>PHP {entry.amount}</td><td>PHP {entry.balance_after}</td><td>{entry.reference_no}</td><td>{entry.description || '—'}</td>
       </tr>)}</tbody></table></div>}
       {hasMoreTransactions && <div className="load-more-row">
-        <button className="button button-outline" type="button" disabled={loadingMoreTransactions || loading} onClick={loadMoreTransactions}>
+        <button className="button button-outline" type="button" disabled={loadingMoreTransactions || loading} onClick={loadMoreTransactions}>{/* BUTTON - load more. */}
           {loadingMoreTransactions ? 'Loading…' : 'Load more'}
         </button>
       </div>}
@@ -2452,6 +2494,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
   )
 }
 
+// This page shows share subscriptions, paid-up capital, and member-interest returns.
 function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const [transactionsPage, setTransactionsPage] = useState(1)
@@ -2733,7 +2776,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   }
 
   return (
-    <section className="portal-section">
+    <section className="portal-section">{/* SECTION - shows portal-section. */}
       {!standalone && <h2>Share capital</h2>}
       <p className="muted">Share capital represents member ownership in the cooperative. It is separate from savings and is not an ordinary savings withdrawal.</p>
       <PortalMessage error>{error || actionError}</PortalMessage>
@@ -2757,10 +2800,10 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
           <strong>{formatPesos(approvedReturnTotal)}</strong>
           <small>{staff ? `Still available to members: ${formatPesos(availableReturnSummary)}` : `Available to allocate: ${formatPesos(availableReturnSummary)}`}</small>
           {!staff && <div className="dividend-action-buttons">
-            <button className="button button-outline" type="button" disabled={!availableReturnTotal || Boolean(returnAction) || Boolean(loanInterestAction)} onClick={() => claimReturns('savings')}>
+            <button className="button button-outline" type="button" disabled={!availableReturnTotal || Boolean(returnAction) || Boolean(loanInterestAction)} onClick={() => claimReturns('savings')}>{/* BUTTON - add to savings. */}
               {returnAction === 'savings' ? 'Adding…' : 'Add to savings'}
             </button>
-            <button className="button button-outline" type="button" disabled={!availableReturnTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(returnAction) || Boolean(loanInterestAction)} onClick={() => claimReturns('share_capital')}>
+            <button className="button button-outline" type="button" disabled={!availableReturnTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(returnAction) || Boolean(loanInterestAction)} onClick={() => claimReturns('share_capital')}>{/* BUTTON - add to share capital. */}
               {returnAction === 'share_capital' ? 'Reinvesting…' : 'Add to share capital'}
             </button>
           </div>}
@@ -2780,10 +2823,10 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
           <strong>{formatPesos(memberLoanInterestTotal)}</strong>
           <small>Available to claim: {formatPesos(availableLoanInterestTotal)}. This is separate from annual approved surplus distributions.</small>
           <div className="dividend-action-buttons">
-            <button className="button button-outline" type="button" disabled={!availableLoanInterestTotal || Boolean(loanInterestAction) || Boolean(returnAction)} onClick={() => claimLoanInterestReturns('savings')}>
+            <button className="button button-outline" type="button" disabled={!availableLoanInterestTotal || Boolean(loanInterestAction) || Boolean(returnAction)} onClick={() => claimLoanInterestReturns('savings')}>{/* BUTTON - add to savings. */}
               {loanInterestAction === 'savings' ? 'Adding…' : 'Add to savings'}
             </button>
-            <button className="button button-outline" type="button" disabled={!availableLoanInterestTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(loanInterestAction) || Boolean(returnAction)} onClick={() => claimLoanInterestReturns('share_capital')}>
+            <button className="button button-outline" type="button" disabled={!availableLoanInterestTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(loanInterestAction) || Boolean(returnAction)} onClick={() => claimLoanInterestReturns('share_capital')}>{/* BUTTON - add to share capital. */}
               {loanInterestAction === 'share_capital' ? 'Reinvesting…' : 'Add to share capital'}
             </button>
           </div>
@@ -2812,19 +2855,19 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
         {hasOwnInvestorProfile && <>
           <article className="portal-card"><span>Admin savings balance</span><strong>{formatPesos(data?.[1]?.member_savings_balance)}</strong></article>
           <div className="dividend-action-buttons">
-            <button className="button button-outline" type="button" disabled={!availableReturnTotal || Boolean(returnAction) || Boolean(loanInterestAction)} onClick={() => claimReturns('savings')}>
+            <button className="button button-outline" type="button" disabled={!availableReturnTotal || Boolean(returnAction) || Boolean(loanInterestAction)} onClick={() => claimReturns('savings')}>{/* BUTTON - add to admin savings. */}
               {returnAction === 'savings' ? 'Adding…' : `Add ${formatPesos(availableReturnTotal)} to admin savings`}
             </button>
-            <button className="button button-outline" type="button" disabled={!availableReturnTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(returnAction) || Boolean(loanInterestAction)} onClick={() => claimReturns('share_capital')}>
+            <button className="button button-outline" type="button" disabled={!availableReturnTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(returnAction) || Boolean(loanInterestAction)} onClick={() => claimReturns('share_capital')}>{/* BUTTON - reinvest in admin share capital. */}
               {returnAction === 'share_capital' ? 'Reinvesting…' : 'Reinvest in admin share capital'}
             </button>
           </div>
           <p className="muted">Available loan-interest returns: {formatPesos(availableLoanInterestTotal)}</p>
           <div className="dividend-action-buttons">
-            <button className="button button-outline" type="button" disabled={!availableLoanInterestTotal || Boolean(loanInterestAction) || Boolean(returnAction)} onClick={() => claimLoanInterestReturns('savings')}>
+            <button className="button button-outline" type="button" disabled={!availableLoanInterestTotal || Boolean(loanInterestAction) || Boolean(returnAction)} onClick={() => claimLoanInterestReturns('savings')}>{/* BUTTON - add loan-interest returns to admin savings. */}
               {loanInterestAction === 'savings' ? 'Adding…' : 'Add loan-interest returns to admin savings'}
             </button>
-            <button className="button button-outline" type="button" disabled={!availableLoanInterestTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(loanInterestAction) || Boolean(returnAction)} onClick={() => claimLoanInterestReturns('share_capital')}>
+            <button className="button button-outline" type="button" disabled={!availableLoanInterestTotal || !ownSubscriptions.some((item) => item.status === 'active') || Boolean(loanInterestAction) || Boolean(returnAction)} onClick={() => claimLoanInterestReturns('share_capital')}>{/* BUTTON - reinvest loan-interest returns. */}
               {loanInterestAction === 'share_capital' ? 'Reinvesting…' : 'Reinvest loan-interest returns'}
             </button>
           </div>
@@ -2865,13 +2908,13 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
           <span>Available savings</span>
           <strong>{loading && savingsBalance === undefined ? 'Loading…' : formatPesos((savingsBalance || 0) / 100)}</strong>
         </div>
-        <form className="form-grid" onSubmit={submitMemberContribution}>
+        <form className="form-grid" onSubmit={submitMemberContribution}>{/* FORM - records a member contribution to the cooperative cycle. */}
           <label>Contribution amount (PHP)<input name="amount" type="number" min="0.01" max="9999999999.99" step="0.01" required /></label>
           <label>Pay using<select name="payment_method" defaultValue="xendit" required>
             <option value="xendit">Xendit checkout</option>
             <option value="savings">Available savings</option>
           </select></label>
-          <button className="button button-primary full" type="submit" disabled={memberContributionSubmitting || !capital?.share_par_value}>
+          <button className="button button-primary full" type="submit" disabled={memberContributionSubmitting || !capital?.share_par_value}>{/* BUTTON - contribute to share capital. */}
             {memberContributionSubmitting ? 'Preparing contribution…' : 'Contribute to share capital'}
           </button>
         </form>
@@ -2913,7 +2956,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
         {user.role === 'admin' && <details className="portal-card">
           <summary>Contribute to share capital</summary>
           <p className="muted">Record the admin account’s own share-capital contribution. This creates a linked investor profile if needed and records only share-capital ownership—no savings account, loan access, or other member services are enabled.</p>
-          <form className="form-grid" onSubmit={submitAdminInvestment}>
+          <form className="form-grid" onSubmit={submitAdminInvestment}>{/* FORM - records the admin share-capital contribution. */}
             <label>Shares to purchase<input name="subscribed_shares" type="number" min="1" step="1" required /></label>
             <label>Par value per share (PHP)<input name="par_value" type="number" min="0.01" step="0.01" required /></label>
             <label>Payment received via<select name="payment_method" defaultValue="cash" required>
@@ -2922,7 +2965,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
               <option value="gcash">GCash</option>
               <option value="check">Check</option>
             </select></label>
-            <button className="button button-primary" type="submit" disabled={adminInvestmentSubmitting}>
+            <button className="button button-primary" type="submit" disabled={adminInvestmentSubmitting}>{/* BUTTON - record admin contribution. */}
               {adminInvestmentSubmitting ? 'Recording contribution…' : 'Record admin contribution'}
             </button>
           </form>
@@ -2975,12 +3018,12 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
         </tr>)}</tbody>
       </table></div>}
       {staff && capital?.pagination && <div className="pagination-controls" aria-label="Share capital history pages">
-        <button className="button button-outline" type="button" disabled={transactionsPage <= 1 || loading} onClick={() => setTransactionsPage((page) => page - 1)}>Previous</button>
+        <button className="button button-outline" type="button" disabled={transactionsPage <= 1 || loading} onClick={() => setTransactionsPage((page) => page - 1)}>{/* BUTTON - previous. */}Previous</button>
         <span>Page {transactionsPage}</span>
-        <button className="button button-outline" type="button" disabled={!capital.pagination.has_more || loading} onClick={() => setTransactionsPage((page) => page + 1)}>Next</button>
+        <button className="button button-outline" type="button" disabled={!capital.pagination.has_more || loading} onClick={() => setTransactionsPage((page) => page + 1)}>{/* BUTTON - next. */}Next</button>
       </div>}
       {!staff && memberTransactionsHaveMore && <div className="load-more-row">
-        <button className="button button-outline" type="button" disabled={loadingMoreTransactions || loading} onClick={loadMoreShareCapitalTransactions}>
+        <button className="button button-outline" type="button" disabled={loadingMoreTransactions || loading} onClick={loadMoreShareCapitalTransactions}>{/* BUTTON - load more contributions. */}
           {loadingMoreTransactions ? 'Loading…' : 'Load more contributions'}
         </button>
       </div>}
@@ -2988,6 +3031,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
   )
 }
 
+// This block explains the cooperative features used in this project.
 function LearningCenter({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const { data, error, loading } = usePortalData(token, refreshKey, POLICY_ENDPOINTS)
@@ -3031,7 +3075,7 @@ function LearningCenter({ token, user, refreshKey, standalone = false }) {
       <article className="portal-card"><span className="eyebrow">06 · Records</span><h3>Keep the history clear</h3><p>Each balance credit or debit should have a source and reference. Share capital stays separate, and corrections should be recorded with a reason rather than deleting history.</p></article>
       <article className="portal-card"><span className="eyebrow">07 · Member returns</span><h3>Surplus and loan-interest returns are different</h3><p>Annual surplus distributions require cooperative review and approval; they may include interest on share capital and patronage refunds. In this CoopWise simulation, regular loan interest is separately allocated equally among active investors with paid-up share capital when collected. Overdue penalties are excluded, and these equal loan-interest returns are not a guaranteed annual dividend.</p></article>
     </div>
-    <section className="policy-section">
+    <section className="policy-section">{/* SECTION - shows policy-section. */}
       <div className="section-heading"><div><h3>Cooperative policies for this demo</h3><p className="muted">These are this project’s sample rules, not universal cooperative rules or legal advice.</p></div></div>
       <PortalMessage error>{error || actionError}</PortalMessage>
       <PortalMessage>{notice}</PortalMessage>
@@ -3050,7 +3094,7 @@ function LearningCenter({ token, user, refreshKey, standalone = false }) {
         <label>Minimum savings balance (PHP)<input type="number" min="0" step="0.01" required value={policies.minimum_savings_balance ?? '0.00'} onChange={(event) => setPolicyDraft({ ...policies, minimum_savings_balance: event.target.value })} /></label>
         <label>Maximum loan ÷ paid-up share capital<input type="number" min="0" max="100" step="0.01" required value={policies.loan_to_paid_up_share_capital_multiplier ?? '1.00'} onChange={(event) => setPolicyDraft({ ...policies, loan_to_paid_up_share_capital_multiplier: event.target.value })} /></label>
         <label className="full">Cooperative registration date (required for surplus distribution)<input type="date" max={TODAY} value={policies.cooperative_registration_date || ''} onChange={(event) => setPolicyDraft({ ...policies, cooperative_registration_date: event.target.value })} /><small>Used to apply the first-five-years reserve rule when staff prepare an annual surplus distribution.</small></label>
-        <button className="button button-primary" type="submit" disabled={!policyDraft}>Save demo policies</button>
+        <button className="button button-primary" type="submit" disabled={!policyDraft}>{/* BUTTON - save demo policies. */}Save demo policies</button>
         {policies.updated_at && <small className="full">Last updated: {policies.updated_at}</small>}
       </form>}
       {policies && !staff && <div className="policy-grid">
@@ -3065,6 +3109,7 @@ function LearningCenter({ token, user, refreshKey, standalone = false }) {
   </section>
 }
 
+// This block walks the user through the classroom demonstration.
 function DemoGuide({ setSection, standalone = false }) {
   const steps = [
     { title: 'Understand the cooperative', section: 'learning', description: 'Learn what membership, share capital, loans, and Paluwagan mean in this classroom demo.' },
@@ -3090,11 +3135,12 @@ function DemoGuide({ setSection, standalone = false }) {
     <ol className="demo-step-list">{steps.map((step, index) => <li className="portal-card demo-step" key={step.title}>
       <span className="demo-step-number">{index + 1}</span>
       <div><h3>{step.title}</h3><p>{step.description}</p></div>
-      <button className="button button-outline" type="button" onClick={() => setSection(step.section)}>Open section</button>
+      <button className="button button-outline" type="button" onClick={() => setSection(step.section)}>{/* BUTTON - open section. */}Open section</button>
     </li>)}</ol>
   </section>
 }
 
+// This block draws a chart from the report data.
 function GoogleReportChart({ title, rows, type = 'column' }) {
   const containerRef = useRef(null)
   const [chartError, setChartError] = useState('')
@@ -3174,6 +3220,7 @@ function GoogleReportChart({ title, rows, type = 'column' }) {
   </article>
 }
 
+// This block shows the details saved in an activity record.
 function ActivityDetails({ details }) {
   if (!details) return '—'
 
@@ -3206,6 +3253,7 @@ function ActivityDetails({ details }) {
   </span>
 }
 
+// This block shows cooperative reports and recent activity.
 function ReportsPortal({ token, refreshKey, standalone = false }) {
   const { data, error, loading } = usePortalData(token, refreshKey, REPORT_ENDPOINTS)
   const report = data?.[0]
@@ -3254,7 +3302,7 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
   }
 
   return (
-    <section className="portal-section">
+    <section className="portal-section">{/* SECTION - shows portal-section. */}
       <PortalMessage error>{error}</PortalMessage>
       <PortalMessage error>{actionError}</PortalMessage>
       {!report && loading && <PortalSkeleton kind="metrics" rows={4} label="Loading report figures" />}
@@ -3321,6 +3369,7 @@ function ReportsPortal({ token, refreshKey, standalone = false }) {
   )
 }
 
+// This block shows payment choices and payment history.
 function PaymentPortal({ token, user, refreshKey, standalone = false, initialPurpose = 'loan' }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const [transactionsPage, setTransactionsPage] = useState(1)
@@ -3562,7 +3611,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
   }
 
   return (
-    <section className="portal-section">
+    <section className="portal-section">{/* SECTION - shows portal-section. */}
       {!staff && !standalone && <div className="section-heading">
         <div>
           <div className="eyebrow">Secure checkout</div>
@@ -3579,7 +3628,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
         </div>
       )}
       {!staff && (
-        <form className="portal-card form-grid" key={replacementPayment?.transaction_id || 'new-payment'} onSubmit={startCheckout}>
+        <form className="portal-card form-grid" key={replacementPayment?.transaction_id || 'new-payment'} onSubmit={startCheckout}>{/* FORM - starts checkout for the selected payment. */}
           <label>Payment method
             <select name="payment_method" value={purpose === 'savings' ? 'xendit' : paymentMethod} disabled={purpose === 'savings'} onChange={(event) => setPaymentMethod(event.target.value)} required>
               <option value="xendit">Xendit checkout</option>
@@ -3652,7 +3701,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
             {purpose === 'loan' && <button className="button button-outline" type="button" disabled={!selectedLoan || maximumLoanPayment < 0.01} onClick={() => setPaymentAmount(maximumLoanPayment.toFixed(2))}>Full</button>}
           </div>
           {purpose === 'paluwagan' && <p className="full muted">The amount must equal the selected cycle’s daily contribution. Only one payment is accepted per member per day.</p>}
-          <button className="button button-primary full" type="submit" disabled={submitting}>{submitting
+          <button className="button button-primary full" type="submit" disabled={submitting}>{/* BUTTON - continue to payment provider. */}{submitting
             ? (effectivePaymentMethod === 'xendit' ? 'Opening secure checkout…' : 'Processing savings payment…')
             : (effectivePaymentMethod === 'xendit' ? 'Continue to payment provider' : 'Pay from savings')}</button>
           {submitting && effectivePaymentMethod === 'xendit' && <p className="full muted" role="status">{slowCheckout
@@ -3661,7 +3710,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
         </form>
       )}
       <div className="item-heading"><h3>{staff ? 'All member transactions' : 'Your transactions'}</h3>
-        <button className="button button-outline" type="button" onClick={() => window.dispatchEvent(new Event('coopwise:refresh'))}>Refresh</button>
+        <button className="button button-outline" type="button" onClick={() => window.dispatchEvent(new Event('coopwise:refresh'))}>{/* BUTTON - refresh. */}Refresh</button>
       </div>
       {loading && transactions.length === 0 && <PortalSkeleton rows={5} columns={staff ? 8 : 7} label="Loading payment transactions" />}
       {!loading && !error && transactions.length === 0 && <StaffEmptyState type="payment" title="No payment transactions yet." description="Completed Xendit payments, staff-recorded repayments, savings deposits, and savings-funded payments will appear here." />}
@@ -3679,18 +3728,18 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
             {transaction.review_note && <small>{transaction.review_note}</small>}</td>
           {!staff && <td>{['pending', 'needs_review'].includes(transaction.status) && <>
             {transaction.checkout_url && <a className="text-button" href={transaction.checkout_url} target="_blank" rel="noreferrer">Open checkout</a>}
-            <button className="text-button" type="button" disabled={checkingPayment === transaction.id} onClick={() => refreshPayment(transaction)}>{checkingPayment === transaction.id ? 'Checking…' : 'Check status'}</button>
+            <button className="text-button" type="button" disabled={checkingPayment === transaction.id} onClick={() => refreshPayment(transaction)}>{/* BUTTON - check status. */}{checkingPayment === transaction.id ? 'Checking…' : 'Check status'}</button>
             {transaction.status === 'pending' && transaction.payment_method === 'xendit' && <button className="text-button" type="button" disabled={cancellingPayment === transaction.id || checkingPayment === transaction.id} onClick={() => cancelAndSwitchToSavings(transaction)}>{cancellingPayment === transaction.id ? 'Cancelling…' : 'Cancel & switch to savings'}</button>}
           </>}</td>}
         </tr>)}</tbody>
       </table></div>}
       {staff && transactionsPagination && <div className="pagination-controls" aria-label="Payment history pages">
-        <button className="button button-outline" type="button" disabled={transactionsPage <= 1 || loading} onClick={() => setTransactionsPage((page) => page - 1)}>Previous</button>
+        <button className="button button-outline" type="button" disabled={transactionsPage <= 1 || loading} onClick={() => setTransactionsPage((page) => page - 1)}>{/* BUTTON - previous. */}Previous</button>
         <span>Page {transactionsPage}</span>
-        <button className="button button-outline" type="button" disabled={!transactionsPagination.has_more || loading} onClick={() => setTransactionsPage((page) => page + 1)}>Next</button>
+        <button className="button button-outline" type="button" disabled={!transactionsPagination.has_more || loading} onClick={() => setTransactionsPage((page) => page + 1)}>{/* BUTTON - next. */}Next</button>
       </div>}
       {!staff && memberTransactionsHaveMore && <div className="load-more-row">
-        <button className="button button-outline" type="button" disabled={loadingMoreTransactions || loading} onClick={loadMorePaymentTransactions}>
+        <button className="button button-outline" type="button" disabled={loadingMoreTransactions || loading} onClick={loadMorePaymentTransactions}>{/* BUTTON - load more transactions. */}
           {loadingMoreTransactions ? 'Loading…' : 'Load more transactions'}
         </button>
       </div>}
@@ -3698,6 +3747,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
   )
 }
 
+// These lists control which pages staff and members can open from the side menu.
 const STAFF_NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
   { id: 'learning', label: 'Co-op Guide', icon: 'learning' },
@@ -3750,6 +3800,7 @@ const MEMBER_PAGE_DETAILS = {
   terms: ['Terms & Conditions', 'Review the account terms and cooperative service guidelines.'],
 }
 
+// This block shows the icon for a staff navigation item.
 function StaffIcon({ name }) {
   const paths = {
     dashboard: <><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" /></>,
@@ -3767,6 +3818,7 @@ function StaffIcon({ name }) {
   return <svg className="staff-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
 }
 
+// This connects the selected menu item to the right member or staff page.
 function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, refreshKey, paymentInitialPurpose, onSavingsDeposit, resetPaymentPurpose, onBlockedLoanAccess }) {
   const [memberCardOpen, setMemberCardOpen] = useState(false)
   const tabs = [
@@ -3799,7 +3851,7 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
         </article>}
       </div>
       {!staff && user.member && <div className="member-dashboard-actions">
-        <button className="button button-outline" type="button" onClick={() => setMemberCardOpen(true)}>View / print my member ID</button>
+        <button className="button button-outline" type="button" onClick={() => setMemberCardOpen(true)}>{/* BUTTON - view / print my member id. */}View / print my member ID</button>
       </div>}
       <nav className="staff-service-tabs" aria-label="Cooperative services">
         {tabs.map((tab) => (
@@ -3816,7 +3868,7 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
               if (tab.id === 'payments') resetPaymentPurpose()
               setSelectedTab(tab.id)
             }}
-          >
+          >{/* BUTTON - opens the selected portal page. */}
             {tab.label}
           </button>
         ))}
@@ -3839,6 +3891,7 @@ function ServiceDashboard({ token, user, staff, selectedTab, setSelectedTab, ref
   )
 }
 
+// This block shows the account terms and conditions.
 function TermsAndConditionsDocument() {
   return (
     <article className="terms-document">
@@ -3861,11 +3914,13 @@ function TermsAndConditionsDocument() {
   )
 }
 
+// This block asks a new user to accept or decline the terms.
 function TermsDecisionDialog({ onAccept, onDecline, saving, error }) {
   const [reachedEnd, setReachedEnd] = useState(false)
   const [accepted, setAccepted] = useState(false)
   const termsRef = useRef(null)
 
+  // This block checks whether the user has reached the bottom of the terms.
   function updateScrollStatus() {
     const element = termsRef.current
     if (element && element.scrollTop + element.clientHeight >= element.scrollHeight - 8) {
@@ -3875,7 +3930,7 @@ function TermsDecisionDialog({ onAccept, onDecline, saving, error }) {
 
   return (
     <div className="record-modal-backdrop terms-modal-backdrop">
-      <section className="record-modal terms-modal" role="dialog" aria-modal="true" aria-labelledby="terms-dialog-title">
+      <section className="record-modal terms-modal" role="dialog" aria-modal="true" aria-labelledby="terms-dialog-title">{/* SECTION - shows record-modal. */}
         <div className="record-modal-heading">
           <div><span className="eyebrow">Required for new accounts</span><h2 id="terms-dialog-title">Terms & Conditions</h2></div>
         </div>
@@ -3890,10 +3945,11 @@ function TermsDecisionDialog({ onAccept, onDecline, saving, error }) {
           <span>I have read and agree to these Terms & Conditions.</span>
         </label>
         <div className="button-row terms-actions">
+          {/* SIGN OUT BUTTON - signs out the user. */}
           <button className="button button-outline" type="button" disabled={!reachedEnd || saving} onClick={onDecline}>
             I do not agree — sign out
           </button>
-          <button className="button button-primary" type="button" disabled={!reachedEnd || !accepted || saving} onClick={onAccept}>
+          <button className="button button-primary" type="button" disabled={!reachedEnd || !accepted || saving} onClick={onAccept}>{/* BUTTON - recording acceptance…. */}
             {saving ? 'Recording acceptance…' : 'Agree and continue'}
           </button>
         </div>
@@ -3902,6 +3958,7 @@ function TermsDecisionDialog({ onAccept, onDecline, saving, error }) {
   )
 }
 
+// This block shows the staff navigation and selected staff page.
 function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOut, theme, onToggleTheme }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [dashboardTab, setDashboardTab] = useState('savings')
@@ -3913,6 +3970,7 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
   const [pageTitle, pageDescription] = pageDetails[section] || pageDetails.dashboard
   const initials = user.full_name.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
 
+  // This block opens the page selected from the menu.
   function navigate(nextSection) {
     if (nextSection === 'loans' && user.role === 'member' && !user.member?.loan_age_eligible) {
       setLoanAgeNoticeOpen(true)
@@ -3924,6 +3982,7 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
     setSidebarOpen(false)
   }
 
+  // This block opens the savings deposit form.
   function openSavingsDeposit() {
     setPaymentInitialPurpose('savings')
     if (section === 'dashboard') {
@@ -3954,19 +4013,19 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
               key={item.id}
               aria-current={section === item.id ? 'page' : undefined}
               onClick={() => navigate(item.id)}
-            >
+            >{/* BUTTON - opens the selected staff page. */}
               <StaffIcon name={item.icon} /><span>{item.label}</span>
             </button>
           ))}
         </nav>
-        <button className="staff-sign-out" type="button" onClick={onSignOut}>
+        <button className="staff-sign-out" type="button" onClick={onSignOut}>{/* SIGN OUT BUTTON - signs out the user. */}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3" /><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" /></svg>
           <span>Sign out</span>
         </button>
       </aside>
       <div className="staff-main">
         <header className="staff-topbar">
-          <button className="staff-menu-toggle" type="button" aria-label="Open navigation" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(!sidebarOpen)}>
+          <button className="staff-menu-toggle" type="button" aria-label="Open navigation" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(!sidebarOpen)}>{/* BUTTON - open navigation. */}
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
           <span className="staff-topbar-label">{staff ? 'Cooperative management' : 'Member services'}</span>
@@ -3976,7 +4035,7 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
             <span className="staff-avatar" aria-label={user.full_name}>{initials}</span>
           </div>
         </header>
-        <section className={`staff-page-banner${section === 'dashboard' ? '' : ' staff-page-banner-module'}`}>
+        <section className={`staff-page-banner${section === 'dashboard' ? '' : ' staff-page-banner-module'}`}>{/* SECTION - shows staff-page-banner. */}
           {section !== 'dashboard' && <span className="staff-page-icon"><StaffIcon name={navItems.find((item) => item.id === section)?.icon || 'dashboard'} /></span>}
           <div className="staff-banner-copy">
             {section === 'dashboard' && <h1>Welcome, {user.full_name} 👋</h1>}
@@ -4021,18 +4080,19 @@ function StaffWorkspace({ token, user, section, setSection, refreshKey, onSignOu
         </div>
       </div>
       {loanAgeNoticeOpen && <div className="record-modal-backdrop">
-        <section className="record-modal loan-age-modal" role="dialog" aria-modal="true" aria-labelledby="loan-age-title">
+        <section className="record-modal loan-age-modal" role="dialog" aria-modal="true" aria-labelledby="loan-age-title">{/* SECTION - shows record-modal. */}
           <div className="record-modal-heading"><div><span className="eyebrow">Loan access</span><h2 id="loan-age-title">Not yet eligible for loan services</h2></div></div>
           <p>{user.member?.loan_age === null || user.member?.loan_age === undefined
             ? 'A valid date of birth is required to check loan eligibility. Please contact cooperative staff to review your member profile.'
             : 'CoopWise loan applications and document submissions are available only to members aged 20 or older. You can continue using the other cooperative services available to your account.'}</p>
-          <button className="button button-primary" type="button" onClick={() => setLoanAgeNoticeOpen(false)}>Close</button>
+          <button className="button button-primary" type="button" onClick={() => setLoanAgeNoticeOpen(false)}>{/* BUTTON - close. */}Close</button>
         </section>
       </div>}
     </div>
   )
 }
 
+// This is the starting point for sign-in, account setup, and the main dashboard.
 function App() {
   const [theme, setTheme] = useState(() => {
     const savedTheme = window.localStorage.getItem('coopwise_theme')
@@ -4060,6 +4120,7 @@ function App() {
   const [termsError, setTermsError] = useState('')
 
   useEffect(() => {
+    // This block updates the member's investor status after a change.
     function updateMemberInvestorStatus(event) {
       if (typeof event.detail?.is_investor !== 'boolean') return
       setUser((current) => current?.role === 'member' && current.member
@@ -4077,6 +4138,7 @@ function App() {
     window.dispatchEvent(new Event('coopwise:theme-change'))
   }, [theme])
 
+  // This block switches between light and dark mode.
   function toggleTheme() {
     setTheme((currentTheme) => currentTheme === 'dark' ? 'light' : 'dark')
   }
@@ -4149,6 +4211,7 @@ function App() {
     return () => window.removeEventListener('coopwise:session-expired', expired)
   }, [])
 
+  // This block saves the sign-in tokens and opens the dashboard.
   function finishSignIn(result) {
     sessionStorage.setItem('coopwise_access_token', result.access_token)
     sessionStorage.setItem('coopwise_refresh_token', result.refresh_token)
@@ -4158,6 +4221,7 @@ function App() {
     setSection('dashboard')
   }
 
+  // This block removes saved sign-in data from this browser tab.
   function clearSavedSession() {
     invalidatePortalDataCache()
     sessionStorage.removeItem('coopwise_access_token')
@@ -4170,6 +4234,7 @@ function App() {
     setMessage('Your saved session was cleared. Sign in again.')
   }
 
+  // This block changes between sign-in, registration, and password reset.
   function switchAuthMode(nextMode) {
     setMode(nextMode)
     setMessage('')
@@ -4350,14 +4415,14 @@ function App() {
       </header>}
 
       {authenticating ? (
-        <section className="auth-loading" role="status" aria-live="polite">
+        <section className="auth-loading" role="status" aria-live="polite">{/* SECTION - shows auth-loading. */}
           <span className="auth-loading-mark" aria-hidden="true">
             <svg viewBox="0 0 32 32"><path d="M4 27C4 15 11 7 27 5c-1 14-8 22-21 22Z" fill="currentColor" /><path d="M8 27c4-7 9-12 16-17" fill="none" stroke="#fff" strokeLinecap="round" strokeWidth="1.5" /></svg>
           </span>
           <span>Loading your CoopWise workspace…</span>
         </section>
       ) : (
-        <section className="auth-layout">
+        <section className="auth-layout">{/* SECTION - shows auth-layout. */}
           <div className="intro">
             <div className="eyebrow">CoopWise cooperative services</div>
             <h1>Built around your cooperative.</h1>
@@ -4371,20 +4436,20 @@ function App() {
                   setSessionError('')
                   setAuthenticating(true)
                   setSessionAttempt((attempt) => attempt + 1)
-                }}>Retry session</button>
-                <button className="text-button" type="button" onClick={clearSavedSession}>Clear saved session and sign in</button>
+                }}>{/* BUTTON - retry session. */}Retry session</button>
+                <button className="text-button" type="button" onClick={clearSavedSession}>{/* BUTTON - clear saved session and sign in. */}Clear saved session and sign in</button>
               </div>
             </div>}
             <div className="tabs" role="tablist" aria-label="Account options">
-              <button className={mode === 'login' ? 'tab active' : 'tab'} type="button" onClick={() => switchAuthMode('login')}>Sign in</button>
-              <button className={mode === 'register' ? 'tab active' : 'tab'} type="button" onClick={() => switchAuthMode('register')}>Register</button>
+              <button className={mode === 'login' ? 'tab active' : 'tab'} type="button" onClick={() => switchAuthMode('login')}>{/* BUTTON - sign in. */}Sign in</button>
+              <button className={mode === 'register' ? 'tab active' : 'tab'} type="button" onClick={() => switchAuthMode('register')}>{/* BUTTON - register. */}Register</button>
             </div>
             <h2>{mode === 'login' ? 'Welcome back' : mode === 'register' ? 'Create your member account' : mode === 'forgot' ? 'Reset your password' : 'Enter your reset code'}</h2>
             {message && <div className="message" role="status">{message}</div>}
             {authConfigError && <div className="message message-error" role="alert">Sign-in provider settings could not be loaded: {authConfigError}</div>}
             {authConfig?.turnstile_configuration_incomplete && <div className="message message-error" role="alert">The Turnstile site key and secret key both need to be configured before this security check can be used.</div>}
             {turnstileError && <div className="message message-error" role="alert">{turnstileError}</div>}
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit}>{/* FORM - submits sign-in, registration, or password reset details. */}
               {mode === 'register' ? (
                 <div className="form-grid">
                   <label>First name<input name="first_name" autoComplete="given-name" required maxLength="100" onChange={(event) => { event.target.value = event.target.value.replace(/[^\p{L} ]/gu, '').replace(/ {2,}/g, ' ') }} />{fieldErrors.first_name && <small>{fieldErrors.first_name}</small>}</label>
@@ -4423,7 +4488,7 @@ function App() {
                   onLoadError={setTurnstileError}
                 />
               </div>}
-              <button className="button button-primary submit" type="submit" disabled={busy}>
+              <button className="button button-primary submit" type="submit" disabled={busy}>{/* BUTTON - send reset code. */}
                 {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : mode === 'register' ? 'Create account' : mode === 'forgot' ? 'Send reset code' : 'Change password'}
               </button>
             </form>
