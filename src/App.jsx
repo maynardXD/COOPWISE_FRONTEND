@@ -492,6 +492,11 @@ function ActionToast({ message, onDismiss }) {
   )
 }
 
+// This event sends success messages from any tab to the shared toast.
+function dispatchActionToast(message) {
+  window.dispatchEvent(new CustomEvent('coopwise:action-toast', { detail: { message } }))
+}
+
 // This block shows what to expect when a list has no records.
 function StaffEmptyState({ type, title, description, loading = false }) {
   return (
@@ -747,7 +752,7 @@ function SavingsLedgerDialog({ token, member, onClose }) {
   const [range, setRange] = useState({ preset: 'all', from: '', to: '' })
   const [ledger, setLedger] = useState(null)
   const [error, setError] = useState('')
-  const [emailNotice, setEmailNotice] = useState('')
+  const setEmailNotice = dispatchActionToast
   const [emailError, setEmailError] = useState('')
   const [emailSending, setEmailSending] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -863,7 +868,6 @@ function SavingsLedgerDialog({ token, member, onClose }) {
           </button>
         </div>
         <div className="no-print"><PortalMessage error>{emailError}</PortalMessage></div>
-        <ActionToast message={emailNotice} onDismiss={setEmailNotice} />
         {error && <PortalMessage error>{error}</PortalMessage>}
         {loading && <StaffEmptyState type="savings" title="Preparing savings ledger…" description="Loading the selected member’s transactions and balances." loading />}
         {ledger && !loading && <article className="ledger-print-area print-target">
@@ -1076,7 +1080,7 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       return path
     }), [loansPage, paymentsPage, staff, staffApplicationStatus])
   const { data, error, loading, refreshEndpoint } = usePortalData(token, refreshKey, endpoints)
-  const [notice, setNotice] = useState('')
+  const setNotice = dispatchActionToast
   const [actionError, setActionError] = useState('')
   const [schedule, setSchedule] = useState(null)
   const [applicationInputs, setApplicationInputs] = useState({})
@@ -1420,7 +1424,6 @@ function LoanPortal({ token, user, refreshKey, standalone = false }) {
       </div>}
       {standalone && <div className="standalone-actions"><button className="button button-outline" type="button" onClick={refreshLoanData} disabled={loading || refreshing} aria-busy={refreshing}>{loading || refreshing ? 'Checking…' : 'Refresh status'}</button></div>}
       <PortalMessage error>{error || actionError}</PortalMessage>
-      <ActionToast message={notice} onDismiss={setNotice} />
       {staff && <nav className="loan-subtabs" aria-label="Loan management sections">
         <button className={`loan-subtab${activeStaffLoanTab === 'offers' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'offers' ? 'page' : undefined} onClick={() => setStaffLoanTab('offers')}>{/* BUTTON - loan offers. */}Loan offers</button>
         <button className={`loan-subtab${activeStaffLoanTab === 'documents' ? ' active' : ''}`} type="button" aria-current={activeStaffLoanTab === 'documents' ? 'page' : undefined} onClick={() => setStaffLoanTab('documents')}>{/* BUTTON - document reviews. */}
@@ -1896,7 +1899,7 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
     `/cooperative/cycles?contribution_page=${contributionPage}&payout_page=${payoutPage}&per_page=50`
   ], [contributionPage, payoutPage])
   const { data, error, loading } = usePortalData(token, refreshKey, endpoints)
-  const [notice, setNotice] = useState('')
+  const setNotice = dispatchActionToast
   const [actionError, setActionError] = useState('')
   const [draftCycleId, setDraftCycleId] = useState('')
   const [cyclePreview, setCyclePreview] = useState(null)
@@ -2001,8 +2004,6 @@ function CooperativePortal({ token, user, refreshKey, standalone = false }) {
         <p className="muted">Members pay their daily contribution through Xendit. Once everyone has paid, the next person in the randomized order is ready for the pooled payout. Staff confirm the simulated payout, which is then added to that member’s available balance.</p>
       </>}
       <PortalMessage error>{error || actionError}</PortalMessage>
-      <ActionToast message={notice} onDismiss={setNotice} />
-
       {staff && <>
         <section className="cycle-create-card">{/* SECTION - shows cycle-create-card. */}
           <div>
@@ -2221,7 +2222,7 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
     return [`/savings?${params}`]
   }, [staff, appliedTransactionFilters])
   const { data, error, loading } = usePortalData(token, refreshKey, endpoints)
-  const [notice, setNotice] = useState('')
+  const setNotice = dispatchActionToast
   const [actionError, setActionError] = useState('')
   const [ledgerOpen, setLedgerOpen] = useState(false)
   const [selectedSavingsMember, setSelectedSavingsMember] = useState(null)
@@ -2499,7 +2500,6 @@ function SavingsPortal({ token, user, refreshKey, standalone = false, onDeposit 
         {!filteredMembers.length && <p className="muted">No members match that search.</p>}
       </section>}
       <PortalMessage error>{error || actionError}</PortalMessage>
-      <ActionToast message={notice} onDismiss={setNotice} />
       {staff && <div className="savings-transaction-tools">
         <h3>Transaction review</h3>
         <div className="savings-filter-row">
@@ -2542,7 +2542,7 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
     ...(!staff ? ['/savings?page=1&per_page=1'] : []),
   ], [staff, transactionsPage])
   const { data, error, loading } = usePortalData(token, refreshKey, endpoints)
-  const [notice, setNotice] = useState('')
+  const setNotice = dispatchActionToast
   const [actionError, setActionError] = useState('')
   const [returnAction, setReturnAction] = useState('')
   const [loanInterestAction, setLoanInterestAction] = useState('')
@@ -2817,7 +2817,6 @@ function ShareCapitalPortal({ token, user, refreshKey, standalone = false }) {
       {!standalone && <h2>Share capital</h2>}
       <p className="muted">Share capital represents member ownership in the cooperative. It is separate from savings and is not an ordinary savings withdrawal.</p>
       <PortalMessage error>{error || actionError}</PortalMessage>
-      <ActionToast message={notice} onDismiss={setNotice} />
       {capital && <article className="portal-card cooperative-share-capital-highlight">
         <span>Cooperative-wide paid-up share capital</span>
         <strong>{capital.cooperative_paid_up_amount === undefined
@@ -3092,7 +3091,7 @@ function LearningCenter({ token, user, refreshKey, standalone = false }) {
   const staff = ['admin', 'officer'].includes(user.role)
   const { data, error, loading } = usePortalData(token, refreshKey, POLICY_ENDPOINTS)
   const [policyDraft, setPolicyDraft] = useState(null)
-  const [notice, setNotice] = useState('')
+  const setNotice = dispatchActionToast
   const [actionError, setActionError] = useState('')
   const policies = policyDraft || data?.[0]?.policies
   const policyFields = [
@@ -3134,7 +3133,6 @@ function LearningCenter({ token, user, refreshKey, standalone = false }) {
     <section className="policy-section">{/* SECTION - shows policy-section. */}
       <div className="section-heading"><div><h3>Cooperative policies for this demo</h3><p className="muted">These are this project’s sample rules, not universal cooperative rules or legal advice.</p></div></div>
       <PortalMessage error>{error || actionError}</PortalMessage>
-      <ActionToast message={notice} onDismiss={setNotice} />
       {loading && !policies && <p className="muted">Loading current demo policies…</p>}
       {!loading && !policies && !error && <p className="muted">No demo policies have been published.</p>}
       {policies && staff && <form className="portal-card form-grid policy-form" onSubmit={savePolicies}>
@@ -3437,12 +3435,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
       : path
   ), [staff, transactionsPage])
   const { data, error, loading, refreshEndpoint } = usePortalData(token, refreshKey, endpoints)
-  const [notice, setNotice] = useState(() => {
-    const result = new URLSearchParams(window.location.search).get('payment')
-    if (result === 'success') return 'The payment provider returned you to CoopWise. We are verifying the transaction; your account updates after provider confirmation.'
-    if (result === 'cancelled') return 'Checkout was cancelled. No payment has been added to your account.'
-    return ''
-  })
+  const setNotice = dispatchActionToast
   const [actionError, setActionError] = useState('')
   const [purpose, setPurpose] = useState(initialPurpose)
   const [paymentMethod, setPaymentMethod] = useState('xendit')
@@ -3482,6 +3475,11 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
     const params = new URLSearchParams(window.location.search)
     const result = params.get('payment')
     const transactionId = params.get('transaction')
+    if (result === 'success') {
+      setNotice('The payment provider returned you to CoopWise. We are verifying the transaction; your account updates after provider confirmation.')
+    } else if (result === 'cancelled') {
+      setNotice('Checkout was cancelled. No payment has been added to your account.')
+    }
     if (result === 'success' || result === 'cancelled') {
       params.delete('payment')
       params.delete('transaction')
@@ -3526,7 +3524,7 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
       }
     }
     return () => { active = false }
-  }, [token])
+  }, [setNotice, token])
 
   useEffect(() => {
     if (staff || !hasUnsettledCheckout) return undefined
@@ -3676,7 +3674,6 @@ function PaymentPortal({ token, user, refreshKey, standalone = false, initialPur
         </div>
       </div>}
       <PortalMessage error>{error || actionError}</PortalMessage>
-      <ActionToast message={notice} onDismiss={setNotice} />
       {!staff && (
         <div className="payment-available-savings">
           <span>Available savings</span>
@@ -4160,6 +4157,7 @@ function App() {
   const [memberCardToken] = useState(() => new URLSearchParams(window.location.search).get('member_card') || '')
   const [mode, setMode] = useState('login')
   const [section, setSection] = useState('dashboard')
+  const [actionToast, setActionToast] = useState('')
   const [message, setMessage] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [busy, setBusy] = useState(false)
@@ -4254,6 +4252,14 @@ function App() {
   }, [])
 
   useEffect(() => {
+    function showActionToast(event) {
+      setActionToast(typeof event.detail?.message === 'string' ? event.detail.message : '')
+    }
+    window.addEventListener('coopwise:action-toast', showActionToast)
+    return () => window.removeEventListener('coopwise:action-toast', showActionToast)
+  }, [])
+
+  useEffect(() => {
     const expired = () => {
       invalidatePortalDataCache()
       setToken(null)
@@ -4287,7 +4293,8 @@ function App() {
     setAuthenticating(false)
     setSessionError('')
     setMode('login')
-    setMessage('Your saved session was cleared. Sign in again.')
+    setMessage('')
+    dispatchActionToast('Your saved session was cleared. Sign in again.')
   }
 
   // This block changes between sign-in, registration, and password reset.
@@ -4319,7 +4326,7 @@ function App() {
       if (mode === 'register') {
         await apiRequest('/auth/register', { method: 'POST', body: JSON.stringify(values) })
         switchAuthMode('login')
-        setMessage('Registration complete. Sign in with your email or phone number.')
+        dispatchActionToast('Registration complete. Sign in with your email or phone number.')
       } else if (mode === 'forgot') {
         const result = await apiRequest('/auth/password-reset/request', {
           method: 'POST',
@@ -4330,14 +4337,14 @@ function App() {
         })
         setResetEmail(values.email.trim())
         switchAuthMode('reset')
-        setMessage(`${result.message} Enter the code if you receive it. It expires in 10 minutes.`)
+        dispatchActionToast(`${result.message} Enter the code if you receive it. It expires in 10 minutes.`)
       } else if (mode === 'reset') {
         const result = await apiRequest('/auth/password-reset/confirm', {
           method: 'POST',
           body: JSON.stringify(values),
         })
         switchAuthMode('login')
-        setMessage(result.message)
+        dispatchActionToast(result.message)
       } else {
         const result = await apiRequest('/auth/login', {
           method: 'POST',
@@ -4411,9 +4418,12 @@ function App() {
     setToken(null)
     setUser(null)
     setMode('login')
-    setMessage(revokeError
-      ? `Signed out on this device. The server could not revoke the session: ${revokeError}`
-      : 'You have signed out.')
+    if (revokeError) {
+      setMessage(`Signed out on this device. The server could not revoke the session: ${revokeError}`)
+    } else {
+      setMessage('')
+      dispatchActionToast('You have signed out.')
+    }
   }
 
   async function acceptTerms() {
@@ -4429,7 +4439,7 @@ function App() {
       setUser((current) => current
         ? { ...current, terms_required: false, terms_accepted_at: new Date().toISOString() }
         : current)
-      setMessage(result.message)
+      dispatchActionToast(result.message)
     } catch (requestError) {
       setTermsError(requestError.message)
     } finally {
@@ -4447,6 +4457,7 @@ function App() {
       onDropCapture={enforceNumericDrop}
       onBeforeInputCapture={enforceNumericInput}
     >
+      <ActionToast message={actionToast} onDismiss={setActionToast} />
       {user ? (
         <>
           <StaffWorkspace token={token} user={user} section={section} setSection={setSection} refreshKey={refreshKey} onSignOut={() => signOut()} theme={theme} onToggleTheme={toggleTheme} />
@@ -4501,7 +4512,7 @@ function App() {
               <button className={mode === 'register' ? 'tab active' : 'tab'} type="button" onClick={() => switchAuthMode('register')}>{/* BUTTON - register. */}Register</button>
             </div>
             <h2>{mode === 'login' ? 'Welcome back' : mode === 'register' ? 'Create your member account' : mode === 'forgot' ? 'Reset your password' : 'Enter your reset code'}</h2>
-            {message && <div className="message" role="status">{message}</div>}
+            {message && <div className="message message-error" role="alert">{message}</div>}
             {authConfigError && <div className="message message-error" role="alert">Sign-in provider settings could not be loaded: {authConfigError}</div>}
             {authConfig?.turnstile_configuration_incomplete && <div className="message message-error" role="alert">The Turnstile site key and secret key both need to be configured before this security check can be used.</div>}
             {turnstileError && <div className="message message-error" role="alert">{turnstileError}</div>}
